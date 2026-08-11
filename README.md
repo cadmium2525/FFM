@@ -14,6 +14,32 @@ FF5由来のデータと分離しています。スキーマと運用方針は
 node scripts/validate-database.mjs
 ```
 
+## Firebase account setup
+
+アカウントUI、Firestore同期、管理者モードは実装済みですが、接続先となる
+Firebaseプロジェクトの公開設定値と管理者UIDは環境ごとに設定する必要があります。
+
+1. Firebase ConsoleでWebアプリを作成し、Authenticationの「メール/パスワード」と
+   Cloud Firestoreを有効化します。
+2. Authenticationの承認済みドメインへ `cadmium2525.github.io` を追加します。
+3. Webアプリの設定値を [`firebase-config.js`](firebase-config.js) の
+   `FFM_FIREBASE_CONFIG` へ設定します。秘密鍵やサービスアカウント鍵は入れません。
+4. 一度ゲーム画面から管理者用アカウントを新規登録し、Firebase Consoleの
+   AuthenticationからそのUIDを確認します。
+5. UIDを `firebase-config.js` の `FFM_ADMIN_UID` と
+   [`firestore.rules`](firestore.rules) の `ADMIN_UID` の両方へ設定します。
+6. Firebase CLIで `firebase deploy --only firestore:rules` を実行してルールを反映します。
+
+画面上はプレイヤー名とパスワードのみですが、Firebase Authenticationが
+メール/パスワード方式のため、内部ではプレイヤー名のSHA-256からログインIDを
+生成しています。パスワードはFirestore、LocalStorage、Gitリポジトリの
+いずれにも保存しません。
+
+Firestoreの `users/{uid}` にはプレイヤー名、レベル、通貨、ポーション、音量、
+ウィンドウ色、所持しているかけらだけを保存します。将来のランキングは
+クライアントからスコアを書き換えられないよう、現時点では一般ユーザーの
+直接書き込みを禁止しています。
+
 FF5風UIとFFX風CTB(カウントタイムバトル)を組み合わせたボスラッシュ・プロトタイプです。
 外部ライブラリ不使用のVanilla JS (ES6 Modules) + HTML5 + CSS3のみで動作します。
 

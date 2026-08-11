@@ -1,0 +1,73 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    // Replace this value with the same UID used in firebase-config.js.
+    function isAdmin() {
+      return signedIn() && request.auth.uid == 'ADMIN_UID';
+    }
+
+    function validUserDocument() {
+      return request.resource.data.keys().hasOnly([
+        'playerName',
+        'playerNameKey',
+        'level',
+        'gil',
+        'diamonds',
+        'potions',
+        'volume',
+        'windowHue',
+        'shards',
+        'createdAt',
+        'updatedAt'
+      ])
+      && request.resource.data.playerName is string
+      && request.resource.data.playerName.size() >= 1
+      && request.resource.data.playerName.size() <= 12
+      && request.resource.data.playerNameKey is string
+      && request.resource.data.playerNameKey.size() == 64
+      && request.resource.data.level is int
+      && request.resource.data.level >= 1
+      && request.resource.data.gil is int
+      && request.resource.data.gil >= 0
+      && request.resource.data.diamonds is int
+      && request.resource.data.diamonds >= 0
+      && request.resource.data.potions is int
+      && request.resource.data.potions >= 0
+      && request.resource.data.volume is int
+      && request.resource.data.volume >= 0
+      && request.resource.data.volume <= 100
+      && request.resource.data.windowHue is int
+      && request.resource.data.windowHue >= 0
+      && request.resource.data.windowHue <= 359
+      && request.resource.data.shards is list
+      && request.resource.data.shards.size() <= 200;
+    }
+
+    match /users/{userId} {
+      allow create: if isOwner(userId) && validUserDocument();
+      allow read: if isOwner(userId) || isAdmin();
+      allow update: if isOwner(userId) && validUserDocument();
+      allow delete: if false;
+    }
+
+    // Future rankings are readable, but scores cannot be submitted directly
+    // by ordinary clients. Use a trusted server/Cloud Function when implemented.
+    match /rankings/{entryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

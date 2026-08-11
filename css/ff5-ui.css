@@ -1,10 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
 :root {
-  --ff5-blue-top: #2a4fc4;
-  --ff5-blue-bottom: #0a1a63;
+  --window-hue: 220;
+  --ff5-blue-top: hsl(var(--window-hue) 66% 47%);
+  --ff5-blue-bottom: hsl(var(--window-hue) 82% 21%);
   --ff5-border-outer: #f4f4f4;
-  --ff5-border-inner: #8fa6d8;
+  --ff5-border-inner: hsl(var(--window-hue) 42% 70%);
 }
 
 body {
@@ -36,7 +37,7 @@ body {
 
 .ff5-button:hover {
   transform: scale(1.05);
-  background: linear-gradient(180deg, #3b64e0 0%, #122582 100%);
+  filter: brightness(1.18);
 }
 
 .ff5-button:active {
@@ -275,7 +276,7 @@ body {
   min-width: 0;
   font-family: inherit;
   font-size: 9px;
-  background: #0a1a63;
+  background: var(--ff5-blue-bottom);
   color: #fff;
   border: 2px solid #fff;
   padding: 3px;

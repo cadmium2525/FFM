@@ -5,7 +5,16 @@ import { BattleManager } from './battle/BattleManager.js';
 import { BattleUI } from './ui/BattleUI.js';
 import { IntermissionUI } from './ui/IntermissionUI.js';
 import { partyData } from './data/partyData.js';
-import { ff5Equipment } from './database/ff5Database.js';
+import {
+  crystalShards,
+  ff5BattleRules,
+  ff5Equipment,
+  ff5Items,
+  ff5JobAbilities,
+  ff5Magic,
+  ff5Songs,
+} from './database/ff5Database.js';
+import { FirebaseAccountService } from './services/FirebaseAccountService.js';
 import { bossData } from './data/bossData.js';
 
 // ---------- Screen switching ----------
@@ -41,7 +50,7 @@ const defaultProfile = {
   diamonds: 900,
   potions: 3,
   volume: 70,
-  statusHue: 220,
+  windowHue: 220,
   shards: [{ ...shardCatalog[0], count: 1 }],
 };
 
@@ -49,17 +58,31 @@ function loadProfile() {
   try {
     const saved = JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY) || 'null');
     if (!saved) return structuredClone(defaultProfile);
-    return {
+    const merged = {
       ...structuredClone(defaultProfile),
       ...saved,
       shards: Array.isArray(saved.shards) ? saved.shards : structuredClone(defaultProfile.shards),
     };
+    // Migrate the earlier status-bar-only color setting to the whole UI.
+    merged.windowHue = Number(saved.windowHue ?? saved.statusHue ?? defaultProfile.windowHue);
+    delete merged.statusHue;
+    return merged;
   } catch {
     return structuredClone(defaultProfile);
   }
 }
 
 let profile = loadProfile();
+let firebaseAccount = null;
+let accountSnapshot = {
+  status: 'unconfigured',
+  user: null,
+  isConfigured: false,
+  isSignedIn: false,
+  isAdmin: false,
+};
+let loadedCloudUid = null;
+let cloudSaveTimer = null;
 
 function escapeHtml(value) {
   return String(value)
@@ -71,7 +94,7 @@ function escapeHtml(value) {
 }
 
 function applyProfileOptions() {
-  document.documentElement.style.setProperty('--status-hue', String(profile.statusHue));
+  document.documentElement.style.setProperty('--window-hue', String(profile.windowHue));
 }
 
 function renderProfileStatus() {
@@ -81,7 +104,7 @@ function renderProfileStatus() {
   document.getElementById('profile-diamonds').textContent = profile.diamonds.toLocaleString('ja-JP');
 }
 
-function saveProfile() {
+function saveProfile({ cloud = true } = {}) {
   try {
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
   } catch {
@@ -89,6 +112,67 @@ function saveProfile() {
   }
   applyProfileOptions();
   renderProfileStatus();
+
+  if (cloud && firebaseAccount?.isSignedIn) {
+    clearTimeout(cloudSaveTimer);
+    cloudSaveTimer = setTimeout(() => {
+      firebaseAccount.saveProfile(profile).catch((error) => {
+        console.warn('Firestore profile sync failed:', error);
+      });
+    }, 350);
+  }
+}
+
+function accountStatusText() {
+  if (accountSnapshot.status === 'unconfigured') return 'Firebase未接続：設定値を登録するとクラウド保存を利用できます。';
+  if (accountSnapshot.status === 'connecting' || accountSnapshot.status === 'idle') return 'Firebaseへ接続しています…';
+  if (accountSnapshot.status === 'error') return 'Firebaseへの接続に失敗しました。設定値と許可ドメインを確認してください。';
+  if (accountSnapshot.isSignedIn) {
+    return accountSnapshot.isAdmin
+      ? `ログイン中：${profile.name}（管理者）`
+      : `ログイン中：${profile.name}（クラウド保存有効）`;
+  }
+  return '未ログイン：新規登録またはログインしてください。';
+}
+
+function updateAccountUi() {
+  const adminButton = document.getElementById('admin-mode-button');
+  adminButton?.classList.toggle('hidden', !accountSnapshot.isAdmin);
+  const status = document.getElementById('account-status');
+  if (status) status.textContent = accountStatusText();
+}
+
+function applyCloudProfile(data) {
+  if (!data) return;
+  profile = {
+    ...profile,
+    name: data.playerName ?? profile.name,
+    level: Number(data.level ?? profile.level),
+    gil: Number(data.gil ?? profile.gil),
+    diamonds: Number(data.diamonds ?? profile.diamonds),
+    potions: Number(data.potions ?? profile.potions),
+    volume: Number(data.volume ?? profile.volume),
+    windowHue: Number(data.windowHue ?? profile.windowHue),
+    shards: Array.isArray(data.shards) ? data.shards : profile.shards,
+  };
+  saveProfile({ cloud: false });
+}
+
+async function handleAccountState(snapshot) {
+  accountSnapshot = snapshot;
+  updateAccountUi();
+  if (!snapshot.user) {
+    loadedCloudUid = null;
+    return;
+  }
+  if (loadedCloudUid === snapshot.user.uid) return;
+  loadedCloudUid = snapshot.user.uid;
+  try {
+    applyCloudProfile(await firebaseAccount.loadProfile());
+    updateAccountUi();
+  } catch (error) {
+    console.warn('Firestore profile load failed:', error);
+  }
 }
 
 const menuPanelEl = document.getElementById('menu-panel');
@@ -193,16 +277,35 @@ function renderKeyItems() {
 }
 
 function renderOptions(message = '') {
+  const accountDisabled = !accountSnapshot.isConfigured || ['connecting', 'idle', 'error'].includes(accountSnapshot.status);
+  const signedIn = accountSnapshot.isSignedIn;
   openMenuPanel(
     'オプション',
     `<form id="options-form" class="options-form">
       ${message ? `<p class="menu-notice">${escapeHtml(message)}</p>` : ''}
-      <label>プレイヤー名<input id="option-player-name" maxlength="12" value="${escapeHtml(profile.name)}"></label>
+      <section class="account-card">
+        <h4>ユーザーアカウント</h4>
+        <p id="account-status" class="account-status">${escapeHtml(accountStatusText())}</p>
+        <label>プレイヤー名
+          <input id="option-player-name" maxlength="12" autocomplete="username" value="${escapeHtml(profile.name)}" ${signedIn ? 'readonly' : ''}>
+        </label>
+        <label>パスワード
+          <input id="option-password" type="password" minlength="6" maxlength="64" autocomplete="current-password" placeholder="6文字以上">
+        </label>
+        <div class="account-actions">
+          ${signedIn
+            ? `<button id="account-password-change" class="panel-button" type="button">パスワード変更</button>
+               <button id="account-sign-out" class="panel-button" type="button">ログアウト</button>`
+            : `<button id="account-register" class="panel-button" type="button" ${accountDisabled ? 'disabled' : ''}>新規登録</button>
+               <button id="account-sign-in" class="panel-button" type="button" ${accountDisabled ? 'disabled' : ''}>ログイン</button>`}
+        </div>
+        <small>パスワードはFirebase Authenticationが管理し、ゲームデータや端末には保存しません。</small>
+      </section>
       <label>音量 <output id="volume-output">${profile.volume}</output>
         <input id="option-volume" type="range" min="0" max="100" value="${profile.volume}">
       </label>
-      <label>ステータスバーの色相 <output id="hue-output">${profile.statusHue}</output>
-        <input id="option-hue" type="range" min="0" max="359" value="${profile.statusHue}">
+      <label>ウィンドウの色 <output id="hue-output">${profile.windowHue}</output>
+        <input id="option-hue" type="range" min="0" max="359" value="${profile.windowHue}">
       </label>
       <button class="panel-button primary" type="submit">設定を保存</button>
     </form>`
@@ -212,18 +315,116 @@ function renderOptions(message = '') {
   const volumeInput = document.getElementById('option-volume');
   hueInput.addEventListener('input', () => {
     document.getElementById('hue-output').textContent = hueInput.value;
-    document.documentElement.style.setProperty('--status-hue', hueInput.value);
+    document.documentElement.style.setProperty('--window-hue', hueInput.value);
   });
   volumeInput.addEventListener('input', () => {
     document.getElementById('volume-output').textContent = volumeInput.value;
   });
   document.getElementById('options-form').addEventListener('submit', (event) => {
     event.preventDefault();
-    profile.name = document.getElementById('option-player-name').value.trim() || 'PLAYER';
+    if (!signedIn) profile.name = document.getElementById('option-player-name').value.trim() || 'PLAYER';
     profile.volume = Number(volumeInput.value);
-    profile.statusHue = Number(hueInput.value);
+    profile.windowHue = Number(hueInput.value);
     saveProfile();
     renderOptions('設定を保存しました。');
+  });
+
+  const runAccountAction = async (action) => {
+    const name = document.getElementById('option-player-name').value.trim();
+    const password = document.getElementById('option-password').value;
+    try {
+      if (action === 'register') {
+        profile.name = name || 'PLAYER';
+        await firebaseAccount.register(profile.name, password, profile);
+        saveProfile();
+        renderOptions('アカウントを作成し、Firestoreへユーザー情報を保存しました。');
+      }
+      if (action === 'sign-in') {
+        await firebaseAccount.signIn(name, password);
+        applyCloudProfile(await firebaseAccount.loadProfile());
+        renderOptions('ログインしてクラウドデータを読み込みました。');
+      }
+      if (action === 'password') {
+        await firebaseAccount.changePassword(password);
+        renderOptions('パスワードを変更しました。');
+      }
+      if (action === 'sign-out') {
+        await firebaseAccount.signOut();
+        renderOptions('ログアウトしました。端末内のデータは残っています。');
+      }
+    } catch (error) {
+      const knownMessages = {
+        'auth/email-already-in-use': 'そのプレイヤー名は既に使用されています。',
+        'auth/invalid-credential': 'プレイヤー名またはパスワードが違います。',
+        'auth/weak-password': 'パスワードは6文字以上で設定してください。',
+        'auth/requires-recent-login': '安全のため、いったんログアウトして再ログイン後に変更してください。',
+      };
+      renderOptions(knownMessages[error.code] ?? error.message ?? 'アカウント操作に失敗しました。');
+    }
+  };
+
+  document.getElementById('account-register')?.addEventListener('click', () => runAccountAction('register'));
+  document.getElementById('account-sign-in')?.addEventListener('click', () => runAccountAction('sign-in'));
+  document.getElementById('account-password-change')?.addEventListener('click', () => runAccountAction('password'));
+  document.getElementById('account-sign-out')?.addEventListener('click', () => runAccountAction('sign-out'));
+}
+
+const adminCatalogs = {
+  equipment: { label: `装備 (${ff5Equipment.length})`, records: ff5Equipment },
+  magic: { label: `魔法 (${ff5Magic.length})`, records: ff5Magic },
+  abilities: { label: `アビリティ・歌 (${ff5JobAbilities.length + ff5Songs.length})`, records: [...ff5JobAbilities, ...ff5Songs] },
+  items: { label: `アイテム (${ff5Items.length})`, records: ff5Items },
+  crystals: { label: `クリスタルのかけら (${crystalShards.length})`, records: crystalShards },
+  battle: { label: 'バトル仕様', records: [ff5BattleRules] },
+};
+
+function adminRecordName(record) {
+  return record.nameJa ?? record.nameEn ?? record.id;
+}
+
+function renderAdminCatalog(selectedCatalog = 'equipment') {
+  if (!firebaseAccount?.isAdmin) {
+    openMenuPanel('管理者モード', '<p class="menu-notice">管理者アカウントでのログインが必要です。</p>');
+    return;
+  }
+
+  const catalog = adminCatalogs[selectedCatalog] ?? adminCatalogs.equipment;
+  const options = Object.entries(adminCatalogs)
+    .map(([id, item]) => `<option value="${id}" ${id === selectedCatalog ? 'selected' : ''}>${escapeHtml(item.label)}</option>`)
+    .join('');
+  const records = catalog.records
+    .map((record) => {
+      const json = JSON.stringify(record);
+      return `<article class="admin-record" data-search="${escapeHtml(`${adminRecordName(record)} ${record.nameEn ?? ''} ${record.id} ${json}`.toLocaleLowerCase('ja-JP'))}">
+        <strong>${escapeHtml(adminRecordName(record))}</strong>
+        <small>ID: ${escapeHtml(record.id)}</small>
+        <small>${escapeHtml(json)}</small>
+      </article>`;
+    })
+    .join('');
+
+  openMenuPanel(
+    '管理者モード',
+    `<div class="admin-toolbar">
+      <select id="admin-catalog-select" aria-label="データ種別">${options}</select>
+      <input id="admin-search" type="search" placeholder="名前・ID・効果で検索" aria-label="管理データ検索">
+    </div>
+    <div id="admin-count" class="admin-count">${catalog.records.length}件</div>
+    <div id="admin-records" class="admin-records">${records}</div>`
+  );
+
+  document.getElementById('admin-catalog-select').addEventListener('change', (event) => {
+    renderAdminCatalog(event.target.value);
+  });
+  document.getElementById('admin-search').addEventListener('input', (event) => {
+    const query = event.target.value.trim().toLocaleLowerCase('ja-JP');
+    let visible = 0;
+    document.querySelectorAll('.admin-record').forEach((record) => {
+      const matches = !query || record.dataset.search.includes(query);
+      record.classList.toggle('hidden', !matches);
+      if (matches) visible += 1;
+    });
+    document.getElementById('admin-count').textContent = `${visible}件 / ${catalog.records.length}件`;
   });
 }
 
@@ -235,6 +436,7 @@ document.querySelectorAll('[data-menu-action]').forEach((button) => {
     if (action === 'gacha') renderGacha();
     if (action === 'key-items') renderKeyItems();
     if (action === 'options') renderOptions();
+    if (action === 'admin') renderAdminCatalog();
   });
 });
 
@@ -424,6 +626,11 @@ if ('serviceWorker' in navigator && ['http:', 'https:'].includes(location.protoc
     });
   });
 }
+
+firebaseAccount = new FirebaseAccountService({ onStateChange: handleAccountState });
+firebaseAccount.initialize().catch((error) => {
+  console.warn('Firebase initialization failed:', error);
+});
 
 applyProfileOptions();
 renderProfileStatus();

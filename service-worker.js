@@ -1,10 +1,11 @@
-const CACHE_NAME = 'ff-crystal-rush-pwa-v2';
+const CACHE_NAME = 'ff-crystal-rush-pwa-v3';
 const APP_SHELL = [
   './',
   './index.html',
   './app.js',
-  './css/style.css?v=ff5-db-v2',
-  './css/ff5-ui.css?v=ff5-db-v2',
+  './css/style.css?v=account-admin-v3',
+  './css/ff5-ui.css?v=account-admin-v3',
+  './firebase-config.js',
   './manifest.webmanifest',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
@@ -27,6 +28,19 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+
+  if (new URL(event.request.url).pathname.endsWith('/firebase-config.js')) {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' })
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
 
   if (event.request.mode === 'navigate') {
     event.respondWith(
