@@ -21,6 +21,9 @@ export class Unit {
     this.weakness = config.weakness ?? null; // element string
     this.resist = config.resist ?? null;
     this.weaponElement = config.weaponElement ?? null;
+    this.weaponId = config.weaponId ?? 'w_neutral';
+    this.baseAtk = config.baseAtk ?? this.atk;
+    this.equippedAbilitySet = config.equippedAbilitySet ?? 'たたかう型';
 
     this.size = config.size ?? 1.0;
     this.ai = config.ai ?? null;

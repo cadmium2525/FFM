@@ -41,8 +41,7 @@ export class BattleUI {
 
   attachBattle(battleManager) {
     this.battleManager = battleManager;
-    this.closeSubmenu();
-    this.closeTargetWindow();
+    this.closeActionWindows();
     this.renderCommandListIdle();
   }
 
@@ -58,6 +57,7 @@ export class BattleUI {
     });
 
     eventBus.on('battle:playerTurn', ({ actor }) => {
+      this.closeActionWindows();
       this.renderCommandListForActor(actor);
     });
 
@@ -213,6 +213,9 @@ export class BattleUI {
   // ---------- Player input flow ----------
 
   handleCommandSelect(commandId, actor) {
+    // A newly selected command always replaces any open submenu/target window.
+    this.closeActionWindows();
+
     switch (commandId) {
       case 'attack':
         this.submitAttack(actor);
@@ -286,6 +289,13 @@ export class BattleUI {
     this.submenuWindowEl.classList.add('hidden');
   }
 
+  closeActionWindows() {
+    this.closeSubmenu();
+    this.closeTargetWindow();
+    this.pendingCommandType = null;
+    this.pendingSpellOrItem = null;
+  }
+
   promptTarget(entry, kind, actor) {
     const isHeal = entry.healAmount !== undefined;
     const targets = isHeal ? this.battleManager.party.filter((p) => p.isAlive()) : [this.battleManager.boss];
@@ -313,6 +323,7 @@ export class BattleUI {
   }
 
   finalizeAction(entry, kind, target) {
+    this.closeActionWindows();
     if (kind === 'spell') {
       this.battleManager.submitPlayerAction({ type: 'magic', spell: entry, ctbCost: entry.ctbCost }, target);
     } else if (kind === 'item') {

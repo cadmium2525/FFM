@@ -2,6 +2,7 @@ import { eventBus } from './EventBus.js';
 
 export const States = Object.freeze({
   TITLE: 'TITLE',
+  MENU: 'MENU',
   BATTLE: 'BATTLE',
   INTERMISSION: 'INTERMISSION',
   VICTORY: 'VICTORY',

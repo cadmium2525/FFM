@@ -318,3 +318,572 @@ ul {
 /* ---------- scrollbars ---------- */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-thumb { background: #4a6fb5; border-radius: 3px; }
+
+/* ---------- Main menu / PWA shell ---------- */
+:root {
+  --status-hue: 220;
+}
+
+html,
+body {
+  overscroll-behavior: none;
+}
+
+.menu-layout {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(90, 123, 255, 0.22), transparent 42%),
+    linear-gradient(180deg, #101b42 0%, #050812 100%);
+}
+
+.player-status-bar {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.4fr) repeat(3, minmax(72px, 0.7fr));
+  gap: 8px;
+  align-items: center;
+  min-height: 74px;
+  padding: 12px 16px;
+  background: linear-gradient(
+    135deg,
+    hsl(var(--status-hue) 72% 43%),
+    hsl(var(--status-hue) 82% 18%)
+  );
+}
+
+.status-primary,
+.profile-stat {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.status-caption,
+.profile-stat span {
+  color: #bcd3ff;
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+
+.status-primary strong,
+.profile-stat strong {
+  overflow: hidden;
+  color: #fff;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-main {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(280px, 1.2fr);
+  gap: 18px;
+  padding: 28px;
+  overflow-y: auto;
+}
+
+.menu-brand {
+  align-self: center;
+  padding: 18px;
+}
+
+.menu-brand-kicker {
+  display: block;
+  margin-bottom: 12px;
+  color: #79e8ff;
+  font-size: 8px;
+  letter-spacing: 2px;
+}
+
+.menu-brand h2 {
+  margin-bottom: 18px;
+  color: #fff;
+  font-size: 22px;
+}
+
+.menu-brand p,
+.menu-panel-content p {
+  color: #cfe0ff;
+  font-size: 10px;
+  line-height: 1.9;
+}
+
+.menu-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.menu-action,
+.course-card,
+.panel-button,
+.menu-back-button {
+  color: #fff;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.menu-action {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 70px;
+  padding: 14px 18px;
+  text-align: left;
+  background: linear-gradient(135deg, rgba(61, 103, 224, 0.92), rgba(7, 25, 91, 0.96));
+  border: 2px solid #a9c2ff;
+  box-shadow: inset 0 0 0 2px #14245c;
+}
+
+.menu-action span {
+  font-size: 14px;
+}
+
+.menu-action small,
+.course-card small,
+.shop-card small,
+.shard-row small {
+  color: #bcd3ff;
+  font-size: 8px;
+  line-height: 1.6;
+}
+
+.menu-action:active,
+.course-card:active,
+.panel-button:active {
+  transform: translateY(1px);
+  filter: brightness(1.2);
+}
+
+.menu-panel {
+  position: absolute;
+  inset: 94px 10px 10px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.menu-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 4px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.menu-panel-header h3 {
+  color: #ffe9a8;
+  font-size: 14px;
+}
+
+.menu-back-button,
+.panel-button {
+  padding: 10px 14px;
+  background: #142f85;
+  border: 2px solid #dce8ff;
+  font-size: 9px;
+}
+
+.panel-button.primary {
+  width: 100%;
+  margin-top: 12px;
+  background: linear-gradient(180deg, #4f78ef, #102b87);
+}
+
+.menu-panel-content {
+  min-height: 0;
+  flex: 1;
+  padding: 16px 4px 4px;
+  overflow-y: auto;
+}
+
+.course-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  text-align: left;
+  background: linear-gradient(135deg, #233e9d, #07164f);
+  border: 2px solid #d6e3ff;
+}
+
+.course-card strong {
+  font-size: 15px;
+}
+
+.course-rank,
+.course-start-label {
+  color: #79e8ff;
+  font-size: 9px;
+}
+
+.course-start-label {
+  align-self: flex-end;
+  color: #ffe9a8;
+}
+
+.shop-card,
+.shard-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  background: rgba(3, 11, 46, 0.5);
+  border: 1px solid rgba(190, 215, 255, 0.46);
+}
+
+.shop-card > div:first-child,
+.shard-row > span:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.shop-card-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 8px;
+}
+
+.menu-notice {
+  margin-bottom: 12px;
+  padding: 10px;
+  color: #fff !important;
+  background: rgba(75, 224, 255, 0.16);
+  border-left: 3px solid #79e8ff;
+}
+
+.gacha-visual {
+  width: 108px;
+  height: 108px;
+  margin: 4px auto 18px;
+  display: grid;
+  place-items: center;
+}
+
+.gacha-visual span,
+.shard-gem {
+  display: block;
+  background: linear-gradient(135deg, #d6fbff, #5edcff 38%, #7755ff 70%, #ffb8ff);
+  clip-path: polygon(50% 0, 92% 34%, 75% 100%, 25% 100%, 8% 34%);
+  filter: drop-shadow(0 0 12px #50d8ff);
+}
+
+.gacha-visual span {
+  width: 76px;
+  height: 100px;
+}
+
+.shard-list {
+  display: grid;
+  gap: 8px;
+}
+
+.shard-row {
+  justify-content: flex-start;
+}
+
+.shard-row b {
+  margin-left: auto;
+  color: #ffe9a8;
+  font-size: 10px;
+}
+
+.shard-gem {
+  width: 24px;
+  height: 32px;
+  flex: 0 0 auto;
+}
+
+.options-form {
+  display: grid;
+  gap: 18px;
+}
+
+.options-form label {
+  display: grid;
+  gap: 8px;
+  color: #fff;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.options-form input[type='text'],
+.options-form input:not([type]) {
+  min-width: 0;
+}
+
+.options-form input {
+  width: 100%;
+  padding: 9px;
+  color: #fff;
+  background: #07164f;
+  border: 2px solid #d7e3ff;
+  font-family: inherit;
+}
+
+.setup-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* Battle action lists overlay the party status panel. */
+#party-status-window {
+  position: relative;
+}
+
+#party-status-window .target-window,
+#party-status-window .submenu-window {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  max-height: none;
+  padding: 14px;
+  overflow-y: auto;
+  z-index: 30;
+}
+
+/* ---------- Portrait-first gameplay ---------- */
+@media (orientation: portrait), (max-aspect-ratio: 4/5) {
+  #game-root {
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    max-width: 560px;
+    max-height: none;
+    aspect-ratio: auto;
+  }
+
+  .title-box {
+    width: calc(100% - 28px);
+    padding: 34px 22px;
+  }
+
+  .battle-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1.45fr) 86px minmax(232px, 1fr);
+    padding: max(5px, env(safe-area-inset-top)) 5px max(5px, env(safe-area-inset-bottom));
+    gap: 6px;
+  }
+
+  .battle-field {
+    grid-column: 1;
+    grid-row: 1;
+    padding: 8px;
+  }
+
+  .enemy-field {
+    padding: 30px 3% 12px 4%;
+  }
+
+  .party-field {
+    flex-basis: 27%;
+    gap: 8px;
+    padding: 24px 2px 8px;
+  }
+
+  .ctb-panel {
+    grid-column: 1;
+    grid-row: 2;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+  }
+
+  .ctb-panel-title {
+    flex: 0 0 auto;
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: 2px;
+  }
+
+  .ctb-list {
+    min-width: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .ctb-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ctb-entry {
+    min-width: 44px;
+    flex: 0 0 auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 2px;
+    text-align: center;
+  }
+
+  .ctb-entry .ctb-label {
+    max-width: 56px;
+    overflow: hidden;
+    font-size: 6px;
+    text-overflow: ellipsis;
+  }
+
+  .bottom-bar {
+    grid-column: 1;
+    grid-row: 3;
+    grid-template-columns: minmax(118px, 0.42fr) minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .bottom-box {
+    padding: 9px 8px;
+  }
+
+  .box-heading {
+    margin-bottom: 7px;
+    font-size: 10px;
+  }
+
+  .command-list {
+    gap: 3px;
+  }
+
+  .command-list li {
+    padding: 5px 4px 5px 14px;
+    font-size: clamp(9px, 2.7vw, 12px);
+  }
+
+  .message-window {
+    top: max(8px, env(safe-area-inset-top));
+    right: 10px;
+    bottom: auto;
+    left: 10px;
+    min-height: 42px;
+    padding: 11px 12px;
+    font-size: 9px;
+  }
+
+  .menu-layout {
+    gap: 7px;
+    padding: max(7px, env(safe-area-inset-top)) 7px max(7px, env(safe-area-inset-bottom));
+  }
+
+  .player-status-bar {
+    grid-template-columns: minmax(92px, 1.25fr) repeat(3, minmax(56px, 0.7fr));
+    gap: 5px;
+    min-height: 70px;
+    padding: 10px 9px;
+  }
+
+  .status-primary strong,
+  .profile-stat strong {
+    font-size: clamp(8px, 2.6vw, 11px);
+  }
+
+  .status-caption,
+  .profile-stat span {
+    font-size: 6px;
+  }
+
+  .menu-main {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 15px;
+  }
+
+  .menu-brand {
+    align-self: auto;
+    padding: 8px 4px 2px;
+  }
+
+  .menu-brand h2 {
+    margin-bottom: 9px;
+    font-size: 17px;
+  }
+
+  .menu-brand p {
+    font-size: 8px;
+    line-height: 1.7;
+  }
+
+  .menu-actions {
+    gap: 7px;
+  }
+
+  .menu-action {
+    min-height: 58px;
+    padding: 11px 13px;
+  }
+
+  .menu-action span {
+    font-size: 11px;
+  }
+
+  .menu-action small {
+    font-size: 6px;
+  }
+
+  .menu-panel {
+    inset: calc(max(7px, env(safe-area-inset-top)) + 77px) 7px max(7px, env(safe-area-inset-bottom));
+    padding: 12px;
+  }
+
+  .menu-panel-content {
+    padding-top: 12px;
+  }
+
+  .intermission-layout {
+    height: 100vh;
+    height: 100dvh;
+    padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+    gap: 8px;
+  }
+
+  .intermission-party {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .intermission-card {
+    padding: 9px;
+  }
+
+  .setup-actions .ff5-button {
+    padding: 9px 12px;
+    font-size: 8px;
+  }
+}
+
+@media (orientation: portrait) and (max-height: 700px) {
+  .battle-layout {
+    grid-template-rows: minmax(0, 1.25fr) 72px minmax(205px, 1fr);
+  }
+
+  .party-field {
+    gap: 5px;
+  }
+
+  .menu-brand p {
+    display: none;
+  }
+
+  .menu-action {
+    min-height: 50px;
+  }
+}
