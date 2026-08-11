@@ -69,3 +69,52 @@ defense/evasion, supported stat and elemental equipment effects, and every comma
 shown as `戦闘反映` in formation. Unsupported command abilities remain in this catalog but
 are disabled in formation as `準備中`. Job restrictions, inventory ownership, shop stock,
 the remaining special procs/statuses, and shard techniques are still future subsystems.
+
+## Boss technique reference (`ff5BossTechniques.js`)
+
+`ff5BossTechniques.js` is a **separate, standalone** reference catalog of the named
+attacks/techniques used by 52 FFV story and optional bosses (322 techniques total),
+collected so a boss encounter can be built by pulling straight from this list instead of
+re-researching movesets from scratch. It deliberately does **not** join `ff5Database.js` /
+`battleCatalog.js` or `scripts/validate-database.mjs`'s record-count assertions — it has its
+own lightweight checker at `scripts/validate-boss-techniques.mjs` (ID uniqueness, required
+fields, `implemented:false`/`runtimeReady:false` flags).
+
+Shape per boss record:
+
+```js
+{
+  id: 'bossref_bahamut_boss',
+  nameEn: 'Bahamut', nameJa: 'バハムート', nameConfidence: 'high',
+  location: 'North Mountain (World 3)', world: 3, referenceHp: 40000,
+  weaknessElement: null, statusWeakness: null,
+  techniques: [
+    { id: 'bosstech_bahamut_boss_mega_flare', nameEn: 'Mega Flare', nameJa: null,
+      element: null, target: 'all_enemies', power: 'extreme', statuses: [],
+      note: '瀕死になると使う切り札級の全体無属性大ダメージ。', implemented: false },
+    // ...
+  ],
+  implemented: false, runtimeReady: false,
+}
+```
+
+- `nameConfidence` flags how solid each boss's naming is (`high`/`medium`/`low`) — low means
+  the record uses an SNES-era fan romanization rather than the official Pixel Remaster
+  script, and should be double-checked before shipping in player-facing UI.
+- `target` reuses the exact same vocabulary as `battleCatalog.js`'s `targetDescriptors`
+  (`one_enemy`, `all_enemies`, `self`, `all_allies`, `one_ally`), but from the **boss's own
+  point of view** as the acting unit — so `one_enemy` means "one party member," matching how
+  `BossActionProfiles.js` already models boss kits.
+- `power` is a relative `'low'|'medium'|'high'|'extreme'` tier per-encounter (not
+  cross-boss comparable) derived from the original release's damage ranges, meant as a
+  starting point for tuning `BossActionProfiles.js`-style power multipliers, not a final
+  balance number.
+- `referenceHp` is the original SNES-release baseline, for relative scaling reference only;
+  FFM's own boss stats in `src/data/bossData.js` are original values and are not meant to
+  match it 1:1.
+
+To wire a technique into an actual encounter: pick entries from
+`ff5BossTechniques[...].techniques`, translate them into `BossActionProfiles.js`'s
+`attack()`/`magic()`/`status()` shorthands (or a new `battleCatalog.js`-style operations
+list if the effect needs one), and set `implemented: true` on the copy that ships — the
+reference record itself stays untouched so it remains reusable for other bosses/kits.
