@@ -1,5 +1,19 @@
 # FF Boss Rush - CTB Edition
 
+## Gameplay database
+
+将来のバトル、魔法、アビリティ、アイテム、装備、ショップ用データは
+[`src/database/ff5Database.js`](src/database/ff5Database.js) に集約しています。
+基準バージョンはFF5 Pixel Remasterで、本作独自のクリスタルのかけらは
+FF5由来のデータと分離しています。スキーマと運用方針は
+[`src/database/README.md`](src/database/README.md) を参照してください。
+
+件数と編成参照の整合性は次のコマンドで検証できます。
+
+```sh
+node scripts/validate-database.mjs
+```
+
 FF5風UIとFFX風CTB(カウントタイムバトル)を組み合わせたボスラッシュ・プロトタイプです。
 外部ライブラリ不使用のVanilla JS (ES6 Modules) + HTML5 + CSS3のみで動作します。
 

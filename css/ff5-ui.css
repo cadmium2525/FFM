@@ -246,20 +246,47 @@ body {
   gap: 10px;
 }
 
-.intermission-card .ability-select {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.intermission-card > div:last-child {
+  min-width: 0;
+}
+
+.intermission-card .formation-selects {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
   margin-top: 6px;
 }
 
+.formation-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  color: #dce8ff;
+  font-size: 7px;
+}
+
+.formation-field:nth-last-child(1) {
+  grid-column: 1 / -1;
+}
+
 .intermission-card select {
+  width: 100%;
+  min-width: 0;
   font-family: inherit;
   font-size: 9px;
   background: #0a1a63;
   color: #fff;
   border: 2px solid #fff;
   padding: 3px;
+}
+
+.formation-note {
+  display: block;
+  margin-top: 6px;
+  color: #9fb9ed;
+  font-size: 6px;
+  line-height: 1.5;
 }
 
 .intermission-card .card-name {

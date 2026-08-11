@@ -24,6 +24,15 @@ export class Unit {
     this.weaponId = config.weaponId ?? 'w_neutral';
     this.baseAtk = config.baseAtk ?? this.atk;
     this.equippedAbilitySet = config.equippedAbilitySet ?? 'たたかう型';
+    this.equipment = config.equipment ?? {
+      weapon: null,
+      shield: null,
+      head: null,
+      body: null,
+      accessory: null,
+    };
+    this.abilityId = config.abilityId ?? 'ability_guard';
+    this.crystalShardId = config.crystalShardId ?? 'shard_azure';
 
     this.size = config.size ?? 1.0;
     this.ai = config.ai ?? null;

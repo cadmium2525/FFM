@@ -4,7 +4,8 @@ import { Unit } from './battle/Unit.js';
 import { BattleManager } from './battle/BattleManager.js';
 import { BattleUI } from './ui/BattleUI.js';
 import { IntermissionUI } from './ui/IntermissionUI.js';
-import { partyData, weaponOptions } from './data/partyData.js';
+import { partyData } from './data/partyData.js';
+import { ff5Equipment } from './database/ff5Database.js';
 import { bossData } from './data/bossData.js';
 
 // ---------- Screen switching ----------
@@ -245,13 +246,22 @@ let livingParty = null;
 function freshPartyState() {
   return partyData.map((p) => ({
     ...p,
+    equipment: { ...p.equipment },
     hp: p.maxHp,
     mp: p.maxMp,
     baseAtk: p.atk,
-    weaponId: 'w_neutral',
+    weaponId: p.equipment?.weapon ?? null,
     weaponElement: null,
     weaponAtkBonus: 0,
   }));
+}
+
+function legacyAbilitySetFor(abilityId, fallback = 'たたかう型') {
+  if (!abilityId) return fallback;
+  if (abilityId === 'ability_white_magic') return '白魔法';
+  if (abilityId === 'ability_black_magic') return '黒魔法';
+  if (abilityId === 'ability_summon') return '召喚魔法';
+  return 'たたかう型';
 }
 
 function buildPartyUnits(state) {
@@ -273,7 +283,10 @@ function buildPartyUnits(state) {
         weaponElement: p.weaponElement,
         weaponId: p.weaponId,
         baseAtk: p.baseAtk,
-        equippedAbilitySet: p.equippedAbilitySet,
+        equippedAbilitySet: legacyAbilitySetFor(p.abilityId, p.equippedAbilitySet),
+        equipment: { ...p.equipment },
+        abilityId: p.abilityId,
+        crystalShardId: p.crystalShardId,
       })
   );
 }
@@ -308,12 +321,16 @@ const intermissionUI = new IntermissionUI();
 
 function applyPartySetup(partyUnits) {
   partyUnits.forEach((unit, index) => {
-    livingParty[index].weaponId = unit.weaponId;
-    livingParty[index].weaponElement = unit.weaponElement;
+    livingParty[index].equipment = { ...unit.equipment };
+    livingParty[index].weaponId = unit.equipment.weapon;
+    const chosenWeapon = ff5Equipment.find((item) => item.id === unit.equipment.weapon);
+    livingParty[index].weaponElement = chosenWeapon?.element ?? null;
     livingParty[index].baseAtk = unit.baseAtk;
-    const chosenWeapon = weaponOptions.find((weapon) => weapon.id === unit.weaponId);
-    livingParty[index].weaponAtkBonus = chosenWeapon ? chosenWeapon.atkBonus : 0;
-    livingParty[index].equippedAbilitySet = unit.equippedAbilitySet;
+    // Database equipment stats are intentionally not applied to the prototype battle yet.
+    livingParty[index].weaponAtkBonus = 0;
+    livingParty[index].abilityId = unit.abilityId;
+    livingParty[index].crystalShardId = unit.crystalShardId;
+    livingParty[index].equippedAbilitySet = legacyAbilitySetFor(unit.abilityId, livingParty[index].equippedAbilitySet);
     livingParty[index].hp = livingParty[index].maxHp;
     livingParty[index].mp = livingParty[index].maxMp;
   });
@@ -327,6 +344,9 @@ function openPartySetup(nextBoss, { canReturnToMenu = false, readyLabel = 'バ�
       baseAtk: livingParty[index].baseAtk,
       weaponId: livingParty[index].weaponId,
       equippedAbilitySet: livingParty[index].equippedAbilitySet,
+      equipment: { ...livingParty[index].equipment },
+      abilityId: livingParty[index].abilityId,
+      crystalShardId: livingParty[index].crystalShardId,
     })
   );
 

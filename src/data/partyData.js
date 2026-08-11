@@ -18,6 +18,15 @@ export const partyData = [
     weakness: null,
     equippedAbilitySet: 'たたかう型',
     weapon: 'ブロードソード',
+    equipment: {
+      weapon: 'equipment_weapon_broadsword',
+      shield: 'equipment_shield_leather_shield',
+      head: 'equipment_head_leather_cap',
+      body: 'equipment_body_leather_armor',
+      accessory: 'equipment_accessory_leather_shoes',
+    },
+    abilityId: 'ability_guard',
+    crystalShardId: 'shard_ember',
   },
   {
     id: 'p2',
@@ -32,6 +41,15 @@ export const partyData = [
     weakness: null,
     equippedAbilitySet: '白魔法',
     weapon: 'ロッド',
+    equipment: {
+      weapon: 'equipment_weapon_staff',
+      shield: null,
+      head: 'equipment_head_plumed_hat',
+      body: 'equipment_body_cotton_robe',
+      accessory: 'equipment_accessory_silver_specs',
+    },
+    abilityId: 'ability_white_magic',
+    crystalShardId: 'shard_azure',
   },
   {
     id: 'p3',
@@ -46,6 +64,15 @@ export const partyData = [
     weakness: null,
     equippedAbilitySet: 'たたかう型',
     weapon: 'オノ',
+    equipment: {
+      weapon: 'equipment_weapon_battle_axe',
+      shield: 'equipment_shield_bronze_shield',
+      head: 'equipment_head_bronze_helm',
+      body: 'equipment_body_bronze_armor',
+      accessory: 'equipment_accessory_power_armlet',
+    },
+    abilityId: 'ability_focus',
+    crystalShardId: 'shard_verdant',
   },
   {
     id: 'p4',
@@ -60,6 +87,15 @@ export const partyData = [
     weakness: null,
     equippedAbilitySet: '黒魔法',
     weapon: 'レイピア',
+    equipment: {
+      weapon: 'equipment_weapon_dagger',
+      shield: null,
+      head: 'equipment_head_green_beret',
+      body: 'equipment_body_silver_plate',
+      accessory: 'equipment_accessory_elven_mantle',
+    },
+    abilityId: 'ability_black_magic',
+    crystalShardId: 'shard_storm',
   },
 ];
 

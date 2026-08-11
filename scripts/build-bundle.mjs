@@ -6,6 +6,7 @@ const sourceFiles = [
   'src/battle/Unit.js',
   'src/battle/ActionResolver.js',
   'src/battle/CTBEngine.js',
+  'src/database/ff5Database.js',
   'src/data/abilityData.js',
   'src/data/partyData.js',
   'src/data/bossData.js',
