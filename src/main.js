@@ -45,6 +45,7 @@ const shardCatalog = [
 
 const defaultProfile = {
   name: 'PLAYER',
+  loginId: '',
   level: 1,
   gil: 2000,
   diamonds: 900,
@@ -147,6 +148,7 @@ function applyCloudProfile(data) {
   profile = {
     ...profile,
     name: data.playerName ?? profile.name,
+    loginId: data.loginId ?? profile.loginId,
     level: Number(data.level ?? profile.level),
     gil: Number(data.gil ?? profile.gil),
     diamonds: Number(data.diamonds ?? profile.diamonds),
@@ -287,7 +289,10 @@ function renderOptions(message = '') {
         <h4>ユーザーアカウント</h4>
         <p id="account-status" class="account-status">${escapeHtml(accountStatusText())}</p>
         <label>プレイヤー名
-          <input id="option-player-name" maxlength="12" autocomplete="username" value="${escapeHtml(profile.name)}" ${signedIn ? 'readonly' : ''}>
+          <input id="option-player-name" maxlength="12" autocomplete="nickname" value="${escapeHtml(profile.name)}">
+        </label>
+        <label>ログインID
+          <input id="option-login-id" minlength="4" maxlength="24" pattern="[A-Za-z0-9_-]{4,24}" autocomplete="username" value="${escapeHtml(profile.loginId)}" placeholder="半角英数字・_・-（4～24文字）" ${signedIn ? 'readonly' : ''}>
         </label>
         <label>パスワード
           <input id="option-password" type="password" minlength="6" maxlength="64" autocomplete="current-password" placeholder="6文字以上">
@@ -299,7 +304,7 @@ function renderOptions(message = '') {
             : `<button id="account-register" class="panel-button" type="button" ${accountDisabled ? 'disabled' : ''}>新規登録</button>
                <button id="account-sign-in" class="panel-button" type="button" ${accountDisabled ? 'disabled' : ''}>ログイン</button>`}
         </div>
-        <small>パスワードはFirebase Authenticationが管理し、ゲームデータや端末には保存しません。</small>
+        <small>プレイヤー名は表示名、ログインIDは認証専用です。パスワードはFirebase Authenticationが管理し、ゲームデータや端末には保存しません。</small>
       </section>
       <label>音量 <output id="volume-output">${profile.volume}</output>
         <input id="option-volume" type="range" min="0" max="100" value="${profile.volume}">
@@ -322,7 +327,7 @@ function renderOptions(message = '') {
   });
   document.getElementById('options-form').addEventListener('submit', (event) => {
     event.preventDefault();
-    if (!signedIn) profile.name = document.getElementById('option-player-name').value.trim() || 'PLAYER';
+    profile.name = document.getElementById('option-player-name').value.trim() || 'PLAYER';
     profile.volume = Number(volumeInput.value);
     profile.windowHue = Number(hueInput.value);
     saveProfile();
@@ -331,16 +336,19 @@ function renderOptions(message = '') {
 
   const runAccountAction = async (action) => {
     const name = document.getElementById('option-player-name').value.trim();
+    const loginId = document.getElementById('option-login-id').value.trim();
     const password = document.getElementById('option-password').value;
     try {
       if (action === 'register') {
         profile.name = name || 'PLAYER';
-        await firebaseAccount.register(profile.name, password, profile);
+        profile.loginId = firebaseAccount.normalizeLoginId(loginId);
+        await firebaseAccount.register(profile.loginId, password, profile);
         saveProfile();
         renderOptions('アカウントを作成し、Firestoreへユーザー情報を保存しました。');
       }
       if (action === 'sign-in') {
-        await firebaseAccount.signIn(name, password);
+        profile.loginId = firebaseAccount.normalizeLoginId(loginId);
+        await firebaseAccount.signIn(profile.loginId, password);
         applyCloudProfile(await firebaseAccount.loadProfile());
         renderOptions('ログインしてクラウドデータを読み込みました。');
       }
@@ -354,8 +362,8 @@ function renderOptions(message = '') {
       }
     } catch (error) {
       const knownMessages = {
-        'auth/email-already-in-use': 'そのプレイヤー名は既に使用されています。',
-        'auth/invalid-credential': 'プレイヤー名またはパスワードが違います。',
+        'auth/email-already-in-use': 'そのログインIDは既に使用されています。',
+        'auth/invalid-credential': 'ログインIDまたはパスワードが違います。',
         'auth/weak-password': 'パスワードは6文字以上で設定してください。',
         'auth/requires-recent-login': '安全のため、いったんログアウトして再ログイン後に変更してください。',
       };

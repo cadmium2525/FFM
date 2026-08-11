@@ -3,10 +3,10 @@
  * これらは公開識別子です。パスワードや秘密鍵は絶対に記載しないでください。
  */
 window.FFM_FIREBASE_CONFIG = Object.freeze({
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  appId: '',
+  apiKey: 'AIzaSyBigXjgar3aK3S8_vkCXqezIJa8KWaOOh4',
+  authDomain: 'ffmf-25.firebaseapp.com',
+  projectId: 'ffmf-25',
+  appId: '1:884239720242:web:8bff17e42ccef476a8012b',
 });
 
 /**

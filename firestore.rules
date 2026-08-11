@@ -18,7 +18,8 @@ service cloud.firestore {
     function validUserDocument() {
       return request.resource.data.keys().hasOnly([
         'playerName',
-        'playerNameKey',
+        'loginId',
+        'loginIdKey',
         'level',
         'gil',
         'diamonds',
@@ -32,8 +33,10 @@ service cloud.firestore {
       && request.resource.data.playerName is string
       && request.resource.data.playerName.size() >= 1
       && request.resource.data.playerName.size() <= 12
-      && request.resource.data.playerNameKey is string
-      && request.resource.data.playerNameKey.size() == 64
+      && request.resource.data.loginId is string
+      && request.resource.data.loginId.matches('^[a-z0-9_-]{4,24}$')
+      && request.resource.data.loginIdKey is string
+      && request.resource.data.loginIdKey.size() == 64
       && request.resource.data.level is int
       && request.resource.data.level >= 1
       && request.resource.data.gil is int

@@ -23,7 +23,8 @@ const chunks = [];
 for (const file of sourceFiles) {
   const source = await readFile(file, 'utf8');
   const bundled = source
-    .replace(/^import\s+.+?;\r?\n/gm, '')
+    .replace(/^import(?:.|\r?\n)*?from\s+['"][^'"]+['"];\r?\n/gm, '')
+    .replace(/^import\s+['"][^'"]+['"];\r?\n/gm, '')
     .replace(/^export\s+\{[^}]+\};?\r?\n/gm, '')
     .replace(/^export\s+(?=(?:class|const|function)\s)/gm, '');
 

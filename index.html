@@ -6,6 +6,7 @@
 <title>FF Boss Rush - CTB Edition</title>
 <meta name="theme-color" content="#07164f">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FF Crystal Rush">
 <link rel="manifest" href="manifest.webmanifest">
@@ -882,10 +883,11 @@ function configured(config) {
   return ['apiKey', 'authDomain', 'projectId', 'appId'].every((key) => Boolean(config?.[key]));
 }
 
-function publicProfile(profile, playerNameKey, createdAt, updatedAt) {
+function publicProfile(profile, loginId, loginIdKey, createdAt, updatedAt) {
   return {
     playerName: String(profile.name || 'PLAYER').slice(0, 12),
-    playerNameKey,
+    loginId,
+    loginIdKey,
     level: Math.max(1, Math.trunc(profile.level || 1)),
     gil: Math.max(0, Math.trunc(profile.gil || 0)),
     diamonds: Math.max(0, Math.trunc(profile.diamonds || 0)),
@@ -982,15 +984,22 @@ class FirebaseAccountService {
     return this.initializing;
   }
 
-  async playerNameKey(name) {
-    const normalized = String(name).normalize('NFKC').trim().toLocaleLowerCase('ja-JP');
-    if (!normalized || normalized.length > 12) throw new Error('プレイヤー名は1〜12文字で入力してください。');
+  normalizeLoginId(loginId) {
+    const normalized = String(loginId).normalize('NFKC').trim().toLowerCase();
+    if (!/^[a-z0-9_-]{4,24}$/.test(normalized)) {
+      throw new Error('ログインIDは半角英数字・_・-を使い、4〜24文字で入力してください。');
+    }
+    return normalized;
+  }
+
+  async loginIdKey(loginId) {
+    const normalized = this.normalizeLoginId(loginId);
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalized));
     return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
   }
 
-  async authEmail(name) {
-    return `${await this.playerNameKey(name)}@players.ffm.app`;
+  async authEmail(loginId) {
+    return `${await this.loginIdKey(loginId)}@players.ffm.app`;
   }
 
   async requireReady() {
@@ -998,20 +1007,21 @@ class FirebaseAccountService {
     if (!this.api) throw new Error('Firebaseが設定されていません。');
   }
 
-  async register(name, password, profile) {
+  async register(loginId, password, profile) {
     await this.requireReady();
     if (String(password).length < 6) throw new Error('パスワードは6文字以上で入力してください。');
-    const email = await this.authEmail(name);
+    const normalizedLoginId = this.normalizeLoginId(loginId);
+    const email = await this.authEmail(normalizedLoginId);
     const credential = await this.api.authApi.createUserWithEmailAndPassword(this.auth, email, password);
-    await this.api.authApi.updateProfile(credential.user, { displayName: name });
+    await this.api.authApi.updateProfile(credential.user, { displayName: profile.name });
     this.user = credential.user;
-    await this.saveProfile({ ...profile, name }, { create: true });
+    await this.saveProfile({ ...profile, loginId: normalizedLoginId }, { create: true });
     return credential.user;
   }
 
-  async signIn(name, password) {
+  async signIn(loginId, password) {
     await this.requireReady();
-    const email = await this.authEmail(name);
+    const email = await this.authEmail(loginId);
     const credential = await this.api.authApi.signInWithEmailAndPassword(this.auth, email, password);
     this.user = credential.user;
     return credential.user;
@@ -1031,10 +1041,13 @@ class FirebaseAccountService {
 
   async saveProfile(profile, { create = false } = {}) {
     if (!this.api || !this.user) return false;
-    const key = await this.playerNameKey(profile.name);
+    if (!profile.loginId) return false;
+    const loginId = this.normalizeLoginId(profile.loginId);
+    const key = await this.loginIdKey(loginId);
     const { doc, serverTimestamp, setDoc } = this.api.firestoreApi;
     const data = publicProfile(
       profile,
+      loginId,
       key,
       create ? serverTimestamp() : null,
       serverTimestamp(),
@@ -2001,16 +2014,6 @@ class IntermissionUI {
 }
 
 // ---- src/main.js ----
-import {
-  crystalShards,
-  ff5BattleRules,
-  ff5Equipment,
-  ff5Items,
-  ff5JobAbilities,
-  ff5Magic,
-  ff5Songs,
-} from './database/ff5Database.js';
-
 // ---------- Screen switching ----------
 const screens = {
   TITLE: document.getElementById('title-screen'),
@@ -2039,6 +2042,7 @@ const shardCatalog = [
 
 const defaultProfile = {
   name: 'PLAYER',
+  loginId: '',
   level: 1,
   gil: 2000,
   diamonds: 900,
@@ -2141,6 +2145,7 @@ function applyCloudProfile(data) {
   profile = {
     ...profile,
     name: data.playerName ?? profile.name,
+    loginId: data.loginId ?? profile.loginId,
     level: Number(data.level ?? profile.level),
     gil: Number(data.gil ?? profile.gil),
     diamonds: Number(data.diamonds ?? profile.diamonds),
@@ -2281,7 +2286,10 @@ function renderOptions(message = '') {
         <h4>ユーザーアカウント</h4>
         <p id="account-status" class="account-status">${escapeHtml(accountStatusText())}</p>
         <label>プレイヤー名
-          <input id="option-player-name" maxlength="12" autocomplete="username" value="${escapeHtml(profile.name)}" ${signedIn ? 'readonly' : ''}>
+          <input id="option-player-name" maxlength="12" autocomplete="nickname" value="${escapeHtml(profile.name)}">
+        </label>
+        <label>ログインID
+          <input id="option-login-id" minlength="4" maxlength="24" pattern="[A-Za-z0-9_-]{4,24}" autocomplete="username" value="${escapeHtml(profile.loginId)}" placeholder="半角英数字・_・-（4～24文字）" ${signedIn ? 'readonly' : ''}>
         </label>
         <label>パスワード
           <input id="option-password" type="password" minlength="6" maxlength="64" autocomplete="current-password" placeholder="6文字以上">
@@ -2293,7 +2301,7 @@ function renderOptions(message = '') {
             : `<button id="account-register" class="panel-button" type="button" ${accountDisabled ? 'disabled' : ''}>新規登録</button>
                <button id="account-sign-in" class="panel-button" type="button" ${accountDisabled ? 'disabled' : ''}>ログイン</button>`}
         </div>
-        <small>パスワードはFirebase Authenticationが管理し、ゲームデータや端末には保存しません。</small>
+        <small>プレイヤー名は表示名、ログインIDは認証専用です。パスワードはFirebase Authenticationが管理し、ゲームデータや端末には保存しません。</small>
       </section>
       <label>音量 <output id="volume-output">${profile.volume}</output>
         <input id="option-volume" type="range" min="0" max="100" value="${profile.volume}">
@@ -2316,7 +2324,7 @@ function renderOptions(message = '') {
   });
   document.getElementById('options-form').addEventListener('submit', (event) => {
     event.preventDefault();
-    if (!signedIn) profile.name = document.getElementById('option-player-name').value.trim() || 'PLAYER';
+    profile.name = document.getElementById('option-player-name').value.trim() || 'PLAYER';
     profile.volume = Number(volumeInput.value);
     profile.windowHue = Number(hueInput.value);
     saveProfile();
@@ -2325,16 +2333,19 @@ function renderOptions(message = '') {
 
   const runAccountAction = async (action) => {
     const name = document.getElementById('option-player-name').value.trim();
+    const loginId = document.getElementById('option-login-id').value.trim();
     const password = document.getElementById('option-password').value;
     try {
       if (action === 'register') {
         profile.name = name || 'PLAYER';
-        await firebaseAccount.register(profile.name, password, profile);
+        profile.loginId = firebaseAccount.normalizeLoginId(loginId);
+        await firebaseAccount.register(profile.loginId, password, profile);
         saveProfile();
         renderOptions('アカウントを作成し、Firestoreへユーザー情報を保存しました。');
       }
       if (action === 'sign-in') {
-        await firebaseAccount.signIn(name, password);
+        profile.loginId = firebaseAccount.normalizeLoginId(loginId);
+        await firebaseAccount.signIn(profile.loginId, password);
         applyCloudProfile(await firebaseAccount.loadProfile());
         renderOptions('ログインしてクラウドデータを読み込みました。');
       }
@@ -2348,8 +2359,8 @@ function renderOptions(message = '') {
       }
     } catch (error) {
       const knownMessages = {
-        'auth/email-already-in-use': 'そのプレイヤー名は既に使用されています。',
-        'auth/invalid-credential': 'プレイヤー名またはパスワードが違います。',
+        'auth/email-already-in-use': 'そのログインIDは既に使用されています。',
+        'auth/invalid-credential': 'ログインIDまたはパスワードが違います。',
         'auth/weak-password': 'パスワードは6文字以上で設定してください。',
         'auth/requires-recent-login': '安全のため、いったんログアウトして再ログイン後に変更してください。',
       };

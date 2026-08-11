@@ -30,12 +30,13 @@ Firebaseプロジェクトの公開設定値と管理者UIDは環境ごとに設
    [`firestore.rules`](firestore.rules) の `ADMIN_UID` の両方へ設定します。
 6. Firebase CLIで `firebase deploy --only firestore:rules` を実行してルールを反映します。
 
-画面上はプレイヤー名とパスワードのみですが、Firebase Authenticationが
-メール/パスワード方式のため、内部ではプレイヤー名のSHA-256からログインIDを
-生成しています。パスワードはFirestore、LocalStorage、Gitリポジトリの
-いずれにも保存しません。
+画面上では、表示に使うプレイヤー名とは別にログインIDとパスワードを入力します。
+Firebase Authenticationがメール/パスワード方式のため、内部ではログインIDの
+SHA-256から架空のメールアドレスを生成します。ログインIDは半角英数字・`_`・`-`の
+4～24文字で、大文字と小文字は区別しません。パスワードはFirestore、LocalStorage、
+Gitリポジトリのいずれにも保存しません。
 
-Firestoreの `users/{uid}` にはプレイヤー名、レベル、通貨、ポーション、音量、
+Firestoreの `users/{uid}` にはプレイヤー名、ログインID、レベル、通貨、ポーション、音量、
 ウィンドウ色、所持しているかけらだけを保存します。将来のランキングは
 クライアントからスコアを書き換えられないよう、現時点では一般ユーザーの
 直接書き込みを禁止しています。

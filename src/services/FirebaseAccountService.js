@@ -5,10 +5,11 @@ function configured(config) {
   return ['apiKey', 'authDomain', 'projectId', 'appId'].every((key) => Boolean(config?.[key]));
 }
 
-function publicProfile(profile, playerNameKey, createdAt, updatedAt) {
+function publicProfile(profile, loginId, loginIdKey, createdAt, updatedAt) {
   return {
     playerName: String(profile.name || 'PLAYER').slice(0, 12),
-    playerNameKey,
+    loginId,
+    loginIdKey,
     level: Math.max(1, Math.trunc(profile.level || 1)),
     gil: Math.max(0, Math.trunc(profile.gil || 0)),
     diamonds: Math.max(0, Math.trunc(profile.diamonds || 0)),
@@ -105,15 +106,22 @@ export class FirebaseAccountService {
     return this.initializing;
   }
 
-  async playerNameKey(name) {
-    const normalized = String(name).normalize('NFKC').trim().toLocaleLowerCase('ja-JP');
-    if (!normalized || normalized.length > 12) throw new Error('プレイヤー名は1〜12文字で入力してください。');
+  normalizeLoginId(loginId) {
+    const normalized = String(loginId).normalize('NFKC').trim().toLowerCase();
+    if (!/^[a-z0-9_-]{4,24}$/.test(normalized)) {
+      throw new Error('ログインIDは半角英数字・_・-を使い、4〜24文字で入力してください。');
+    }
+    return normalized;
+  }
+
+  async loginIdKey(loginId) {
+    const normalized = this.normalizeLoginId(loginId);
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalized));
     return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
   }
 
-  async authEmail(name) {
-    return `${await this.playerNameKey(name)}@players.ffm.app`;
+  async authEmail(loginId) {
+    return `${await this.loginIdKey(loginId)}@players.ffm.app`;
   }
 
   async requireReady() {
@@ -121,20 +129,21 @@ export class FirebaseAccountService {
     if (!this.api) throw new Error('Firebaseが設定されていません。');
   }
 
-  async register(name, password, profile) {
+  async register(loginId, password, profile) {
     await this.requireReady();
     if (String(password).length < 6) throw new Error('パスワードは6文字以上で入力してください。');
-    const email = await this.authEmail(name);
+    const normalizedLoginId = this.normalizeLoginId(loginId);
+    const email = await this.authEmail(normalizedLoginId);
     const credential = await this.api.authApi.createUserWithEmailAndPassword(this.auth, email, password);
-    await this.api.authApi.updateProfile(credential.user, { displayName: name });
+    await this.api.authApi.updateProfile(credential.user, { displayName: profile.name });
     this.user = credential.user;
-    await this.saveProfile({ ...profile, name }, { create: true });
+    await this.saveProfile({ ...profile, loginId: normalizedLoginId }, { create: true });
     return credential.user;
   }
 
-  async signIn(name, password) {
+  async signIn(loginId, password) {
     await this.requireReady();
-    const email = await this.authEmail(name);
+    const email = await this.authEmail(loginId);
     const credential = await this.api.authApi.signInWithEmailAndPassword(this.auth, email, password);
     this.user = credential.user;
     return credential.user;
@@ -154,10 +163,13 @@ export class FirebaseAccountService {
 
   async saveProfile(profile, { create = false } = {}) {
     if (!this.api || !this.user) return false;
-    const key = await this.playerNameKey(profile.name);
+    if (!profile.loginId) return false;
+    const loginId = this.normalizeLoginId(profile.loginId);
+    const key = await this.loginIdKey(loginId);
     const { doc, serverTimestamp, setDoc } = this.api.firestoreApi;
     const data = publicProfile(
       profile,
+      loginId,
       key,
       create ? serverTimestamp() : null,
       serverTimestamp(),
