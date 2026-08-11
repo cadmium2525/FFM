@@ -1644,6 +1644,9 @@ function magicRecordToAction(record) {
   return Object.freeze({
     id: record.id,
     sourceId: record.id,
+    sourceType: 'magic',
+    school: record.school,
+    level: record.level,
     name: record.nameJa,
     actionKind: primaryActionKind(primary),
     ctbCost: 0.8 + Math.min(1.2, (record.mpCost ?? 0) / 65),
@@ -2344,9 +2347,9 @@ class BattleManager {
     return entry;
   }
 
-  emitActionResolved(actor, results, fromSequence = 0) {
+  emitActionResolved(actor, results, fromSequence = 0, action = null) {
     const entries = this.logJournal.filter((entry) => entry.id > fromSequence);
-    eventBus.emit('battle:actionResolved', { actor, results, logEntries: entries });
+    eventBus.emit('battle:actionResolved', { actor, action, results, logEntries: entries });
     eventBus.emit('battle:logBatch', { actorUid: actor.uid, entries });
   }
 
@@ -2432,7 +2435,7 @@ class BattleManager {
     if (!target) return this.scheduleNextTurn();
     this.log(`${actor.name} は${confused ? '混乱して' : '狂戦士となり'} ${target.name} を攻撃！`);
     const results = resolveAction({ actor, action: { kind: 'physical-attack' }, targets: [target], battleUnits: this.units });
-    eventBus.emit('battle:actionResolved', { actor, results });
+    eventBus.emit('battle:actionResolved', { actor, action: { kind: 'physical-attack', name: 'こうげき' }, results });
     results.filter((result) => result.type === 'damage').forEach((result) => this.log(`${target.name} に ${result.amount} の ダメージ！`));
     this.ctb.consumeTurn(actor, 1);
     this.broadcastState();
@@ -2498,7 +2501,7 @@ class BattleManager {
       }
     });
 
-    this.emitActionResolved(actor, results, actionStartSequence);
+    this.emitActionResolved(actor, results, actionStartSequence, chosenAction);
     this.ctb.consumeTurn(actor, chosenAction.ctbCost ?? attackAction.ctbCost);
     this.broadcastState();
 
@@ -2594,9 +2597,20 @@ class BattleManager {
       return false;
     }
 
-    const isMagicLike = choice.type === 'magic' || choice.type === 'crystal' || (choice.type === 'ability' && (action.mpCost ?? 0) > 0);
+    const isSummon = action.school === 'summon';
+    const isCrystal = choice.type === 'crystal';
+    const isMagicLike = choice.type === 'magic'
+      || isCrystal
+      || action.sourceType === 'magic'
+      || (choice.type === 'ability' && (action.mpCost ?? 0) > 0);
     if (isMagicLike && !actor.canUseMagic()) {
-      this.log(`${actor.name} は魔法を使えない！`);
+      const reason = actor.statuses?.has('silence')
+        ? '沈黙状態'
+        : actor.statuses?.has('toad')
+          ? 'カエル状態'
+          : '行動不能状態';
+      const commandName = isSummon ? '召喚' : isCrystal ? '結晶技' : '魔法';
+      this.log(`${actor.name} は${reason}のため${commandName}を使えない！`, 'unavailable');
       return false;
     }
     if (isMagicLike && !action.ignoreReflect) {
@@ -2665,7 +2679,7 @@ class BattleManager {
       }
     });
 
-    this.emitActionResolved(actor, results, actionStartSequence);
+    this.emitActionResolved(actor, results, actionStartSequence, action);
 
     const pendingBossAction = this.pendingEnemyActions.get(this.boss.uid);
     if (pendingBossAction && action.element && action.element === this.boss.weakness && results.some((result) => result.targetUid === this.boss.uid && result.type === 'damage')) {
@@ -2798,9 +2812,9 @@ class BattleUI {
       this.renderCommandListForActor(actor);
     });
 
-    eventBus.on('battle:actionResolved', ({ actor, results }) => {
+    eventBus.on('battle:actionResolved', ({ actor, action, results }) => {
       if (actor?.isEnemy) this.clearTelegraph();
-      this.playActionPulse(actor, results);
+      this.playActionPulse(actor, results, action);
       results.forEach((r) => {
         const el = document.querySelector(`[data-uid="${r.targetUid}"]`);
         if (el) {
@@ -3158,13 +3172,13 @@ class BattleUI {
     }
   }
 
-  playActionPulse(actor, results) {
+  playActionPulse(actor, results, action = {}) {
     const actorEl = actor ? document.querySelector(`[data-uid="${actor.uid}"]`) : null;
     actorEl?.classList.add('action-pulse');
     setTimeout(() => actorEl?.classList.remove('action-pulse'), 420);
 
     if (!this.battleFieldEl || results.length === 0) return;
-    const element = results.find((result) => result.element)?.element;
+    const element = action?.element ?? results.find((result) => result.element)?.element;
     const visualType = results.some((result) => ['heal', 'mp-heal', 'revive', 'absorb'].includes(result.type))
       ? 'cast-heal'
       : results.some((result) => ['status', 'buff', 'cleanse', 'dispel', 'effect'].includes(result.type))
@@ -3178,6 +3192,7 @@ class BattleUI {
         this.effectsEl?.classList.remove(visualType);
         if (element) this.effectsEl?.classList.remove(`element-${safeToken(element)}`);
       }, 650);
+      this.playSpellCinematic(action, element, visualType);
     }
     this.battleFieldEl.classList.remove('impacting');
     // Restarting the class in a new frame keeps rapid multi-hit actions legible.
@@ -3185,6 +3200,42 @@ class BattleUI {
       this.battleFieldEl?.classList.add('impacting');
       setTimeout(() => this.battleFieldEl?.classList.remove('impacting'), 320);
     });
+  }
+
+  playSpellCinematic(action = {}, element, visualType) {
+    if (!this.effectsEl) return;
+    const isSummon = action.school === 'summon';
+    const isMagic = isSummon || action.sourceType === 'magic' || action.kind === 'magic-attack';
+    if (!isMagic) return;
+
+    this.effectsEl.querySelectorAll('.spell-cinematic').forEach((node) => node.remove());
+    const cinematic = document.createElement('div');
+    const normalizedElement = safeToken(element ?? 'arcane');
+    cinematic.className = `spell-cinematic ${isSummon ? 'summon-cinematic' : 'magic-cinematic'} element-${normalizedElement} ${visualType}`;
+    cinematic.dataset.spell = safeToken(action.sourceId ?? action.id ?? action.name);
+
+    const glyphs = ['✦', '◇', '⌁', '◈', '⬡', '✧'];
+    const glyphIndex = [...String(action.sourceId ?? action.name ?? '')].reduce((sum, char) => sum + char.charCodeAt(0), 0) % glyphs.length;
+    const particleCount = isSummon ? 12 : 8;
+    const particles = Array.from({ length: particleCount }, (_, index) =>
+      `<i class="spell-particle" style="--i:${index};--angle:${Math.round((360 / particleCount) * index + (index % 2) * 11)}deg;--distance:${74 + (index % 4) * 20}px"></i>`
+    ).join('');
+
+    cinematic.innerHTML = `
+      <span class="spell-vignette"></span>
+      <span class="spell-title"><small>${isSummon ? 'SUMMON // SOUL GATE' : 'ARCANA // CAST'}</small><strong>${action.name ?? '魔法'}</strong></span>
+      <span class="spell-seal"><i class="seal-ring ring-outer"></i><i class="seal-ring ring-inner"></i><b>${glyphs[glyphIndex]}</b></span>
+      <span class="spell-beam"></span>
+      <span class="spell-impact-core"></span>
+      <span class="spell-particles">${particles}</span>
+      ${isSummon ? `<span class="summon-avatar"><i></i><b>${glyphs[glyphIndex]}</b></span>` : ''}
+    `;
+    this.effectsEl.appendChild(cinematic);
+    const duration = isSummon ? 1750 : 1120;
+    cinematic.addEventListener('animationend', (event) => {
+      if (event.target === cinematic) cinematic.remove();
+    }, { once: true });
+    setTimeout(() => cinematic.remove(), duration + 120);
   }
 
   showCombatResult(result, targetEl) {

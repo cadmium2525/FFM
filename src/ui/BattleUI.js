@@ -107,9 +107,9 @@ export class BattleUI {
       this.renderCommandListForActor(actor);
     });
 
-    eventBus.on('battle:actionResolved', ({ actor, results }) => {
+    eventBus.on('battle:actionResolved', ({ actor, action, results }) => {
       if (actor?.isEnemy) this.clearTelegraph();
-      this.playActionPulse(actor, results);
+      this.playActionPulse(actor, results, action);
       results.forEach((r) => {
         const el = document.querySelector(`[data-uid="${r.targetUid}"]`);
         if (el) {
@@ -467,13 +467,13 @@ export class BattleUI {
     }
   }
 
-  playActionPulse(actor, results) {
+  playActionPulse(actor, results, action = {}) {
     const actorEl = actor ? document.querySelector(`[data-uid="${actor.uid}"]`) : null;
     actorEl?.classList.add('action-pulse');
     setTimeout(() => actorEl?.classList.remove('action-pulse'), 420);
 
     if (!this.battleFieldEl || results.length === 0) return;
-    const element = results.find((result) => result.element)?.element;
+    const element = action?.element ?? results.find((result) => result.element)?.element;
     const visualType = results.some((result) => ['heal', 'mp-heal', 'revive', 'absorb'].includes(result.type))
       ? 'cast-heal'
       : results.some((result) => ['status', 'buff', 'cleanse', 'dispel', 'effect'].includes(result.type))
@@ -487,6 +487,7 @@ export class BattleUI {
         this.effectsEl?.classList.remove(visualType);
         if (element) this.effectsEl?.classList.remove(`element-${safeToken(element)}`);
       }, 650);
+      this.playSpellCinematic(action, element, visualType);
     }
     this.battleFieldEl.classList.remove('impacting');
     // Restarting the class in a new frame keeps rapid multi-hit actions legible.
@@ -494,6 +495,42 @@ export class BattleUI {
       this.battleFieldEl?.classList.add('impacting');
       setTimeout(() => this.battleFieldEl?.classList.remove('impacting'), 320);
     });
+  }
+
+  playSpellCinematic(action = {}, element, visualType) {
+    if (!this.effectsEl) return;
+    const isSummon = action.school === 'summon';
+    const isMagic = isSummon || action.sourceType === 'magic' || action.kind === 'magic-attack';
+    if (!isMagic) return;
+
+    this.effectsEl.querySelectorAll('.spell-cinematic').forEach((node) => node.remove());
+    const cinematic = document.createElement('div');
+    const normalizedElement = safeToken(element ?? 'arcane');
+    cinematic.className = `spell-cinematic ${isSummon ? 'summon-cinematic' : 'magic-cinematic'} element-${normalizedElement} ${visualType}`;
+    cinematic.dataset.spell = safeToken(action.sourceId ?? action.id ?? action.name);
+
+    const glyphs = ['✦', '◇', '⌁', '◈', '⬡', '✧'];
+    const glyphIndex = [...String(action.sourceId ?? action.name ?? '')].reduce((sum, char) => sum + char.charCodeAt(0), 0) % glyphs.length;
+    const particleCount = isSummon ? 12 : 8;
+    const particles = Array.from({ length: particleCount }, (_, index) =>
+      `<i class="spell-particle" style="--i:${index};--angle:${Math.round((360 / particleCount) * index + (index % 2) * 11)}deg;--distance:${74 + (index % 4) * 20}px"></i>`
+    ).join('');
+
+    cinematic.innerHTML = `
+      <span class="spell-vignette"></span>
+      <span class="spell-title"><small>${isSummon ? 'SUMMON // SOUL GATE' : 'ARCANA // CAST'}</small><strong>${action.name ?? '魔法'}</strong></span>
+      <span class="spell-seal"><i class="seal-ring ring-outer"></i><i class="seal-ring ring-inner"></i><b>${glyphs[glyphIndex]}</b></span>
+      <span class="spell-beam"></span>
+      <span class="spell-impact-core"></span>
+      <span class="spell-particles">${particles}</span>
+      ${isSummon ? `<span class="summon-avatar"><i></i><b>${glyphs[glyphIndex]}</b></span>` : ''}
+    `;
+    this.effectsEl.appendChild(cinematic);
+    const duration = isSummon ? 1750 : 1120;
+    cinematic.addEventListener('animationend', (event) => {
+      if (event.target === cinematic) cinematic.remove();
+    }, { once: true });
+    setTimeout(() => cinematic.remove(), duration + 120);
   }
 
   showCombatResult(result, targetEl) {

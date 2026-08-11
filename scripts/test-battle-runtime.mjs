@@ -109,6 +109,34 @@ resolveAction({ actor: barrierAttacker, action: { kind: 'physical-attack' }, tar
 assert.ok(protectedAlly.hp < hpBeforeBarrierHit);
 Math.random = oldRandom;
 
+// A freshly equipped summon command must cast through BattleManager, spend MP,
+// and carry its school metadata to the presentation layer.
+const summonFaris = makeUnit({ id: 'faris-summoner', name: 'ファリス', maxMp: 350, mp: 350, ctValue: BASE_THRESHOLD });
+const summonBoss = makeUnit({ id: 'summon-target', name: '召喚検証用', isEnemy: true, maxHp: 9999, hp: 9999, ctValue: 0 });
+const summonManager = new BattleManager([summonFaris], summonBoss);
+summonManager.scheduleNextTurn = () => {};
+summonManager.broadcastState = () => {};
+summonManager.currentActor = summonFaris;
+summonManager.awaitingPlayerInput = true;
+const ifritAction = magicAction('magic_ifrit');
+assert.equal(ifritAction.school, 'summon');
+assert.equal(ifritAction.sourceType, 'magic');
+assert.equal(summonManager.submitPlayerAction({ type: 'ability', ability: ifritAction }, summonBoss), true);
+assert.equal(summonFaris.mp, 350 - ifritAction.mpCost);
+
+// If summoning really is sealed, report the concrete status instead of a
+// generic wiring-looking error and leave the turn/MP untouched.
+const silencedFaris = makeUnit({ id: 'faris-silenced', name: 'ファリス', maxMp: 350, mp: 350, ctValue: BASE_THRESHOLD });
+silencedFaris.addStatus('silence', { force: true });
+const sealedManager = new BattleManager([silencedFaris], summonBoss);
+sealedManager.scheduleNextTurn = () => {};
+sealedManager.broadcastState = () => {};
+sealedManager.currentActor = silencedFaris;
+sealedManager.awaitingPlayerInput = true;
+assert.equal(sealedManager.submitPlayerAction({ type: 'ability', ability: ifritAction }, summonBoss), false);
+assert.equal(silencedFaris.mp, 350);
+assert.match(sealedManager.logJournal.at(-1).text, /沈黙状態.*召喚/);
+
 // Crystal shards use the same operation pipeline and deal their own element damage.
 for (const shard of battleReadyShards) {
   const shardAction = crystalShardAction(shard.id);

@@ -59,9 +59,9 @@ export class BattleManager {
     return entry;
   }
 
-  emitActionResolved(actor, results, fromSequence = 0) {
+  emitActionResolved(actor, results, fromSequence = 0, action = null) {
     const entries = this.logJournal.filter((entry) => entry.id > fromSequence);
-    eventBus.emit('battle:actionResolved', { actor, results, logEntries: entries });
+    eventBus.emit('battle:actionResolved', { actor, action, results, logEntries: entries });
     eventBus.emit('battle:logBatch', { actorUid: actor.uid, entries });
   }
 
@@ -147,7 +147,7 @@ export class BattleManager {
     if (!target) return this.scheduleNextTurn();
     this.log(`${actor.name} は${confused ? '混乱して' : '狂戦士となり'} ${target.name} を攻撃！`);
     const results = resolveAction({ actor, action: { kind: 'physical-attack' }, targets: [target], battleUnits: this.units });
-    eventBus.emit('battle:actionResolved', { actor, results });
+    eventBus.emit('battle:actionResolved', { actor, action: { kind: 'physical-attack', name: 'こうげき' }, results });
     results.filter((result) => result.type === 'damage').forEach((result) => this.log(`${target.name} に ${result.amount} の ダメージ！`));
     this.ctb.consumeTurn(actor, 1);
     this.broadcastState();
@@ -213,7 +213,7 @@ export class BattleManager {
       }
     });
 
-    this.emitActionResolved(actor, results, actionStartSequence);
+    this.emitActionResolved(actor, results, actionStartSequence, chosenAction);
     this.ctb.consumeTurn(actor, chosenAction.ctbCost ?? attackAction.ctbCost);
     this.broadcastState();
 
@@ -309,9 +309,20 @@ export class BattleManager {
       return false;
     }
 
-    const isMagicLike = choice.type === 'magic' || choice.type === 'crystal' || (choice.type === 'ability' && (action.mpCost ?? 0) > 0);
+    const isSummon = action.school === 'summon';
+    const isCrystal = choice.type === 'crystal';
+    const isMagicLike = choice.type === 'magic'
+      || isCrystal
+      || action.sourceType === 'magic'
+      || (choice.type === 'ability' && (action.mpCost ?? 0) > 0);
     if (isMagicLike && !actor.canUseMagic()) {
-      this.log(`${actor.name} は魔法を使えない！`);
+      const reason = actor.statuses?.has('silence')
+        ? '沈黙状態'
+        : actor.statuses?.has('toad')
+          ? 'カエル状態'
+          : '行動不能状態';
+      const commandName = isSummon ? '召喚' : isCrystal ? '結晶技' : '魔法';
+      this.log(`${actor.name} は${reason}のため${commandName}を使えない！`, 'unavailable');
       return false;
     }
     if (isMagicLike && !action.ignoreReflect) {
@@ -380,7 +391,7 @@ export class BattleManager {
       }
     });
 
-    this.emitActionResolved(actor, results, actionStartSequence);
+    this.emitActionResolved(actor, results, actionStartSequence, action);
 
     const pendingBossAction = this.pendingEnemyActions.get(this.boss.uid);
     if (pendingBossAction && action.element && action.element === this.boss.weakness && results.some((result) => result.targetUid === this.boss.uid && result.type === 'damage')) {

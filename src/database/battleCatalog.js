@@ -224,6 +224,9 @@ export function magicRecordToAction(record) {
   return Object.freeze({
     id: record.id,
     sourceId: record.id,
+    sourceType: 'magic',
+    school: record.school,
+    level: record.level,
     name: record.nameJa,
     actionKind: primaryActionKind(primary),
     ctbCost: 0.8 + Math.min(1.2, (record.mpCost ?? 0) / 65),
