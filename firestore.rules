@@ -12,7 +12,7 @@ service cloud.firestore {
 
     // Replace this value with the same UID used in firebase-config.js.
     function isAdmin() {
-      return signedIn() && request.auth.uid == 'ADMIN_UID';
+      return signedIn() && request.auth.uid == 'Wx8M6TaF7lX3QJTMPEaM7c9jTP53';
     }
 
     function validUserDocument() {

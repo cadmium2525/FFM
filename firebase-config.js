@@ -13,4 +13,4 @@ window.FFM_FIREBASE_CONFIG = Object.freeze({
  * 管理者アカウント作成後、Firebase Authentication画面に表示されるUIDを設定します。
  * firestore.rules内のADMIN_UIDも同じ値に置き換えてください。
  */
-window.FFM_ADMIN_UID = '';
+window.FFM_ADMIN_UID = 'Wx8M6TaF7lX3QJTMPEaM7c9jTP53';
