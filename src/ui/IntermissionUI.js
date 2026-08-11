@@ -25,6 +25,11 @@ export class IntermissionUI {
     this.nextBossLabelEl = document.getElementById('next-boss-label');
   }
 
+  clear() {
+    this.containerEl.replaceChildren();
+    this.nextBossLabelEl.textContent = '';
+  }
+
   render(partyUnits, nextBoss) {
     this.nextBossLabelEl.textContent = nextBoss
       ? `つぎのボス: ${nextBoss.name} （弱点: ${nextBoss.weakness ?? '不明'}）`

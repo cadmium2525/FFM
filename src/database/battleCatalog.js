@@ -68,7 +68,9 @@ function magicOperations(record) {
   const operations = [];
   const conditionalLevel = Number(record.nameEn.match(/^Level (\d)/)?.[1] ?? 0) || null;
 
-  if (record.id === 'magic_phoenix') operations.push(
+  if (record.id === 'magic_speed') operations.push({ op: 'battle.speed', multiplier: 0.7, duration: 4 });
+  else if (record.id === 'magic_golem') operations.push({ op: 'barrier.physical', amountFormula: 'caster_level' });
+  else if (record.id === 'magic_phoenix') operations.push(
     { op: 'damage.magic', formula: 'ff5_magic', power: magicPower(record), targetSide: 'enemy' },
     { op: 'revive', hpRatio: 1, targetSide: 'ally' },
   );
@@ -113,7 +115,7 @@ function magicOperations(record) {
   if (/速度を上昇/.test(effect) && !statuses.includes('haste')) operations.push({ op: 'stat.modify', stat: 'agility', multiplier: 1.25 });
   if (/速度を低下/.test(effect) && !statuses.includes('slow')) operations.push({ op: 'stat.modify', stat: 'agility', multiplier: 0.75 });
   if (/魔法使用不能/.test(effect)) operations.push({ op: 'battle.field_status', status: 'mute' });
-  if (/物理ダメージを肩代わり/.test(effect)) operations.push({ op: 'barrier.physical', amountFormula: 'caster_level' });
+  if (/物理ダメージを肩代わり/.test(effect) && !operations.some((operation) => operation.op === 'barrier.physical')) operations.push({ op: 'barrier.physical', amountFormula: 'caster_level' });
   if (record.id === 'magic_transfusion' && !operations.some((operation) => operation.op === 'caster.sacrifice')) operations.push({ op: 'caster.sacrifice' });
 
   if (operations.length === 0) operations.push({ op: 'effect.script', handlerKey: record.id });
@@ -204,7 +206,17 @@ function primaryActionKind(operation) {
   if (operation.op === 'status.apply') return 'status';
   if (operation.op === 'stat.modify') return 'stat-modify';
   if (operation.op === 'damage.magic') return 'magic-attack';
+  if (operation.op === 'battle.speed') return 'field-speed';
+  if (operation.op === 'battle.field_status') return 'field-status';
+  if (operation.op === 'barrier.physical') return 'barrier-physical';
   return 'scripted';
+}
+
+function battleDisabledReason(record) {
+  const operations = record.battle?.operations ?? [];
+  if (operations.some((operation) => operation.op === 'battle.escape')) return 'ボス戦からはテレポで脱出できない。';
+  if (operations.some((operation) => operation.op === 'battle.restart')) return 'ボス戦では戦闘開始時へ巻き戻せない。';
+  return null;
 }
 
 export function magicRecordToAction(record) {
@@ -226,7 +238,39 @@ export function magicRecordToAction(record) {
     statuses: primary.statuses ?? [],
     operations: record.battle.operations,
     runtimeReady: true,
+    disabledReason: battleDisabledReason(record),
   });
+}
+
+/** Convert any runtime-ready catalog record into the stable action shape used by BattleManager. */
+export function battleRecordToAction(record) {
+  if (!record?.battle?.runtimeReady) throw new TypeError(`Battle descriptor missing: ${record?.id ?? 'unknown'}`);
+  const primary = record.battle.operations[0] ?? { op: 'effect.script' };
+  return Object.freeze({
+    id: record.id,
+    sourceId: record.id,
+    sourceType: record.battle.sourceType,
+    name: record.techniqueNameJa ?? record.nameJa ?? record.nameEn ?? record.id,
+    actionKind: primaryActionKind(primary),
+    ctbCost: 0.75 + Math.min(1.25, (record.battle.mpCost ?? 0) / 60),
+    mpCost: record.battle.mpCost,
+    element: record.battle.element,
+    target: record.battle.target.id,
+    effect: record.effect ?? record.lore ?? '',
+    power: primary.power,
+    healAmount: primary.amount,
+    fixedDamage: primary.amount,
+    ratio: primary.ratio,
+    statuses: primary.statuses ?? [],
+    operations: record.battle.operations,
+    runtimeReady: true,
+    disabledReason: battleDisabledReason(record),
+  });
+}
+
+export function crystalShardAction(shardId) {
+  const record = battleReadyShards.find((shard) => shard.id === shardId);
+  return record ? battleRecordToAction(record) : null;
 }
 
 export function magicActionsForSchool(school, { maxLevel = Infinity } = {}) {

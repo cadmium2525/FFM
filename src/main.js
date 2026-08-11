@@ -616,15 +616,34 @@ function beginCourseSetup() {
   openPartySetup(bossData[0], { canReturnToMenu: true, readyLabel: 'バトル開始' });
 }
 
+function profileItemStock(itemId) {
+  if (['potion', 'item_potion'].includes(itemId)) return profile.potions;
+  return 0;
+}
+
+function consumeProfileItem(itemId, amount = 1) {
+  if (!['potion', 'item_potion'].includes(itemId) || profile.potions < amount) return false;
+  profile.potions -= amount;
+  saveProfile();
+  return true;
+}
+
 // ---------- Boss rush flow ----------
 function startBossBattle() {
   GameState.set(States.BATTLE);
+
+  // Formation lists contain hundreds of option nodes. They are rebuilt only
+  // when needed, keeping the live battle DOM lean on mobile Safari.
+  intermissionUI.clear();
 
   const partyUnits = buildPartyUnits(livingParty);
   const bossConfig = bossData[GameState.bossIndex];
   const bossUnit = buildBossUnit(bossConfig);
 
-  const battleManager = new BattleManager(partyUnits, bossUnit);
+  const battleManager = new BattleManager(partyUnits, bossUnit, {
+    getItemStock: profileItemStock,
+    consumeItem: consumeProfileItem,
+  });
   battleUI.attachBattle(battleManager);
 
   const onEnd = ({ result }) => {

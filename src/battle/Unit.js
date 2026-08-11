@@ -1,3 +1,10 @@
+import {
+  DEFAULT_STATUS_DURATIONS,
+  canIssueCommand,
+  canUseMagic,
+  statusTick,
+} from './StatusEngine.js';
+
 let uidCounter = 0;
 
 export class Unit {
@@ -37,7 +44,14 @@ export class Unit {
     this.imageHits = this.equipmentEffects.initialImageHits ?? 0;
     this.nextAttackMultiplier = 1;
     this.magicDamageMultiplier = 1;
+    this.physicalBarrier = Math.max(0, config.physicalBarrier ?? 0);
     this.statuses = new Set(config.statuses ?? []);
+    this.statusDurations = new Map(config.statusDurations ?? []);
+    this.statusImmunities = new Set([
+      ...(config.statusImmunities ?? []),
+      ...(this.equipmentEffects.statusImmunities ?? []),
+    ]);
+    this.statusResistance = Math.min(0.9, Math.max(0, config.statusResistance ?? this.equipmentEffects.statusResistance ?? 0));
     this.level = config.level ?? 1;
     this.equippedAbilitySet = config.equippedAbilitySet ?? 'たたかう型';
     this.equipment = config.equipment ?? {
@@ -52,12 +66,20 @@ export class Unit {
 
     this.size = config.size ?? 1.0;
     this.ai = config.ai ?? null;
+    this.aiActions = config.aiActions ?? [];
+    this.creatureTypes = new Set(config.creatureTypes ?? (config.isEnemy ? ['boss'] : ['human']));
+    this.row = config.row ?? 'front';
+    this.heavy = config.heavy ?? this.creatureTypes.has('boss');
+    this.isUndead = config.isUndead ?? this.equipmentEffects.undeadProperties ?? this.creatureTypes.has('undead');
+    this.removedFromBattle = false;
 
     // CTB state
-    this.ctValue = config.ctValue ?? Math.random() * 200; // slight stagger at battle start
+    this.ctValue = config.ctValue ?? Math.random() * 200 + (this.equipmentEffects.initialCtBonus ?? 0); // slight stagger at battle start
     this.defending = false;
 
     this.magicList = config.magicList ?? [];
+
+    (this.equipmentEffects.autoStatuses ?? []).forEach((status) => this.addStatus(status, { force: true }));
   }
 
   isAlive() {
@@ -66,11 +88,14 @@ export class Unit {
 
   applyDamage(amount) {
     const dmg = Math.max(0, Math.round(amount));
+    const before = this.hp;
     this.hp = Math.max(0, this.hp - dmg);
-    return dmg;
+    if (this.hp === 0) this.statuses.add('ko');
+    return before - this.hp;
   }
 
   applyHeal(amount) {
+    if (!this.isAlive() || this.statuses.has('zombie')) return 0;
     const before = this.hp;
     this.hp = Math.min(this.maxHp, this.hp + Math.round(amount));
     return this.hp - before;
@@ -82,5 +107,49 @@ export class Unit {
 
   hpRatio() {
     return this.hp / this.maxHp;
+  }
+
+  canAffordMp(amount) {
+    return this.mp >= Math.ceil(Math.max(0, amount) * (this.mpCostMultiplier ?? 1));
+  }
+
+  canIssueCommand() {
+    return canIssueCommand(this);
+  }
+
+  canUseMagic() {
+    return canUseMagic(this);
+  }
+
+  addStatus(status, { duration, chance = 1, force = false, random = Math.random } = {}) {
+    if (!status || (!force && this.statusImmunities.has(status))) return false;
+    if (!force && random() > Math.max(0.05, chance * (1 - this.statusResistance))) return false;
+    if (status === 'ko') {
+      this.hp = 0;
+      this.statuses.add('ko');
+      return true;
+    }
+    if (!this.isAlive()) return false;
+    this.statuses.add(status);
+    const turns = duration ?? DEFAULT_STATUS_DURATIONS[status];
+    if (turns) this.statusDurations.set(status, turns);
+    return true;
+  }
+
+  removeStatus(status) {
+    const removed = this.statuses.delete(status);
+    this.statusDurations.delete(status);
+    return removed;
+  }
+
+  revive(hpRatio = 0.25) {
+    if (this.isAlive() && !this.statuses.has('ko')) return 0;
+    this.removeStatus('ko');
+    this.hp = Math.max(1, Math.round(this.maxHp * hpRatio));
+    return this.hp;
+  }
+
+  processTurnStatuses() {
+    return statusTick(this);
   }
 }

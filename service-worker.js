@@ -1,15 +1,17 @@
-const CACHE_NAME = 'ff-crystal-rush-pwa-v6';
+const CACHE_NAME = 'ff-crystal-rush-pwa-v13';
 const APP_SHELL = [
   './',
   './index.html',
   './app.js',
-  './css/style.css?v=equipment-runtime-v5',
-  './css/ff5-ui.css?v=equipment-runtime-v5',
+  './css/style.css?v=soul-arena-v12',
+  './css/ff5-ui.css?v=soul-arena-v12',
   './firebase-config.js',
   './manifest.webmanifest',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
   './assets/icons/icon-maskable-512.png',
+  './assets/backgrounds/crystal-sanctum.jpg',
+  './assets/ui/soul-crystal-sigil.svg',
 ];
 
 self.addEventListener('install', (event) => {

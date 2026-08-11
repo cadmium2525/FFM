@@ -100,6 +100,13 @@ export function calculateEquipmentBonuses(equipment = {}) {
     weaponAccuracy: weapon?.accuracy ?? 100,
     weaponSpecial: weapon?.special ?? null,
     resistances: [], nullElements: [], absorbs: [], weaknesses: [], magicBoostElements: [],
+    statusImmunities: [], autoStatuses: [], onHitStatuses: [], killers: [],
+    statusResistance: 0,
+    magicEvasion: 0,
+    onHitProc: null,
+    initialCtBonus: 0,
+    undeadProperties: false,
+    backRowFullDamage: false,
     mpCostMultiplier: 1,
     physicalDamageMultiplier: 1,
     initialImageHits: 0,
@@ -119,10 +126,53 @@ export function calculateEquipmentBonuses(equipment = {}) {
     if (special === 'steal_boost_agi_plus_1') result.agility += 1;
     if (special === 'sap_sleep_immunity_mag_minus_5') result.magic -= 5;
     if (special === 'physical_evasion') result.evasion += 25;
-    if (special === 'evasion_and_protect') { result.evasion += 10; result.physicalDamageMultiplier *= 0.75; }
+    if (special === 'evasion_and_protect') result.evasion += 10;
     if (special === 'auto_haste_and_status_immunity' || special === 'first_strike_and_haste') result.agility += 10;
     if (special === 'auto_image') result.initialImageHits = Math.max(result.initialImageHits, 1);
     if (special === 'half_mp_cost') result.mpCostMultiplier = 0.5;
+    if (special === 'first_strike_and_haste') result.initialCtBonus = Math.max(result.initialCtBonus, 700);
+    if (special === 'undead_properties') result.undeadProperties = true;
+    if (special === 'back_row_full_damage') result.backRowFullDamage = true;
+
+    const immunityMap = {
+      blind_immunity: ['blind'], silence_immunity: ['silence'],
+      confuse_mini_immunity: ['confuse', 'mini'], confuse_toad_immunity: ['confuse', 'toad'],
+      paralyze_mini_immunity: ['paralyze', 'mini'], paralyze_toad_immunity: ['paralyze', 'toad'],
+      zombie_old_immunity: ['zombie', 'old'], sap_sleep_immunity_mag_minus_5: ['sap', 'sleep'],
+      petrify_immunity_and_magic_block: ['petrify'],
+      confuse_immunity_and_dance_boost: ['confuse'],
+    };
+    (immunityMap[special] ?? []).forEach((status) => addUnique(result.statusImmunities, status));
+    if (special === 'auto_haste_and_status_immunity' || special === 'most_status_immunity_and_all_stats_plus_5') {
+      ['poison', 'blind', 'silence', 'toad', 'mini', 'petrify', 'confuse', 'paralyze', 'sleep', 'old'].forEach((status) => addUnique(result.statusImmunities, status));
+      result.statusResistance = 0.35;
+    }
+    if (special === 'auto_haste_and_status_immunity' || special === 'first_strike_and_haste') addUnique(result.autoStatuses, 'haste');
+    if (special === 'auto_reflect') addUnique(result.autoStatuses, 'reflect');
+    if (special === 'auto_regen_vit_plus_5') addUnique(result.autoStatuses, 'regen');
+    if (special === 'evasion_and_protect') addUnique(result.autoStatuses, 'protect');
+    if (special === 'auto_doom') addUnique(result.autoStatuses, 'doom');
+    if (special === 'petrify_immunity_and_magic_block') result.magicEvasion += 20;
+
+    const onHitStatusMap = {
+      berserk_on_hit: 'berserk', blind: 'blind', confuse: 'confuse', old: 'old',
+      paralyze: 'paralyze', poison: 'poison', silence: 'silence', sleep: 'sleep',
+      instant_death: 'ko',
+    };
+    if (onHitStatusMap[special]) result.onHitStatuses.push({ status: onHitStatusMap[special], chance: special === 'instant_death' ? 0.08 : 0.22 });
+
+    const killerMap = {
+      aevis_killer: ['aevis'], dragon_and_undead_killer: ['dragon', 'undead'], dragon_killer: ['dragon'],
+      giant_killer: ['giant'], human_killer: ['human'], magic_beast_killer: ['magic_beast'],
+    };
+    (killerMap[special] ?? []).forEach((type) => addUnique(result.killers, type));
+    const procMap = {
+      earthquake_proc: { element: 'earth', power: 1.8, chance: 0.18 },
+      firaga_proc: { element: 'fire', power: 2.3, chance: 0.2 },
+      thunder_proc: { element: 'thunder', power: 1.45, chance: 0.25 },
+      wind_slash: { element: 'wind', power: 1.65, chance: 0.2 },
+    };
+    if (procMap[special]) result.onHitProc = procMap[special];
 
     if (special === 'resist_lightning') addUnique(result.resistances, 'thunder');
     if (special.includes('absorb_fire')) addUnique(result.absorbs, 'fire');

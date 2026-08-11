@@ -12,8 +12,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="assets/icons/icon-192.png">
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
-<link rel="stylesheet" href="css/style.css?v=equipment-runtime-v5">
-<link rel="stylesheet" href="css/ff5-ui.css?v=equipment-runtime-v5">
+<link rel="stylesheet" href="css/style.css?v=soul-arena-v12">
+<link rel="stylesheet" href="css/ff5-ui.css?v=soul-arena-v12">
 </head>
 <body>
   <div id="game-root">
@@ -70,8 +70,21 @@
     <section id="battle-screen" class="screen">
       <div class="battle-layout">
 
+        <div class="battle-atmosphere" aria-hidden="true">
+          <div class="arena-vault"></div>
+          <div class="arena-horizon"></div>
+          <div class="arena-platform"></div>
+          <div class="ambient-shard shard-a"></div>
+          <div class="ambient-shard shard-b"></div>
+          <div class="ambient-shard shard-c"></div>
+          <div class="ambient-mote mote-a"></div>
+          <div class="ambient-mote mote-b"></div>
+          <div class="ambient-mote mote-c"></div>
+        </div>
+        <div id="battle-effects" class="battle-effects" aria-hidden="true"></div>
+
         <!-- Field: enemies (left) + party (right) -->
-        <div class="battle-field ff5-window">
+        <div class="battle-field ff5-window" aria-label="戦闘フィールド">
           <div id="enemy-field" class="enemy-field"></div>
           <div id="party-field" class="party-field"></div>
         </div>
@@ -79,7 +92,7 @@
         <!-- CTB order panel -->
         <div id="ctb-panel" class="ctb-panel ff5-window">
           <div class="ctb-panel-title">CTB</div>
-          <div id="ctb-list" class="ctb-list"></div>
+          <div id="ctb-list" class="ctb-list" role="list" aria-label="行動順"></div>
         </div>
 
         <!-- Bottom bar: enemy info / command / party status -->
@@ -95,7 +108,7 @@
           </div>
 
           <div id="party-status-window" class="ff5-window bottom-box wide">
-            <div id="party-status-content"></div>
+            <div id="party-status-content" aria-live="polite"></div>
 
             <!-- Action overlays stay inside the party-status window. -->
             <div id="target-window" class="ff5-window target-window hidden">
@@ -111,7 +124,7 @@
         </div>
 
         <!-- Message window overlay -->
-        <div id="message-window" class="ff5-window message-window hidden">
+        <div id="message-window" class="ff5-window message-window hidden" role="status" aria-live="assertive" aria-atomic="true">
           <div id="message-text"></div>
         </div>
 
@@ -225,6 +238,103 @@ class GameStateManager {
 
 const GameState = new GameStateManager();
 
+// ---- src/battle/StatusEngine.js ----
+/**
+ * Lightweight status rules shared by CTB and the action resolver.
+ * Statuses remain a Set on Unit for UI compatibility; durations live beside it.
+ */
+const POSITIVE_STATUSES = Object.freeze([
+  'protect', 'shell', 'haste', 'regen', 'reflect', 'float', 'image', 'barrier',
+]);
+
+const INCAPACITATING_STATUSES = Object.freeze([
+  'ko', 'petrify', 'stop', 'sleep', 'paralyze',
+]);
+
+const CURABLE_STATUSES = Object.freeze([
+  'poison', 'blind', 'silence', 'toad', 'mini', 'petrify', 'confuse',
+  'paralyze', 'sleep', 'old', 'berserk', 'zombie', 'stop', 'slow', 'doom', 'sap',
+]);
+
+const DEFAULT_STATUS_DURATIONS = Object.freeze({
+  sleep: 3,
+  paralyze: 2,
+  stop: 2,
+  confuse: 3,
+  berserk: 4,
+  protect: 6,
+  shell: 6,
+  haste: 6,
+  slow: 6,
+  reflect: 5,
+  regen: 6,
+  sap: 5,
+  doom: 5,
+  time_focus: 4,
+});
+
+function normalizeElement(element) {
+  return element === 'lightning' ? 'thunder' : element;
+}
+
+function effectiveAgility(unit) {
+  let value = Math.max(1, unit.agility ?? 1);
+  if (unit.statuses?.has('haste')) value *= 1.5;
+  if (unit.statuses?.has('slow')) value *= 0.65;
+  if (unit.statuses?.has('old')) value *= 0.8;
+  if (unit.statuses?.has('time_focus')) value *= 1.2;
+  if (unit.statuses?.has('stop')) value = 0;
+  return Math.max(0, Math.round(value));
+}
+
+function isIncapacitated(unit) {
+  if (!unit?.isAlive?.()) return true;
+  return INCAPACITATING_STATUSES.some((status) => unit.statuses?.has(status));
+}
+
+function canIssueCommand(unit) {
+  return !isIncapacitated(unit) && !unit.statuses?.has('berserk') && !unit.statuses?.has('confuse');
+}
+
+function canUseMagic(unit) {
+  return unit?.isAlive?.() && !unit.statuses?.has('silence') && !unit.statuses?.has('toad');
+}
+
+function statusTick(unit) {
+  const results = [];
+  if (!unit.isAlive()) return results;
+
+  if (unit.statuses.has('poison')) {
+    const amount = unit.applyDamage(Math.max(1, Math.floor(unit.maxHp / 16)));
+    results.push({ type: 'status-damage', status: 'poison', targetUid: unit.uid, amount });
+  }
+  if (unit.statuses.has('sap') && unit.isAlive()) {
+    const amount = unit.applyDamage(Math.max(1, Math.floor(unit.maxHp / 24)));
+    results.push({ type: 'status-damage', status: 'sap', targetUid: unit.uid, amount });
+  }
+  if (unit.statuses.has('regen') && unit.isAlive()) {
+    const amount = unit.applyHeal(Math.max(1, Math.floor(unit.maxHp / 12)));
+    results.push({ type: 'status-heal', status: 'regen', targetUid: unit.uid, amount });
+  }
+
+  const expired = [];
+  unit.statusDurations?.forEach((remaining, status) => {
+    const next = remaining - 1;
+    if (next <= 0) expired.push(status);
+    else unit.statusDurations.set(status, next);
+  });
+  expired.forEach((status) => {
+    if (status === 'doom' && unit.isAlive()) {
+      unit.applyDamage(unit.hp);
+      results.push({ type: 'doom', status, targetUid: unit.uid, amount: 0 });
+    }
+    unit.removeStatus(status);
+    results.push({ type: 'status-expired', status, targetUid: unit.uid, amount: 0 });
+  });
+
+  return results;
+}
+
 // ---- src/battle/Unit.js ----
 let uidCounter = 0;
 
@@ -265,7 +375,14 @@ class Unit {
     this.imageHits = this.equipmentEffects.initialImageHits ?? 0;
     this.nextAttackMultiplier = 1;
     this.magicDamageMultiplier = 1;
+    this.physicalBarrier = Math.max(0, config.physicalBarrier ?? 0);
     this.statuses = new Set(config.statuses ?? []);
+    this.statusDurations = new Map(config.statusDurations ?? []);
+    this.statusImmunities = new Set([
+      ...(config.statusImmunities ?? []),
+      ...(this.equipmentEffects.statusImmunities ?? []),
+    ]);
+    this.statusResistance = Math.min(0.9, Math.max(0, config.statusResistance ?? this.equipmentEffects.statusResistance ?? 0));
     this.level = config.level ?? 1;
     this.equippedAbilitySet = config.equippedAbilitySet ?? 'たたかう型';
     this.equipment = config.equipment ?? {
@@ -280,12 +397,20 @@ class Unit {
 
     this.size = config.size ?? 1.0;
     this.ai = config.ai ?? null;
+    this.aiActions = config.aiActions ?? [];
+    this.creatureTypes = new Set(config.creatureTypes ?? (config.isEnemy ? ['boss'] : ['human']));
+    this.row = config.row ?? 'front';
+    this.heavy = config.heavy ?? this.creatureTypes.has('boss');
+    this.isUndead = config.isUndead ?? this.equipmentEffects.undeadProperties ?? this.creatureTypes.has('undead');
+    this.removedFromBattle = false;
 
     // CTB state
-    this.ctValue = config.ctValue ?? Math.random() * 200; // slight stagger at battle start
+    this.ctValue = config.ctValue ?? Math.random() * 200 + (this.equipmentEffects.initialCtBonus ?? 0); // slight stagger at battle start
     this.defending = false;
 
     this.magicList = config.magicList ?? [];
+
+    (this.equipmentEffects.autoStatuses ?? []).forEach((status) => this.addStatus(status, { force: true }));
   }
 
   isAlive() {
@@ -294,11 +419,14 @@ class Unit {
 
   applyDamage(amount) {
     const dmg = Math.max(0, Math.round(amount));
+    const before = this.hp;
     this.hp = Math.max(0, this.hp - dmg);
-    return dmg;
+    if (this.hp === 0) this.statuses.add('ko');
+    return before - this.hp;
   }
 
   applyHeal(amount) {
+    if (!this.isAlive() || this.statuses.has('zombie')) return 0;
     const before = this.hp;
     this.hp = Math.min(this.maxHp, this.hp + Math.round(amount));
     return this.hp - before;
@@ -311,6 +439,50 @@ class Unit {
   hpRatio() {
     return this.hp / this.maxHp;
   }
+
+  canAffordMp(amount) {
+    return this.mp >= Math.ceil(Math.max(0, amount) * (this.mpCostMultiplier ?? 1));
+  }
+
+  canIssueCommand() {
+    return canIssueCommand(this);
+  }
+
+  canUseMagic() {
+    return canUseMagic(this);
+  }
+
+  addStatus(status, { duration, chance = 1, force = false, random = Math.random } = {}) {
+    if (!status || (!force && this.statusImmunities.has(status))) return false;
+    if (!force && random() > Math.max(0.05, chance * (1 - this.statusResistance))) return false;
+    if (status === 'ko') {
+      this.hp = 0;
+      this.statuses.add('ko');
+      return true;
+    }
+    if (!this.isAlive()) return false;
+    this.statuses.add(status);
+    const turns = duration ?? DEFAULT_STATUS_DURATIONS[status];
+    if (turns) this.statusDurations.set(status, turns);
+    return true;
+  }
+
+  removeStatus(status) {
+    const removed = this.statuses.delete(status);
+    this.statusDurations.delete(status);
+    return removed;
+  }
+
+  revive(hpRatio = 0.25) {
+    if (this.isAlive() && !this.statuses.has('ko')) return 0;
+    this.removeStatus('ko');
+    this.hp = Math.max(1, Math.round(this.maxHp * hpRatio));
+    return this.hp;
+  }
+
+  processTurnStatuses() {
+    return statusTick(this);
+  }
 }
 
 // ---- src/battle/ActionResolver.js ----
@@ -321,7 +493,8 @@ class Unit {
  * the math can be unit-tested / tweaked independently of turn flow.
  */
 
-const VARIANCE = 0.15; // +/-15% randomness on damage
+
+const VARIANCE = 0.12; // readable tactical outcomes without feeling deterministic
 
 function randomVariance(base) {
   const factor = 1 + (Math.random() * 2 - 1) * VARIANCE;
@@ -331,6 +504,7 @@ function randomVariance(base) {
 function equipmentElementState(defender, element) {
   const effects = defender.equipmentEffects ?? {};
   if (!element) return 'normal';
+  element = normalizeElement(element);
   if (effects.absorbs?.includes(element)) return 'absorb';
   if (effects.nullElements?.includes(element)) return 'null';
   if (effects.weaknesses?.includes(element) || defender.weakness === element) return 'weak';
@@ -341,7 +515,10 @@ function equipmentElementState(defender, element) {
 /** Physical attack damage: ATK vs DEF, with weapon and armor effects. */
 function resolvePhysicalDamage(attacker, defender, action = {}) {
   if (attacker.weaponSpecial === 'always_1_damage') return 1;
-  const multiplier = (action.power ?? 1) * (action.attackMultiplier ?? 1);
+  let multiplier = (action.power ?? 1) * (action.attackMultiplier ?? 1);
+  if (attacker.row === 'back' && !action.ranged && !attacker.equipmentEffects?.backRowFullDamage) multiplier *= 0.55;
+  if (defender.row === 'back' && !action.ranged) multiplier *= 0.55;
+  if ((attacker.equipmentEffects?.killers ?? []).some((type) => defender.creatureTypes?.has(type))) multiplier *= 1.5;
   const raw = Math.max(1, attacker.atk * 2.2 * multiplier - defender.def * 1.1);
   let dmg = randomVariance(raw);
   const elementState = equipmentElementState(defender, attacker.weaponElement);
@@ -350,7 +527,7 @@ function resolvePhysicalDamage(attacker, defender, action = {}) {
   if (elementState === 'null' || elementState === 'absorb') dmg = 0;
   if (attacker.weaponSpecial === 'critical' && Math.random() < 0.12) dmg *= 2;
   if (attacker.weaponSpecial === 'high_critical' && Math.random() < 0.25) dmg *= 2;
-  if (defender.defending) dmg *= 0.5;
+  if (defender.defending || defender.statuses?.has('protect')) dmg *= defender.defending ? 0.5 : 0.75;
   dmg *= defender.physicalDamageMultiplier ?? 1;
   return Math.max(0, Math.round(dmg));
 }
@@ -367,8 +544,10 @@ function resolveMagicDamage(caster, defender, spell) {
     if (elementState === 'resist') dmg *= 0.4;
     if (elementState === 'null') dmg = 0;
   }
-  if (defender.defending) dmg *= 0.5;
-  return Math.max(1, Math.round(dmg));
+  if (defender.defending) dmg *= 0.7;
+  if (defender.statuses?.has('shell')) dmg *= 0.72;
+  if (equipmentElementState(defender, spell.element) === 'null') return 0;
+  return Math.max(0, Math.round(dmg));
 }
 
 /** Heal amount, with light randomness. */
@@ -384,7 +563,7 @@ function operationToAction(operation, actor) {
     case 'damage.fixed': return { ...common, kind: 'fixed-damage', fixedDamage: operation.amount };
     case 'damage.caster_hp': return { ...common, kind: 'fixed-damage', fixedDamage: actor.hp, sacrificeCaster: operation.sacrificeCaster };
     case 'damage.missing_hp': return { ...common, kind: 'fixed-damage', fixedDamage: actor.maxHp - actor.hp };
-    case 'damage.hp_ratio': return { ...common, kind: 'ratio-damage', ratio: operation.ratio };
+    case 'damage.hp_ratio': return { ...common, kind: 'ratio-damage', ratio: operation.ratio, heavyImmune: operation.heavyImmune };
     case 'damage.mp_ratio': return { ...common, kind: 'mp-ratio-damage', ratio: operation.ratio };
     case 'drain.hp': return { ...common, kind: 'magic-attack', power: operation.power, drain: true };
     case 'drain.mp': return { ...common, kind: 'mp-drain', power: operation.power };
@@ -394,11 +573,16 @@ function operationToAction(operation, actor) {
     case 'restore.full': return { ...common, kind: 'full-restore' };
     case 'revive': return { ...common, kind: 'revive', hpRatio: operation.hpRatio };
     case 'inspect': return { ...common, kind: 'scan', fields: operation.fields };
-    case 'status.apply': return { ...common, kind: 'status', statuses: operation.statuses, toggle: operation.toggle, imageHits: operation.imageHits };
+    case 'status.apply': return { ...common, kind: 'status', statuses: operation.statuses, toggle: operation.toggle, imageHits: operation.imageHits, duration: operation.duration, statusChance: operation.statusChance };
     case 'status.remove': return { ...common, kind: 'cleanse', statuses: operation.statuses, mode: operation.mode };
     case 'status.dispel': return { ...common, kind: 'dispel' };
     case 'stat.modify': return { ...common, kind: 'stat-modify', stat: operation.stat, multiplier: operation.multiplier };
+    case 'battle.speed': return { ...common, kind: 'field-speed', multiplier: operation.multiplier, duration: operation.duration };
+    case 'battle.field_status': return { ...common, kind: 'field-status', status: operation.status, duration: operation.duration };
+    case 'barrier.physical': return { ...common, kind: 'barrier-physical', amountFormula: operation.amountFormula, amount: operation.amount };
     case 'caster.sacrifice': return { ...common, kind: 'sacrifice' };
+    case 'remove.from_battle': return { ...common, kind: 'remove-from-battle' };
+    case 'turn.extra': return { ...common, kind: 'extra-turn', count: operation.count };
     default: return { ...common, kind: 'scripted', label: operation.handlerKey ?? operation.op };
   }
 }
@@ -407,16 +591,27 @@ function operationToAction(operation, actor) {
  * Resolve a full action given the actor, the chosen action definition,
  * and the target(s). Returns a log-friendly result object.
  */
-function resolveAction({ actor, action, targets }) {
+function resolveAction({ actor, action, targets, battleUnits = targets }) {
+  targets = (targets ?? []).filter(Boolean);
+  if (action.disabledReason) return [{ type: 'unavailable', targetUid: actor.uid, reason: action.disabledReason }];
+  if (targets.length === 0) return [{ type: 'invalid-target', targetUid: actor.uid }];
+  const actionMpCost = Math.ceil((action.mpCost ?? 0) * (actor.mpCostMultiplier ?? 1));
+  if (!action._compiledOperation && actionMpCost > actor.mp) {
+    return [{ type: 'insufficient-mp', targetUid: actor.uid, required: actionMpCost }];
+  }
+  if (!action._compiledOperation && ['magic-attack', 'heal', 'status', 'cleanse', 'dispel', 'revive'].includes(action.kind) && !actor.canUseMagic?.()) {
+    return [{ type: 'sealed', targetUid: actor.uid }];
+  }
   if (action.operations?.length && !action._compiledOperation) {
     if (action.mpCost) actor.spendMp(Math.ceil(action.mpCost * (actor.mpCostMultiplier ?? 1)));
     return action.operations.flatMap((operation) => {
       const operationTargets = operation.targetSide
-        ? targets.filter((target) => operation.targetSide === 'enemy' ? target.isEnemy : !target.isEnemy)
+        ? (battleUnits ?? targets).filter((target) => operation.targetSide === 'enemy' ? target.isEnemy !== actor.isEnemy : target.isEnemy === actor.isEnemy)
         : targets;
+      const livingTargets = operation.op === 'revive' ? operationTargets : operationTargets.filter((target) => target.isAlive());
       const eligibleTargets = operation.conditionalLevel
-        ? operationTargets.filter((target) => target.level % operation.conditionalLevel === 0)
-        : operationTargets;
+        ? livingTargets.filter((target) => target.level % operation.conditionalLevel === 0)
+        : livingTargets;
       if (operation.conditionalLevel && eligibleTargets.length === 0) {
         return [{ type: 'miss', targetUid: operationTargets[0]?.uid ?? actor.uid, hits: 1 }];
       }
@@ -424,6 +619,7 @@ function resolveAction({ actor, action, targets }) {
         actor,
         action: { ...operationToAction(operation, actor), element: operation.element ?? action.element },
         targets: eligibleTargets.length ? eligibleTargets : [actor],
+        battleUnits,
       });
     });
   }
@@ -433,6 +629,7 @@ function resolveAction({ actor, action, targets }) {
   switch (action.kind) {
     case 'physical-attack': {
       const target = targets[0];
+      if (!target?.isAlive()) return [{ type: 'invalid-target', targetUid: target?.uid ?? actor.uid }];
       const hits = Math.max(1, action.hits ?? (actor.weaponSpecial === 'double_hit' ? 2 : 1));
       const attackMultiplier = actor.nextAttackMultiplier ?? 1;
       actor.nextAttackMultiplier = 1;
@@ -442,7 +639,8 @@ function resolveAction({ actor, action, targets }) {
       for (let hit = 0; hit < hits; hit += 1) {
         const blockedByImage = !action.ignoreEvasion && target.imageHits > 0;
         if (blockedByImage) target.imageHits -= 1;
-        const hitChance = Math.min(1, Math.max(0.2, ((actor.weaponAccuracy ?? 100) - (action.ignoreEvasion ? 0 : target.evasion ?? 0)) / 100));
+        const blindPenalty = actor.statuses?.has('blind') ? 35 : 0;
+        const hitChance = Math.min(1, Math.max(0.08, ((actor.weaponAccuracy ?? 100) - blindPenalty - (action.ignoreEvasion ? 0 : target.evasion ?? 0)) / 100));
         if (blockedByImage || Math.random() > hitChance) {
           missedHits += 1;
           continue;
@@ -450,7 +648,13 @@ function resolveAction({ actor, action, targets }) {
         const sameLevelPower = action.sameLevelMultiplier && actor.level === target.level
           ? (action.power ?? 1) * action.sameLevelMultiplier
           : action.power;
-        const damage = resolvePhysicalDamage(actor, target, { ...action, power: sameLevelPower, attackMultiplier });
+        let damage = resolvePhysicalDamage(actor, target, { ...action, power: sameLevelPower, attackMultiplier });
+        if (damage > 0 && target.physicalBarrier > 0) {
+          const absorbed = Math.min(target.physicalBarrier, damage);
+          target.physicalBarrier -= absorbed;
+          damage -= absorbed;
+          results.push({ type: 'barrier-absorb', targetUid: target.uid, amount: absorbed, remaining: target.physicalBarrier });
+        }
         if (damage <= 0) blockedHits += 1;
         else dealtTotal += target.applyDamage(damage);
       }
@@ -466,21 +670,41 @@ function resolveAction({ actor, action, targets }) {
         actor.mp += restored;
         if (restored > 0) results.push({ type: 'mp-heal', targetUid: actor.uid, amount: restored });
       }
+      if (dealtTotal > 0) {
+        (actor.equipmentEffects?.onHitStatuses ?? []).forEach(({ status, chance }) => {
+          if (status === 'ko' && target.heavy) return;
+          const applied = target.addStatus?.(status, { chance });
+          results.push({ type: applied ? 'status' : 'status-resist', targetUid: target.uid, statuses: [status] });
+        });
+        const proc = actor.equipmentEffects?.onHitProc;
+        if (proc && Math.random() < proc.chance) {
+          const procDamage = target.applyDamage(resolveMagicDamage(actor, target, proc));
+          results.push({ type: 'damage', targetUid: target.uid, amount: procDamage, element: proc.element, proc: true });
+        }
+      }
       break;
     }
     case 'magic-attack': {
       actor.spendMp(Math.ceil((action.mpCost ?? 0) * (actor.mpCostMultiplier ?? 1)));
       let drainedTotal = 0;
       targets.forEach((target) => {
+        const magicEvasion = action.ignoreEvasion ? 0 : (target.equipmentEffects?.magicEvasion ?? 0);
+        if (magicEvasion > 0 && Math.random() * 100 < magicEvasion) {
+          results.push({ type: 'miss', targetUid: target.uid, hits: action.hits ?? 1 });
+          return;
+        }
         const elementState = equipmentElementState(target, action.element);
-        const dmg = resolveMagicDamage(actor, target, action) * (target.magicDamageMultiplier ?? 1);
+        const hits = Math.max(1, action.hits ?? 1);
+        let dmg = 0;
+        for (let hit = 0; hit < hits; hit += 1) dmg += resolveMagicDamage(actor, target, action);
+        dmg = Math.round(dmg * (target.magicDamageMultiplier ?? 1));
         if (elementState === 'absorb') {
           const healed = target.applyHeal(dmg);
           results.push({ type: 'absorb', targetUid: target.uid, amount: healed });
         } else {
           const dealt = elementState === 'null' ? 0 : target.applyDamage(dmg);
           drainedTotal += dealt;
-          results.push({ type: 'damage', targetUid: target.uid, amount: dealt, weak: elementState === 'weak', nullified: elementState === 'null' });
+          results.push({ type: 'damage', targetUid: target.uid, amount: dealt, hits, element: action.element, weak: elementState === 'weak', resisted: elementState === 'resist', nullified: elementState === 'null' });
         }
       });
       if (action.drain && drainedTotal > 0) results.push({ type: 'heal', targetUid: actor.uid, amount: actor.applyHeal(drainedTotal) });
@@ -489,6 +713,11 @@ function resolveAction({ actor, action, targets }) {
     case 'heal': {
       if (action.mpCost) actor.spendMp(Math.ceil(action.mpCost * (actor.mpCostMultiplier ?? 1)));
       targets.forEach((target) => {
+        if (target.statuses?.has('zombie') || target.isUndead) {
+          const damaged = target.applyDamage(resolveHeal(action.healAmount));
+          results.push({ type: 'damage', targetUid: target.uid, amount: damaged, reversed: true });
+          return;
+        }
         const healed = target.applyHeal(resolveHeal(action.healAmount));
         results.push({ type: 'heal', targetUid: target.uid, amount: healed });
       });
@@ -501,7 +730,10 @@ function resolveAction({ actor, action, targets }) {
       break;
     }
     case 'ratio-damage': {
-      targets.forEach((target) => results.push({ type: 'damage', targetUid: target.uid, amount: target.applyDamage(Math.floor(target.hp * (action.ratio ?? 0.5))) }));
+      targets.forEach((target) => {
+        if (action.heavyImmune && target.heavy) results.push({ type: 'blocked', targetUid: target.uid, hits: 1 });
+        else results.push({ type: 'damage', targetUid: target.uid, amount: target.applyDamage(Math.floor(target.hp * (action.ratio ?? 0.5))) });
+      });
       break;
     }
     case 'mp-ratio-damage': {
@@ -541,9 +773,9 @@ function resolveAction({ actor, action, targets }) {
     }
     case 'revive': {
       targets.forEach((target) => {
-        if (target.hp > 0) return;
-        target.hp = Math.max(1, Math.round(target.maxHp * (action.hpRatio ?? 0.25)));
-        results.push({ type: 'revive', targetUid: target.uid, amount: target.hp });
+        const amount = target.revive?.(action.hpRatio ?? 0.25) ?? 0;
+        if (amount > 0) results.push({ type: 'revive', targetUid: target.uid, amount });
+        else results.push({ type: 'invalid-target', targetUid: target.uid });
       });
       break;
     }
@@ -553,32 +785,30 @@ function resolveAction({ actor, action, targets }) {
     }
     case 'status': {
       targets.forEach((target) => {
+        const appliedStatuses = [];
+        const resistedStatuses = [];
         (action.statuses ?? []).forEach((status) => {
-          if (action.toggle && target.statuses.has(status)) target.statuses.delete(status);
-          else target.statuses.add(status);
-          if (status === 'protect') target.physicalDamageMultiplier *= 0.75;
-          if (status === 'shell') target.magicDamageMultiplier *= 0.75;
-          if (status === 'haste') target.agility = Math.round(target.agility * 1.25);
-          if (status === 'slow') target.agility = Math.max(1, Math.round(target.agility * 0.75));
-          if (status === 'ko') target.hp = 0;
+          if (action.toggle && target.statuses.has(status)) target.removeStatus(status);
+          else if (target.addStatus?.(status, { duration: action.duration, chance: action.statusChance ?? action.chance ?? 0.85 })) appliedStatuses.push(status);
+          else resistedStatuses.push(status);
         });
         if (action.imageHits) target.imageHits = Math.max(target.imageHits, action.imageHits);
-        results.push({ type: 'status', targetUid: target.uid, statuses: action.statuses ?? [] });
+        if (appliedStatuses.length || action.imageHits) results.push({ type: 'status', targetUid: target.uid, statuses: appliedStatuses });
+        if (resistedStatuses.length) results.push({ type: 'status-resist', targetUid: target.uid, statuses: resistedStatuses });
       });
       break;
     }
     case 'cleanse': {
       targets.forEach((target) => {
-        const removed = action.mode === 'all_curable' ? [...target.statuses] : (action.statuses ?? []);
-        removed.forEach((status) => target.statuses.delete(status));
+        const removed = action.mode === 'all_curable' ? [...target.statuses].filter((status) => CURABLE_STATUSES.includes(status)) : (action.statuses ?? []);
+        removed.forEach((status) => target.removeStatus?.(status));
         results.push({ type: 'cleanse', targetUid: target.uid, statuses: removed });
       });
       break;
     }
     case 'dispel': {
-      const positive = ['protect', 'shell', 'haste', 'regen', 'reflect', 'float'];
       targets.forEach((target) => {
-        positive.forEach((status) => target.statuses.delete(status));
+        POSITIVE_STATUSES.forEach((status) => target.removeStatus?.(status));
         results.push({ type: 'dispel', targetUid: target.uid });
       });
       break;
@@ -590,9 +820,45 @@ function resolveAction({ actor, action, targets }) {
       });
       break;
     }
+    case 'field-speed': {
+      actor.addStatus?.('time_focus', { force: true, duration: action.duration ?? 4 });
+      results.push({ type: 'field-status', targetUid: actor.uid, status: 'time_focus', multiplier: action.multiplier ?? 0.7 });
+      break;
+    }
+    case 'field-status': {
+      const status = action.status === 'mute' ? 'silence' : action.status;
+      (battleUnits ?? targets).filter((unit) => unit.isAlive()).forEach((target) => {
+        const applied = target.addStatus?.(status, { chance: 1, duration: action.duration ?? 4 });
+        results.push({ type: applied ? 'status' : 'status-resist', targetUid: target.uid, statuses: [status] });
+      });
+      break;
+    }
+    case 'barrier-physical': {
+      const total = action.amount ?? Math.max(400, actor.level * 60 + actor.magic * 10);
+      targets.filter((target) => target.isAlive()).forEach((target) => {
+        target.physicalBarrier = Math.max(target.physicalBarrier ?? 0, total);
+        results.push({ type: 'barrier', targetUid: target.uid, amount: target.physicalBarrier });
+      });
+      break;
+    }
     case 'sacrifice': {
       actor.applyDamage(actor.hp);
       results.push({ type: 'status', targetUid: actor.uid, statuses: ['ko'] });
+      break;
+    }
+    case 'remove-from-battle': {
+      targets.forEach((target) => {
+        if (target.heavy) results.push({ type: 'blocked', targetUid: target.uid, hits: 1 });
+        else {
+          target.removedFromBattle = true;
+          results.push({ type: 'removed', targetUid: target.uid });
+        }
+      });
+      break;
+    }
+    case 'extra-turn': {
+      actor.ctValue += 1000 * Math.max(1, action.count ?? 1);
+      results.push({ type: 'extra-turn', targetUid: actor.uid, count: action.count ?? 1 });
       break;
     }
     case 'scripted': {
@@ -622,7 +888,7 @@ function resolveAction({ actor, action, targets }) {
     }
     case 'haste': {
       actor.spendMp(Math.ceil((action.mpCost ?? 0) * (actor.mpCostMultiplier ?? 1)));
-      actor.agility += 8;
+      actor.addStatus?.('haste', { force: true, duration: action.duration });
       results.push({ type: 'buff', targetUid: actor.uid, label: '素早さ上昇' });
       break;
     }
@@ -653,6 +919,7 @@ function resolveAction({ actor, action, targets }) {
  *  - previewQueue() runs a side simulation (cloned CT values only) to show
  *    the upcoming turn order without mutating real battle state.
  */
+
 const BASE_THRESHOLD = 1000;
 
 class CTBEngine {
@@ -661,7 +928,7 @@ class CTBEngine {
   }
 
   aliveUnits() {
-    return this.units.filter((u) => u.isAlive());
+    return this.units.filter((u) => u.isAlive() && !u.removedFromBattle);
   }
 
   /**
@@ -680,18 +947,18 @@ class CTBEngine {
     while (guard++ < 100000) {
       const ready = alive.filter((u) => u.ctValue >= BASE_THRESHOLD);
       if (ready.length > 0) {
-        ready.sort((a, b) => (b.ctValue - a.ctValue) || (b.agility - a.agility));
+        ready.sort((a, b) => (b.ctValue - a.ctValue) || (effectiveAgility(b) - effectiveAgility(a)));
         return ready[0];
       }
       // Jump forward by the minimum number of ticks needed for the fastest
       // unit-to-threshold gap, applied to everyone at once (equivalent to
       // simulating tick-by-tick, just faster).
       const ticksNeeded = alive.map((u) =>
-        Math.ceil((BASE_THRESHOLD - u.ctValue) / Math.max(1, u.agility))
+        Math.ceil((BASE_THRESHOLD - u.ctValue) / Math.max(1, effectiveAgility(u)))
       );
       const jump = Math.max(1, Math.min(...ticksNeeded));
       alive.forEach((u) => {
-        u.ctValue += u.agility * jump;
+        u.ctValue += Math.max(1, effectiveAgility(u)) * jump;
       });
     }
     return alive[0];
@@ -718,7 +985,7 @@ class CTBEngine {
       name: u.name,
       isEnemy: u.isEnemy,
       ct: u.ctValue,
-      agi: u.agility,
+      agi: Math.max(1, effectiveAgility(u)),
     }));
     if (clones.length === 0) return [];
 
@@ -1232,6 +1499,13 @@ function calculateEquipmentBonuses(equipment = {}) {
     weaponAccuracy: weapon?.accuracy ?? 100,
     weaponSpecial: weapon?.special ?? null,
     resistances: [], nullElements: [], absorbs: [], weaknesses: [], magicBoostElements: [],
+    statusImmunities: [], autoStatuses: [], onHitStatuses: [], killers: [],
+    statusResistance: 0,
+    magicEvasion: 0,
+    onHitProc: null,
+    initialCtBonus: 0,
+    undeadProperties: false,
+    backRowFullDamage: false,
     mpCostMultiplier: 1,
     physicalDamageMultiplier: 1,
     initialImageHits: 0,
@@ -1251,10 +1525,53 @@ function calculateEquipmentBonuses(equipment = {}) {
     if (special === 'steal_boost_agi_plus_1') result.agility += 1;
     if (special === 'sap_sleep_immunity_mag_minus_5') result.magic -= 5;
     if (special === 'physical_evasion') result.evasion += 25;
-    if (special === 'evasion_and_protect') { result.evasion += 10; result.physicalDamageMultiplier *= 0.75; }
+    if (special === 'evasion_and_protect') result.evasion += 10;
     if (special === 'auto_haste_and_status_immunity' || special === 'first_strike_and_haste') result.agility += 10;
     if (special === 'auto_image') result.initialImageHits = Math.max(result.initialImageHits, 1);
     if (special === 'half_mp_cost') result.mpCostMultiplier = 0.5;
+    if (special === 'first_strike_and_haste') result.initialCtBonus = Math.max(result.initialCtBonus, 700);
+    if (special === 'undead_properties') result.undeadProperties = true;
+    if (special === 'back_row_full_damage') result.backRowFullDamage = true;
+
+    const immunityMap = {
+      blind_immunity: ['blind'], silence_immunity: ['silence'],
+      confuse_mini_immunity: ['confuse', 'mini'], confuse_toad_immunity: ['confuse', 'toad'],
+      paralyze_mini_immunity: ['paralyze', 'mini'], paralyze_toad_immunity: ['paralyze', 'toad'],
+      zombie_old_immunity: ['zombie', 'old'], sap_sleep_immunity_mag_minus_5: ['sap', 'sleep'],
+      petrify_immunity_and_magic_block: ['petrify'],
+      confuse_immunity_and_dance_boost: ['confuse'],
+    };
+    (immunityMap[special] ?? []).forEach((status) => addUnique(result.statusImmunities, status));
+    if (special === 'auto_haste_and_status_immunity' || special === 'most_status_immunity_and_all_stats_plus_5') {
+      ['poison', 'blind', 'silence', 'toad', 'mini', 'petrify', 'confuse', 'paralyze', 'sleep', 'old'].forEach((status) => addUnique(result.statusImmunities, status));
+      result.statusResistance = 0.35;
+    }
+    if (special === 'auto_haste_and_status_immunity' || special === 'first_strike_and_haste') addUnique(result.autoStatuses, 'haste');
+    if (special === 'auto_reflect') addUnique(result.autoStatuses, 'reflect');
+    if (special === 'auto_regen_vit_plus_5') addUnique(result.autoStatuses, 'regen');
+    if (special === 'evasion_and_protect') addUnique(result.autoStatuses, 'protect');
+    if (special === 'auto_doom') addUnique(result.autoStatuses, 'doom');
+    if (special === 'petrify_immunity_and_magic_block') result.magicEvasion += 20;
+
+    const onHitStatusMap = {
+      berserk_on_hit: 'berserk', blind: 'blind', confuse: 'confuse', old: 'old',
+      paralyze: 'paralyze', poison: 'poison', silence: 'silence', sleep: 'sleep',
+      instant_death: 'ko',
+    };
+    if (onHitStatusMap[special]) result.onHitStatuses.push({ status: onHitStatusMap[special], chance: special === 'instant_death' ? 0.08 : 0.22 });
+
+    const killerMap = {
+      aevis_killer: ['aevis'], dragon_and_undead_killer: ['dragon', 'undead'], dragon_killer: ['dragon'],
+      giant_killer: ['giant'], human_killer: ['human'], magic_beast_killer: ['magic_beast'],
+    };
+    (killerMap[special] ?? []).forEach((type) => addUnique(result.killers, type));
+    const procMap = {
+      earthquake_proc: { element: 'earth', power: 1.8, chance: 0.18 },
+      firaga_proc: { element: 'fire', power: 2.3, chance: 0.2 },
+      thunder_proc: { element: 'thunder', power: 1.45, chance: 0.25 },
+      wind_slash: { element: 'wind', power: 1.65, chance: 0.2 },
+    };
+    if (procMap[special]) result.onHitProc = procMap[special];
 
     if (special === 'resist_lightning') addUnique(result.resistances, 'thunder');
     if (special.includes('absorb_fire')) addUnique(result.absorbs, 'fire');
@@ -1340,7 +1657,9 @@ function magicOperations(record) {
   const operations = [];
   const conditionalLevel = Number(record.nameEn.match(/^Level (\d)/)?.[1] ?? 0) || null;
 
-  if (record.id === 'magic_phoenix') operations.push(
+  if (record.id === 'magic_speed') operations.push({ op: 'battle.speed', multiplier: 0.7, duration: 4 });
+  else if (record.id === 'magic_golem') operations.push({ op: 'barrier.physical', amountFormula: 'caster_level' });
+  else if (record.id === 'magic_phoenix') operations.push(
     { op: 'damage.magic', formula: 'ff5_magic', power: magicPower(record), targetSide: 'enemy' },
     { op: 'revive', hpRatio: 1, targetSide: 'ally' },
   );
@@ -1385,7 +1704,7 @@ function magicOperations(record) {
   if (/速度を上昇/.test(effect) && !statuses.includes('haste')) operations.push({ op: 'stat.modify', stat: 'agility', multiplier: 1.25 });
   if (/速度を低下/.test(effect) && !statuses.includes('slow')) operations.push({ op: 'stat.modify', stat: 'agility', multiplier: 0.75 });
   if (/魔法使用不能/.test(effect)) operations.push({ op: 'battle.field_status', status: 'mute' });
-  if (/物理ダメージを肩代わり/.test(effect)) operations.push({ op: 'barrier.physical', amountFormula: 'caster_level' });
+  if (/物理ダメージを肩代わり/.test(effect) && !operations.some((operation) => operation.op === 'barrier.physical')) operations.push({ op: 'barrier.physical', amountFormula: 'caster_level' });
   if (record.id === 'magic_transfusion' && !operations.some((operation) => operation.op === 'caster.sacrifice')) operations.push({ op: 'caster.sacrifice' });
 
   if (operations.length === 0) operations.push({ op: 'effect.script', handlerKey: record.id });
@@ -1476,7 +1795,17 @@ function primaryActionKind(operation) {
   if (operation.op === 'status.apply') return 'status';
   if (operation.op === 'stat.modify') return 'stat-modify';
   if (operation.op === 'damage.magic') return 'magic-attack';
+  if (operation.op === 'battle.speed') return 'field-speed';
+  if (operation.op === 'battle.field_status') return 'field-status';
+  if (operation.op === 'barrier.physical') return 'barrier-physical';
   return 'scripted';
+}
+
+function battleDisabledReason(record) {
+  const operations = record.battle?.operations ?? [];
+  if (operations.some((operation) => operation.op === 'battle.escape')) return 'ボス戦からはテレポで脱出できない。';
+  if (operations.some((operation) => operation.op === 'battle.restart')) return 'ボス戦では戦闘開始時へ巻き戻せない。';
+  return null;
 }
 
 function magicRecordToAction(record) {
@@ -1498,7 +1827,39 @@ function magicRecordToAction(record) {
     statuses: primary.statuses ?? [],
     operations: record.battle.operations,
     runtimeReady: true,
+    disabledReason: battleDisabledReason(record),
   });
+}
+
+/** Convert any runtime-ready catalog record into the stable action shape used by BattleManager. */
+function battleRecordToAction(record) {
+  if (!record?.battle?.runtimeReady) throw new TypeError(`Battle descriptor missing: ${record?.id ?? 'unknown'}`);
+  const primary = record.battle.operations[0] ?? { op: 'effect.script' };
+  return Object.freeze({
+    id: record.id,
+    sourceId: record.id,
+    sourceType: record.battle.sourceType,
+    name: record.techniqueNameJa ?? record.nameJa ?? record.nameEn ?? record.id,
+    actionKind: primaryActionKind(primary),
+    ctbCost: 0.75 + Math.min(1.25, (record.battle.mpCost ?? 0) / 60),
+    mpCost: record.battle.mpCost,
+    element: record.battle.element,
+    target: record.battle.target.id,
+    effect: record.effect ?? record.lore ?? '',
+    power: primary.power,
+    healAmount: primary.amount,
+    fixedDamage: primary.amount,
+    ratio: primary.ratio,
+    statuses: primary.statuses ?? [],
+    operations: record.battle.operations,
+    runtimeReady: true,
+    disabledReason: battleDisabledReason(record),
+  });
+}
+
+function crystalShardAction(shardId) {
+  const record = battleReadyShards.find((shard) => shard.id === shardId);
+  return record ? battleRecordToAction(record) : null;
 }
 
 function magicActionsForSchool(school, { maxLevel = Infinity } = {}) {
@@ -1706,6 +2067,7 @@ const basicCommands = [
   { id: 'attack', label: 'たたかう' },
   { id: 'magic', label: 'まほう' },
   { id: 'ability', label: 'アビリティ' },
+  { id: 'crystal', label: '結晶技' },
   { id: 'item', label: 'アイテム' },
   { id: 'defend', label: 'ぼうぎょ' },
 ];
@@ -1990,24 +2352,109 @@ const elementNames = {
   earth: 'つち',
 };
 
+// ---- src/battle/BossActionProfiles.js ----
+/** Original boss kits. Data-only so encounter tuning does not add DOM cost. */
+const attack = (id, name, power, extra = {}) => ({ id, name, kind: 'physical-attack', power, ctbCost: 1, ...extra });
+const magic = (id, name, power, element, extra = {}) => ({ id, name, kind: 'magic-attack', power, element, ctbCost: 1.15, ...extra });
+const status = (id, name, statuses, extra = {}) => ({ id, name, kind: 'status', statuses, statusChance: 0.78, ctbCost: 0.9, ...extra });
+
+const BOSS_ACTION_PROFILES = Object.freeze({
+  boss1: Object.freeze({
+    phases: [
+      { maxHpRatio: 1, actions: [attack('granite-fist', '花崗岩の拳', 1.25, { weight: 3 }), magic('fault-line', '断層波', 1.1, 'earth', { target: 'all_enemies', weight: 2 }), status('stone-roar', '石気の咆哮', ['slow'], { target: 'all_enemies' })] },
+      { maxHpRatio: 0.5, actions: [attack('crush', '地殻粉砕', 1.65, { weight: 2 }), magic('magma-vein', '灼熱脈動', 1.55, 'fire', { target: 'all_enemies' }), attack('continental-fall', '大陸落とし', 2.5, { target: 'all_enemies', telegraph: '巨岩を天高く掲げた――水の力で体勢を崩せ！', ctbCost: 1.8 })] },
+    ],
+  }),
+  boss2: Object.freeze({
+    phases: [
+      { maxHpRatio: 1, actions: [attack('talon', '裂空爪', 1.15, { weight: 3 }), magic('razor-gale', '真空連刃', 1.05, 'wind', { hits: 3, weight: 2 }), status('siren-cry', '天哭', ['silence'], { target: 'all_enemies' })] },
+      { maxHpRatio: 0.5, actions: [magic('tempest', '蒼穹の嵐', 1.55, 'wind', { target: 'all_enemies', weight: 2 }), attack('sky-dive', '天墜衝', 1.9), magic('eye-of-storm', '滅びの風眼', 2.65, 'wind', { target: 'all_enemies', telegraph: '風が一点へ収束する――氷撃で風眼を乱せ！', ctbCost: 1.9 })] },
+    ],
+  }),
+  boss3: Object.freeze({
+    phases: [
+      { maxHpRatio: 1, actions: [attack('dragon-claw', '竜爪連撃', 0.75, { hits: 2, weight: 3 }), magic('dark-flare', '黒耀フレア', 1.7, null, { weight: 2 }), status('dread-roar', '竜威', ['sap'], { target: 'all_enemies' })] },
+      { maxHpRatio: 0.6, actions: [magic('storm-breath', '雷嵐の息吹', 1.6, 'thunder', { target: 'all_enemies', weight: 2 }), attack('tail-calamity', '震天尾撃', 1.7, { target: 'all_enemies' }), magic('astral-collapse', '星蝕メガフレア', 2.8, null, { target: 'all_enemies', telegraph: '星光が竜の胸へ集う――守りを固め、雷で魔力を散らせ！', ctbCost: 2 })] },
+      { maxHpRatio: 0.25, actions: [magic('last-nova', '終焉新星', 2.1, 'fire', { target: 'all_enemies', weight: 2 }), attack('ruin-rush', '破滅の四連撃', 0.58, { hits: 4, weight: 2 }), magic('astral-collapse-plus', '極星蝕メガフレア', 3.2, null, { target: 'all_enemies', telegraph: '空間が砕け始めた――これが最後の予兆だ！', ctbCost: 2.2 })] },
+    ],
+  }),
+});
+
+function bossActionsFor(unit) {
+  const profile = BOSS_ACTION_PROFILES[unit.id];
+  if (!profile) return unit.aiActions ?? [];
+  const ratio = unit.hpRatio();
+  return profile.phases
+    .filter((phase) => ratio <= phase.maxHpRatio)
+    .sort((a, b) => a.maxHpRatio - b.maxHpRatio)[0]?.actions ?? [];
+}
+
+function bossPhaseIndex(unit) {
+  const profile = BOSS_ACTION_PROFILES[unit.id];
+  if (!profile) return 0;
+  const eligible = profile.phases.filter((phase) => unit.hpRatio() <= phase.maxHpRatio);
+  const active = eligible.sort((a, b) => a.maxHpRatio - b.maxHpRatio)[0];
+  return profile.phases.indexOf(active);
+}
+
 // ---- src/ui/MessageWindow.js ----
-const HOLD_MS = 1800;
+const HOLD_MS = 900;
+const FAST_HOLD_MS = 580;
+const BETWEEN_MESSAGES_MS = 55;
+const MAX_QUEUE_LENGTH = 6;
 
 class MessageWindow {
   constructor(windowEl, textEl) {
     this.windowEl = windowEl;
     this.textEl = textEl;
     this.hideTimer = null;
+    this.advanceTimer = null;
+    this.queue = [];
+    this.isShowing = false;
   }
 
   show(text) {
+    if (!text) return;
+    this.queue.push(String(text));
+    if (this.queue.length > MAX_QUEUE_LENGTH) this.queue.splice(0, this.queue.length - MAX_QUEUE_LENGTH);
+    if (!this.isShowing) this.showNext();
+  }
+
+  showNext() {
+    const text = this.queue.shift();
+    if (!text) {
+      this.hide();
+      return;
+    }
+    this.isShowing = true;
     this.textEl.textContent = text;
-    this.windowEl.classList.remove('hidden');
+    this.windowEl.classList.remove('hidden', 'message-enter');
+    // Force a fresh transition when several combat messages arrive together.
+    requestAnimationFrame(() => this.windowEl.classList.add('message-enter'));
     clearTimeout(this.hideTimer);
-    this.hideTimer = setTimeout(() => this.hide(), HOLD_MS);
+    const holdMs = this.queue.length ? FAST_HOLD_MS : HOLD_MS;
+    this.hideTimer = setTimeout(() => {
+      this.windowEl.classList.remove('message-enter');
+      this.isShowing = false;
+      if (this.queue.length) this.advanceTimer = setTimeout(() => this.showNext(), BETWEEN_MESSAGES_MS);
+      else this.hide();
+    }, holdMs);
   }
 
   hide() {
+    clearTimeout(this.hideTimer);
+    clearTimeout(this.advanceTimer);
+    this.isShowing = false;
+    this.windowEl.classList.add('hidden');
+  }
+
+  reset() {
+    clearTimeout(this.hideTimer);
+    clearTimeout(this.advanceTimer);
+    this.queue.length = 0;
+    this.isShowing = false;
+    this.textEl.textContent = '';
+    this.windowEl.classList.remove('message-enter');
     this.windowEl.classList.add('hidden');
   }
 }
@@ -2017,7 +2464,7 @@ const ENEMY_TURN_DELAY_MS = 900;
 const AUTO_ADVANCE_DELAY_MS = 550;
 
 class BattleManager {
-  constructor(partyUnits, bossUnit) {
+  constructor(partyUnits, bossUnit, options = {}) {
     this.party = partyUnits;
     this.boss = bossUnit;
     this.units = [...partyUnits, bossUnit];
@@ -2027,10 +2474,50 @@ class BattleManager {
     this.awaitingPlayerInput = false;
     this.finished = false;
     this.result = null; // 'victory' | 'defeat'
+    this.logSequence = 0;
+    this.logJournal = [];
+    this.pendingEnemyActions = new Map();
+    this.bossPhase = 0;
+    this.itemStockProvider = options.getItemStock ?? (() => Infinity);
+    this.itemConsumer = options.consumeItem ?? (() => true);
   }
 
-  log(text) {
+  itemId(itemOrId) {
+    return typeof itemOrId === 'string' ? itemOrId : itemOrId?.sourceId ?? itemOrId?.id ?? '';
+  }
+
+  getItemStock(itemOrId) {
+    const stock = Number(this.itemStockProvider(this.itemId(itemOrId), itemOrId));
+    return Number.isFinite(stock) ? Math.max(0, Math.floor(stock)) : Infinity;
+  }
+
+  canUseItem(itemOrId) {
+    return this.getItemStock(itemOrId) > 0;
+  }
+
+  getItemUseState(itemOrId) {
+    const stock = this.getItemStock(itemOrId);
+    return Object.freeze({ stock, usable: stock > 0, reason: stock > 0 ? null : '在庫がない。' });
+  }
+
+  consumeItemStock(itemOrId, amount = 1) {
+    if (this.getItemStock(itemOrId) < amount) return false;
+    return this.itemConsumer(this.itemId(itemOrId), amount, itemOrId) !== false;
+  }
+
+  log(text, kind = 'info') {
+    const entry = Object.freeze({ id: ++this.logSequence, text, kind, timestamp: Date.now() });
+    this.logJournal.push(entry);
+    if (this.logJournal.length > 80) this.logJournal.shift();
     eventBus.emit('battle:log', text);
+    eventBus.emit('battle:logEntry', entry);
+    return entry;
+  }
+
+  emitActionResolved(actor, results, fromSequence = 0) {
+    const entries = this.logJournal.filter((entry) => entry.id > fromSequence);
+    eventBus.emit('battle:actionResolved', { actor, results, logEntries: entries });
+    eventBus.emit('battle:logBatch', { actorUid: actor.uid, entries });
   }
 
   broadcastState() {
@@ -2053,14 +2540,14 @@ class BattleManager {
   }
 
   checkBattleEnd() {
-    if (!this.boss.isAlive()) {
+    if (!this.boss.isAlive() || this.boss.removedFromBattle || this.boss.statuses.has('petrify')) {
       this.finished = true;
       this.result = 'victory';
       this.log(`${this.boss.name} を たおした！`);
       eventBus.emit('battle:end', { result: 'victory' });
       return true;
     }
-    if (this.party.every((p) => !p.isAlive())) {
+    if (this.party.every((p) => !p.isAlive() || p.removedFromBattle || p.statuses.has('petrify'))) {
       this.finished = true;
       this.result = 'defeat';
       this.log('パーティは ぜんめつした...');
@@ -2076,11 +2563,29 @@ class BattleManager {
     if (!actor) return;
     this.currentActor = actor;
 
+    const tickResults = actor.processTurnStatuses();
+    tickResults.forEach((result) => {
+      if (result.type === 'status-damage') this.log(`${actor.name} は ${result.status}で ${result.amount} ダメージ！`);
+      if (result.type === 'status-heal' && result.amount > 0) this.log(`${actor.name} の HPが ${result.amount} 回復した。`);
+      if (result.type === 'doom') this.log(`${actor.name} は死の宣告に倒れた！`);
+      if (result.type === 'status-expired' && result.status !== 'doom') this.log(`${actor.name} の ${result.status} が切れた。`);
+    });
+    if (tickResults.length) eventBus.emit('battle:actionResolved', { actor, results: tickResults });
+    if (this.checkBattleEnd()) return;
+
     // Reset defend stance at the start of a unit's own turn.
     actor.defending = false;
     actor.physicalDamageMultiplier = actor.equipmentEffects?.physicalDamageMultiplier ?? 1;
 
-    if (actor.isEnemy) {
+    if (isIncapacitated(actor)) {
+      this.log(`${actor.name} は動けない！`);
+      this.ctb.consumeTurn(actor, 0.45);
+      this.broadcastState();
+      this.scheduleNextTurn(260);
+    } else if (actor.statuses.has('berserk') || actor.statuses.has('confuse')) {
+      this.broadcastState();
+      setTimeout(() => this.forcedAct(actor), 360);
+    } else if (actor.isEnemy) {
       this.broadcastState();
       setTimeout(() => this.enemyAct(actor), ENEMY_TURN_DELAY_MS);
     } else {
@@ -2088,6 +2593,20 @@ class BattleManager {
       this.broadcastState();
       eventBus.emit('battle:playerTurn', { actor });
     }
+  }
+
+  forcedAct(actor) {
+    const confused = actor.statuses.has('confuse');
+    const candidates = this.units.filter((unit) => unit.isAlive() && !unit.removedFromBattle && (confused || unit.isEnemy !== actor.isEnemy));
+    const target = candidates[Math.floor(Math.random() * candidates.length)];
+    if (!target) return this.scheduleNextTurn();
+    this.log(`${actor.name} は${confused ? '混乱して' : '狂戦士となり'} ${target.name} を攻撃！`);
+    const results = resolveAction({ actor, action: { kind: 'physical-attack' }, targets: [target], battleUnits: this.units });
+    eventBus.emit('battle:actionResolved', { actor, results });
+    results.filter((result) => result.type === 'damage').forEach((result) => this.log(`${target.name} に ${result.amount} の ダメージ！`));
+    this.ctb.consumeTurn(actor, 1);
+    this.broadcastState();
+    if (!this.checkBattleEnd()) this.scheduleNextTurn();
   }
 
   /** Simple AI: picks a target based on the boss's `ai` behaviour tag. */
@@ -2114,15 +2633,34 @@ class BattleManager {
       return;
     }
 
-    const results = resolveAction({
-      actor,
-      action: { kind: 'physical-attack' },
-      targets: [target],
-    });
+    const actionStartSequence = this.logSequence;
+    const pendingAction = this.pendingEnemyActions.get(actor.uid);
+    if (pendingAction) this.pendingEnemyActions.delete(actor.uid);
+    const usableAiActions = bossActionsFor(actor).filter((action) => actor.canAffordMp(action.mpCost ?? 0));
+    const weightedActions = usableAiActions.flatMap((action) => Array(Math.max(1, action.weight ?? 1)).fill(action));
+    const chosenAction = pendingAction ?? (weightedActions.length ? weightedActions[Math.floor(Math.random() * weightedActions.length)] : { kind: 'physical-attack' });
+    if (chosenAction.telegraph && !pendingAction) {
+      const preparedAction = { ...chosenAction, telegraph: null };
+      this.pendingEnemyActions.set(actor.uid, preparedAction);
+      this.log(`${actor.name}：${chosenAction.telegraph}`, 'telegraph');
+      eventBus.emit('battle:telegraph', { actor, action: preparedAction, hint: chosenAction.telegraph });
+      this.ctb.consumeTurn(actor, 0.5);
+      this.broadcastState();
+      this.scheduleNextTurn(420);
+      return;
+    }
+    const targets = chosenAction.target === 'all_enemies'
+      ? this.party.filter((unit) => unit.isAlive())
+      : [target];
+    this.log(`${actor.name} の ${chosenAction.name ?? 'こうげき'}！`, chosenAction.power >= 2 ? 'danger' : 'action');
+    const results = chosenAction.kind === 'physical-attack' && targets.length > 1
+      ? targets.flatMap((eachTarget) => resolveAction({ actor, action: chosenAction, targets: [eachTarget], battleUnits: this.units }))
+      : resolveAction({ actor, action: chosenAction, targets, battleUnits: this.units });
 
     results.forEach((r) => {
       if (r.type === 'damage') {
-        this.log(`${actor.name} の こうげき！ ${target.name} に ${r.amount} の ダメージ！`);
+        const affected = this.units.find((unit) => unit.uid === r.targetUid) ?? target;
+        this.log(`${affected.name} に ${r.amount} の ダメージ！`);
       } else if (r.type === 'miss') {
         this.log(`${actor.name} の こうげきは はずれた！`);
       } else if (r.type === 'blocked') {
@@ -2130,8 +2668,8 @@ class BattleManager {
       }
     });
 
-    eventBus.emit('battle:actionResolved', { actor, results });
-    this.ctb.consumeTurn(actor, attackAction.ctbCost);
+    this.emitActionResolved(actor, results, actionStartSequence);
+    this.ctb.consumeTurn(actor, chosenAction.ctbCost ?? attackAction.ctbCost);
     this.broadcastState();
 
     if (this.checkBattleEnd()) return;
@@ -2145,16 +2683,20 @@ class BattleManager {
   submitPlayerAction(choice, targetUnit) {
     if (!this.awaitingPlayerInput || !this.currentActor) return;
     const actor = this.currentActor;
+    const actionStartSequence = this.logSequence;
 
     let action;
     let targets;
     const resolveTargets = (targetId, fallback) => {
       if (targetId === 'self') return [actor];
-      if (['all_allies', 'party'].includes(targetId)) return [...this.party];
-      if (['all_enemies', 'enemy_group'].includes(targetId)) return [this.boss];
-      if (targetId === 'all_units' || targetId === 'enemy_and_party') return [...this.units];
+      if (['all_allies', 'party'].includes(targetId)) return this.party.filter((unit) => unit.isAlive());
+      if (['all_enemies', 'enemy_group'].includes(targetId)) return this.units.filter((unit) => unit.isAlive() && unit.isEnemy !== actor.isEnemy);
+      if (targetId === 'all_units' || targetId === 'enemy_and_party') return this.units.filter((unit) => unit.isAlive());
       if (targetId === 'enemy_group_and_ally') return [this.boss, fallback ?? actor];
-      if (targetId === 'random_unit') return [this.units[Math.floor(Math.random() * this.units.length)]];
+      if (targetId === 'random_unit') {
+        const alive = this.units.filter((unit) => unit.isAlive());
+        return [alive[Math.floor(Math.random() * alive.length)]];
+      }
       return [fallback ?? (String(targetId).includes('ally') ? actor : this.boss)];
     };
 
@@ -2182,8 +2724,25 @@ class BattleManager {
         targets = resolveTargets(choice.ability.target, targetUnit);
         this.log(`${actor.name} の ${choice.ability.name}！`);
         break;
+      case 'crystal': {
+        const shard = choice.shard;
+        action = {
+          kind: shard.actionKind ?? 'magic-attack',
+          ...shard,
+          operations: shard.operations ?? shard.battle?.operations,
+        };
+        targets = resolveTargets(shard.target ?? shard.battle?.target?.id ?? 'one_enemy', targetUnit);
+        this.log(`${actor.name} の結晶技 ${shard.name ?? shard.techniqueNameJa}！`);
+        break;
+      }
       case 'item':
-        action = { kind: 'heal', healAmount: choice.item.healAmount };
+        if (!this.canUseItem(choice.item)) {
+          this.log(`${choice.item.name ?? 'アイテム'} の在庫がない！`);
+          return false;
+        }
+        action = (choice.item.operations ?? choice.item.battle?.operations)?.length
+          ? { ...choice.item, operations: choice.item.operations ?? choice.item.battle.operations, kind: choice.item.actionKind ?? 'scripted' }
+          : { kind: 'heal', healAmount: choice.item.healAmount };
         targets = [targetUnit ?? actor];
         this.log(`${actor.name} は ${choice.item.name} を つかった！`);
         break;
@@ -2193,10 +2752,42 @@ class BattleManager {
         this.log(`${actor.name} は みをまもっている。`);
         break;
       default:
-        return;
+        return false;
     }
 
-    const results = resolveAction({ actor, action, targets });
+    if (!actor.canAffordMp(action.mpCost ?? 0)) {
+      this.log(`${actor.name} の MPが足りない！`);
+      return false;
+    }
+    if (action.disabledReason) {
+      this.log(action.disabledReason, 'unavailable');
+      return false;
+    }
+
+    const isMagicLike = choice.type === 'magic' || choice.type === 'crystal' || (choice.type === 'ability' && (action.mpCost ?? 0) > 0);
+    if (isMagicLike && !actor.canUseMagic()) {
+      this.log(`${actor.name} は魔法を使えない！`);
+      return false;
+    }
+    if (isMagicLike && !action.ignoreReflect) {
+      targets = targets.map((target) => {
+        if (!target.statuses?.has('reflect')) return target;
+        const reflected = this.units.filter((unit) => unit.isAlive() && unit.isEnemy !== target.isEnemy);
+        const redirect = reflected[Math.floor(Math.random() * reflected.length)] ?? actor;
+        this.log(`${target.name} のリフレク！ ${redirect.name} へ反射した！`);
+        return redirect;
+      });
+    }
+
+    if (choice.type === 'item' && !this.consumeItemStock(choice.item)) {
+      this.log(`${choice.item.name ?? 'アイテム'} の使用に失敗した。`);
+      return false;
+    }
+    const results = resolveAction({ actor, action, targets, battleUnits: this.units });
+    if (results.some((result) => ['insufficient-mp', 'sealed', 'invalid-target', 'unavailable'].includes(result.type))) {
+      this.log('その行動は実行できない。');
+      return false;
+    }
     results.forEach((r) => {
       const affectedUnit = this.units.find((unit) => unit.uid === r.targetUid) ?? targets[0] ?? actor;
       if (r.type === 'damage') {
@@ -2225,18 +2816,43 @@ class BattleManager {
         this.log(`${affectedUnit.name} HP ${r.hp}/${r.maxHp}　弱点 ${r.weakness ?? 'なし'}`);
       } else if (r.type === 'status') {
         this.log(`${affectedUnit.name} に ${r.statuses.join('・') || '特殊効果'}。`);
+      } else if (r.type === 'status-resist') {
+        this.log(`${affectedUnit.name} は ${r.statuses.join('・')} を防いだ！`);
       } else if (r.type === 'cleanse') {
         this.log(`${affectedUnit.name} の状態異常を治療した。`);
       } else if (r.type === 'dispel') {
         this.log(`${affectedUnit.name} の有利な効果を解除した。`);
       } else if (r.type === 'effect') {
         this.log(`${affectedUnit.name}：${r.label}`);
+      } else if (r.type === 'removed') {
+        this.log(`${affectedUnit.name} は戦場から消え去った！`);
+      } else if (r.type === 'barrier') {
+        this.log(`${affectedUnit.name} を物理障壁（${r.amount}）が守る！`);
+      } else if (r.type === 'barrier-absorb') {
+        this.log(`物理障壁が ${r.amount} ダメージを肩代わりした。残り ${r.remaining}`);
+      } else if (r.type === 'field-status') {
+        this.log(`${affectedUnit.name} は時の流れを見切った！`);
       }
     });
 
-    eventBus.emit('battle:actionResolved', { actor, results });
+    this.emitActionResolved(actor, results, actionStartSequence);
 
-    const costUsed = choice.ctbCost ?? 1.0;
+    const pendingBossAction = this.pendingEnemyActions.get(this.boss.uid);
+    if (pendingBossAction && action.element && action.element === this.boss.weakness && results.some((result) => result.targetUid === this.boss.uid && result.type === 'damage')) {
+      pendingBossAction.power = Math.max(0.5, (pendingBossAction.power ?? 1) * 0.55);
+      pendingBossAction.name = `${pendingBossAction.name}（体勢崩し）`;
+      this.log(`${this.boss.name} の構えが崩れ、大技の威力が低下した！`, 'counter');
+      eventBus.emit('battle:counter', { actor, boss: this.boss, action: pendingBossAction });
+    }
+
+    const nextPhase = bossPhaseIndex(this.boss);
+    if (nextPhase > this.bossPhase && this.boss.isAlive()) {
+      this.bossPhase = nextPhase;
+      this.log(`${this.boss.name} の気配が変わった――フェーズ ${nextPhase + 1}！`, 'phase');
+      eventBus.emit('battle:phaseChanged', { boss: this.boss, phase: nextPhase + 1 });
+    }
+
+    const costUsed = choice.ctbCost ?? action.ctbCost ?? 1.0;
     this.ctb.consumeTurn(actor, costUsed);
 
     this.awaitingPlayerInput = false;
@@ -2245,6 +2861,7 @@ class BattleManager {
 
     if (this.checkBattleEnd()) return;
     this.scheduleNextTurn();
+    return true;
   }
 }
 
@@ -2256,6 +2873,27 @@ function hpBarClass(unit) {
   return '';
 }
 
+const statusNamesJa = Object.freeze({
+  ko: '戦闘不能', poison: '毒', blind: '暗闇', silence: '沈黙', toad: 'カエル', mini: '小人',
+  petrify: '石化', confuse: '混乱', paralyze: '麻痺', sleep: '睡眠', old: '老化', berserk: '狂戦士',
+  zombie: 'ゾンビ', stop: '停止', slow: 'スロウ', haste: 'ヘイスト', regen: 'リジェネ', protect: 'プロテス',
+  shell: 'シェル', reflect: 'リフレク', float: 'レビテト', doom: '死の宣告', sap: 'スリップ',
+});
+
+const targetNamesJa = Object.freeze({
+  self: '自分', 'single-enemy': '敵単体', one_enemy: '敵単体', enemy_group: '敵全体', all_enemies: '敵全体', one_or_all_enemies: '敵単体/全体',
+  'single-ally': '味方単体', one_ally: '味方単体', all_allies: '味方全体', party: '味方全体', one_or_all_allies: '味方単体/全体',
+  all_units: '全体', random_unit: 'ランダム', enemy_group_and_ally: '敵全体＋味方', enemy_and_party: '敵味方全体',
+  battle: '戦場',
+});
+
+const unitRunes = Object.freeze({ p1: '✦', p2: '◈', p3: '⬢', p4: '⌁', boss1: '◆', boss2: '◇', boss3: '✧' });
+
+function safeToken(value, fallback = 'unknown') {
+  const token = String(value ?? fallback).toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  return token || fallback;
+}
+
 class BattleUI {
   constructor() {
     this.enemyFieldEl = document.getElementById('enemy-field');
@@ -2265,6 +2903,8 @@ class BattleUI {
     this.commandListEl = document.getElementById('command-list');
     this.commandHeadingEl = document.getElementById('command-heading');
     this.partyStatusEl = document.getElementById('party-status-content');
+    this.effectsEl = document.getElementById('battle-effects');
+    this.battleFieldEl = document.querySelector('.battle-field');
 
     this.submenuWindowEl = document.getElementById('submenu-window');
     this.submenuHeadingEl = document.getElementById('submenu-heading');
@@ -2278,6 +2918,18 @@ class BattleUI {
       document.getElementById('message-text')
     );
 
+    this.telegraphEl = document.createElement('div');
+    this.telegraphEl.className = 'battle-telegraph hidden';
+    this.telegraphEl.setAttribute('role', 'alert');
+    this.telegraphEl.setAttribute('aria-live', 'assertive');
+    document.querySelector('.battle-layout')?.appendChild(this.telegraphEl);
+
+    this.phaseEl = document.createElement('div');
+    this.phaseEl.className = 'battle-phase-notice hidden';
+    this.phaseEl.setAttribute('role', 'status');
+    document.querySelector('.battle-layout')?.appendChild(this.phaseEl);
+    this.currentPhase = 1;
+
     this.battleManager = null;
     this.pendingCommandType = null; // 'attack' | 'magic' | 'item' | 'defend'
     this.pendingSpellOrItem = null;
@@ -2287,6 +2939,11 @@ class BattleUI {
 
   attachBattle(battleManager) {
     this.battleManager = battleManager;
+    this.messageWindow.reset();
+    this.clearTelegraph();
+    this.currentPhase = 1;
+    if (this.effectsEl) this.effectsEl.innerHTML = '';
+    this.battleFieldEl?.classList.remove('impacting');
     this.closeActionWindows();
     this.renderCommandListIdle();
   }
@@ -2307,15 +2964,39 @@ class BattleUI {
       this.renderCommandListForActor(actor);
     });
 
-    eventBus.on('battle:actionResolved', ({ results }) => {
+    eventBus.on('battle:actionResolved', ({ actor, results }) => {
+      if (actor?.isEnemy) this.clearTelegraph();
+      this.playActionPulse(actor, results);
       results.forEach((r) => {
         const el = document.querySelector(`[data-uid="${r.targetUid}"]`);
         if (el) {
           el.classList.add('flash');
-          setTimeout(() => el.classList.remove('flash'), 500);
+          setTimeout(() => el.classList.remove('flash'), 440);
         }
+        this.showCombatResult(r, el);
       });
     });
+
+    eventBus.on('battle:telegraph', ({ actor, hint }) => {
+      this.telegraphEl.innerHTML = `<b>DANGER</b><span>${actor?.name ?? '敵'}：${hint ?? '強力な攻撃を準備中'}</span>`;
+      this.telegraphEl.classList.remove('hidden', 'countered');
+    });
+
+    eventBus.on('battle:counter', ({ boss }) => {
+      this.telegraphEl.innerHTML = `<b>BREAK</b><span>${boss?.name ?? '敵'}の大技を弱体化</span>`;
+      this.telegraphEl.classList.add('countered');
+      this.telegraphEl.classList.remove('hidden');
+      setTimeout(() => this.clearTelegraph(), 1100);
+    });
+
+    eventBus.on('battle:phaseChanged', ({ boss, phase }) => {
+      this.currentPhase = phase;
+      this.phaseEl.textContent = `PHASE ${phase}　${boss?.name ?? '敵'}が戦闘形態を変化`;
+      this.phaseEl.classList.remove('hidden');
+      setTimeout(() => this.phaseEl.classList.add('hidden'), 1500);
+    });
+
+    eventBus.on('battle:end', () => this.clearTelegraph());
   }
 
   // ---------- Rendering ----------
@@ -2326,8 +3007,10 @@ class BattleUI {
     wrap.className = 'enemy-sprite-wrap';
 
     const sprite = document.createElement('div');
-    sprite.className = `sprite-placeholder boss${boss.isAlive() ? '' : ' dead'}`;
+    const bossToken = safeToken(boss.id, 'boss');
+    sprite.className = `sprite-placeholder boss unit-${bossToken}${boss.isAlive() ? '' : ' dead'}`;
     sprite.dataset.uid = boss.uid;
+    sprite.dataset.unitId = bossToken;
     const scale = Math.min(220, 185 * (boss.size ?? 1));
     sprite.style.width = `${scale}px`;
     sprite.style.height = `${scale}px`;
@@ -2336,6 +3019,15 @@ class BattleUI {
     blob.className = 'blob';
     blob.style.width = '100%';
     blob.style.height = '100%';
+    blob.innerHTML = `
+      <span class="crystal-aura"></span>
+      <span class="crystal-orbit orbit-one"></span>
+      <span class="crystal-orbit orbit-two"></span>
+      <span class="crystal-core"><i></i><b>${unitRunes[bossToken] ?? '◆'}</b></span>
+      <span class="crystal-fragment fragment-one"></span>
+      <span class="crystal-fragment fragment-two"></span>
+      <span class="crystal-fragment fragment-three"></span>
+    `;
     sprite.appendChild(blob);
 
     const label = document.createElement('div');
@@ -2344,6 +3036,17 @@ class BattleUI {
     sprite.appendChild(label);
 
     wrap.appendChild(sprite);
+    const intel = document.createElement('div');
+    const weakness = boss.weakness ? (elementNames[boss.weakness] ?? boss.weakness) : '解析不能';
+    intel.className = 'enemy-intel';
+    intel.innerHTML = `
+      <span class="target-tag">TARGET</span>
+      <strong>${boss.name}</strong>
+      <span>HP ${boss.hp} / ${boss.maxHp}</span>
+      <span class="enemy-intel-weak">WEAK：${weakness}</span>
+      <span class="enemy-intel-phase">PHASE ${this.currentPhase}</span>
+    `;
+    wrap.appendChild(intel);
     this.enemyFieldEl.appendChild(wrap);
   }
 
@@ -2356,14 +3059,17 @@ class BattleUI {
       const spriteSlot = document.createElement('div');
       spriteSlot.className = 'sprite-slot';
       const sprite = document.createElement('div');
-      sprite.className = `sprite-placeholder player${unit.isAlive() ? '' : ' dead'}`;
+      const unitToken = safeToken(unit.id, `p${idx + 1}`);
+      sprite.className = `sprite-placeholder player unit-${unitToken}${currentActor === unit ? ' is-current' : ''}${unit.isAlive() ? '' : ' dead'}`;
       sprite.dataset.uid = unit.uid;
+      sprite.dataset.unitId = unitToken;
       sprite.style.width = '100%';
       sprite.style.height = '100%';
       const blob = document.createElement('div');
       blob.className = 'blob';
       blob.style.width = '100%';
       blob.style.height = '100%';
+      blob.innerHTML = `<span class="soul-flare"></span><span class="soul-core"></span><span class="soul-rune">${unitRunes[unitToken] ?? idx + 1}</span>`;
       sprite.appendChild(blob);
       spriteSlot.appendChild(sprite);
       row.appendChild(spriteSlot);
@@ -2396,11 +3102,15 @@ class BattleUI {
 
   renderCtbList(preview) {
     this.ctbListEl.innerHTML = '';
-    preview.forEach((entry) => {
+    preview.forEach((entry, index) => {
       const row = document.createElement('div');
-      row.className = 'ctb-entry';
+      const entryToken = safeToken(entry.id, entry.isEnemy ? 'boss' : `p${index + 1}`);
+      row.className = `ctb-entry unit-${entryToken}${entry.uid === this.battleManager?.currentActor?.uid ? ' now-acting' : ''}`;
+      row.setAttribute('role', 'listitem');
+      row.setAttribute('aria-label', `${index + 1}番目 ${entry.name}`);
       const icon = document.createElement('div');
       icon.className = `ctb-icon ${entry.isEnemy ? 'enemy' : 'player'}`;
+      icon.textContent = unitRunes[entryToken] ?? String(index + 1).padStart(2, '0');
       const label = document.createElement('div');
       label.className = 'ctb-label';
       label.textContent = entry.name;
@@ -2424,15 +3134,22 @@ class BattleUI {
     this.partyStatusEl.innerHTML = '';
     party.forEach((unit, idx) => {
       const row = document.createElement('div');
-      row.className = 'status-row';
+      row.className = `status-row${unit === this.battleManager?.currentActor ? ' current-actor' : ''}${unit.isAlive() ? '' : ' is-ko'}`;
+      const statuses = [...(unit.statuses ?? [])];
+      const statusMarkup = statuses.length
+        ? `<span class="status-chips">${statuses.slice(0, 3).map((status) => {
+          const turns = unit.statusDurations?.get?.(status);
+          return `<i>${statusNamesJa[status] ?? status}${turns ? `<b>${turns}</b>` : ''}</i>`;
+        }).join('')}</span>`
+        : '';
       row.innerHTML = `
-        <div class="p-name">${unit.name}<small>攻${unit.atk} 防${unit.def} 魔防${unit.magicDef}</small></div>
+        <div class="p-name"><b>${String(idx + 1).padStart(2, '0')}</b>${unit.name}<small>ATK ${unit.atk} ・ DEF ${unit.def} ・ MDEF ${unit.magicDef}</small>${statusMarkup}</div>
         <div class="p-nums">
-          <span>HP ${unit.hp}/${unit.maxHp}</span>
+          <span><em>HP</em> ${unit.hp}<small>/ ${unit.maxHp}</small></span>
           <div class="stat-bar-track"><div class="stat-bar-fill hp ${hpBarClass(unit)}" style="width:${Math.max(0, unit.hpRatio() * 100)}%"></div></div>
         </div>
         <div class="p-nums">
-          <span>MP ${unit.mp}/${unit.maxMp}</span>
+          <span><em>MP</em> ${unit.mp}<small>/ ${unit.maxMp}</small></span>
           <div class="stat-bar-track"><div class="stat-bar-fill mp" style="width:${unit.maxMp ? (unit.mp / unit.maxMp) * 100 : 0}%"></div></div>
         </div>
       `;
@@ -2449,9 +3166,7 @@ class BattleUI {
     this.commandHeadingEl.textContent = actor.name;
     this.commandListEl.innerHTML = '';
     basicCommands.forEach((cmd) => {
-      const li = document.createElement('li');
-      li.textContent = cmd.label;
-      li.addEventListener('click', () => this.handleCommandSelect(cmd.id, actor));
+      const li = this.createChoice(cmd.label, () => this.handleCommandSelect(cmd.id, actor));
       this.commandListEl.appendChild(li);
     });
   }
@@ -2479,6 +3194,11 @@ class BattleUI {
         this.openSubmenu('アビリティ', getAbilityActions(actor.abilityId), 'ability', actor);
         break;
       }
+      case 'crystal': {
+        const shardAction = crystalShardAction(actor.crystalShardId);
+        this.openSubmenu('結晶技', shardAction ? [shardAction] : [], 'crystal', actor);
+        break;
+      }
       case 'item':
         this.openSubmenu('アイテム', itemActions, 'item', actor);
         break;
@@ -2499,6 +3219,10 @@ class BattleUI {
     this.submenuHeadingEl.textContent = heading;
     this.submenuListEl.innerHTML = '';
 
+    const cancel = this.createChoice('もどる', () => this.closeSubmenu(), { accent: true });
+    cancel.classList.add('submenu-back');
+    this.submenuListEl.appendChild(cancel);
+
     if (list.length === 0) {
       const li = document.createElement('li');
       li.textContent = '(つかえるものがない)';
@@ -2506,31 +3230,36 @@ class BattleUI {
     }
 
     list.forEach((entry) => {
-      const li = document.createElement('li');
       const actualMpCost = Math.ceil((entry.mpCost ?? 0) * (actor.mpCostMultiplier ?? 1));
       const costLabel = entry.mpCost ? ` (MP${actualMpCost})` : '';
-      li.textContent = `${entry.name}${costLabel}`;
-      const disabled = ['spell', 'ability'].includes(kind) && actualMpCost && actor.mp < actualMpCost;
-      if (disabled) {
-        li.style.opacity = '0.4';
-        li.style.cursor = 'not-allowed';
-      } else {
-        li.addEventListener('click', () => {
+      const itemState = kind === 'item' && typeof this.battleManager?.getItemUseState === 'function'
+        ? this.battleManager.getItemUseState(entry)
+        : null;
+      const itemStock = itemState?.stock ?? (kind === 'item' && typeof this.battleManager?.getItemStock === 'function'
+        ? this.battleManager.getItemStock(entry.id, entry)
+        : null);
+      const itemUsable = itemState?.usable ?? (kind === 'item' && typeof this.battleManager?.canUseItem === 'function'
+        ? this.battleManager.canUseItem(entry)
+        : true);
+      const disabledReason = entry.disabledReason
+        ?? itemState?.disabledReason
+        ?? itemState?.reason
+        ?? (itemStock === 0 ? '在庫がない。' : '');
+      const stockLabel = itemStock == null ? '' : ` ×${Number.isFinite(itemStock) ? itemStock : '∞'}`;
+      const disabled = (['spell', 'ability', 'crystal'].includes(kind) && actualMpCost && actor.mp < actualMpCost)
+        || Boolean(entry.disabledReason) || itemStock === 0 || itemUsable === false;
+      const li = this.createChoice(
+        `${entry.name}${costLabel}${stockLabel}`,
+        () => {
           this.closeSubmenu();
           this.pendingCommandType = kind;
           this.pendingSpellOrItem = entry;
           this.promptTarget(entry, kind, actor);
-        });
-      }
+        },
+        { disabled, detail: disabledReason || this.entryDetail(entry, kind) }
+      );
       this.submenuListEl.appendChild(li);
     });
-
-    // cancel option
-    const cancel = document.createElement('li');
-    cancel.textContent = 'もどる';
-    cancel.style.color = '#ffcf7a';
-    cancel.addEventListener('click', () => this.closeSubmenu());
-    this.submenuListEl.appendChild(cancel);
 
     this.submenuWindowEl.classList.remove('hidden');
   }
@@ -2574,9 +3303,7 @@ class BattleUI {
 
     this.targetListEl.innerHTML = '';
     targets.forEach((t) => {
-      const li = document.createElement('li');
-      li.textContent = `${t.name} (HP ${t.hp}/${t.maxHp})`;
-      li.addEventListener('click', () => {
+      const li = this.createChoice(`${t.name} (HP ${t.hp}/${t.maxHp})`, () => {
         this.closeTargetWindow();
         this.finalizeAction(entry, kind, t);
       });
@@ -2595,9 +3322,104 @@ class BattleUI {
       this.battleManager.submitPlayerAction({ type: 'magic', spell: entry, ctbCost: entry.ctbCost }, target);
     } else if (kind === 'ability') {
       this.battleManager.submitPlayerAction({ type: 'ability', ability: entry, ctbCost: entry.ctbCost }, target);
+    } else if (kind === 'crystal') {
+      this.battleManager.submitPlayerAction({ type: 'crystal', shard: entry, ctbCost: entry.ctbCost }, target);
     } else if (kind === 'item') {
       this.battleManager.submitPlayerAction({ type: 'item', item: entry, ctbCost: entry.ctbCost }, target);
     }
+  }
+
+  playActionPulse(actor, results) {
+    const actorEl = actor ? document.querySelector(`[data-uid="${actor.uid}"]`) : null;
+    actorEl?.classList.add('action-pulse');
+    setTimeout(() => actorEl?.classList.remove('action-pulse'), 420);
+
+    if (!this.battleFieldEl || results.length === 0) return;
+    const element = results.find((result) => result.element)?.element;
+    const visualType = results.some((result) => ['heal', 'mp-heal', 'revive', 'absorb'].includes(result.type))
+      ? 'cast-heal'
+      : results.some((result) => ['status', 'buff', 'cleanse', 'dispel', 'effect'].includes(result.type))
+        ? 'cast-arcane'
+        : 'cast-impact';
+    if (this.effectsEl) {
+      [...this.effectsEl.classList].filter((name) => name.startsWith('element-')).forEach((name) => this.effectsEl.classList.remove(name));
+      this.effectsEl.classList.remove('cast-heal', 'cast-arcane', 'cast-impact');
+      requestAnimationFrame(() => this.effectsEl?.classList.add(visualType, ...(element ? [`element-${safeToken(element)}`] : [])));
+      setTimeout(() => {
+        this.effectsEl?.classList.remove(visualType);
+        if (element) this.effectsEl?.classList.remove(`element-${safeToken(element)}`);
+      }, 650);
+    }
+    this.battleFieldEl.classList.remove('impacting');
+    // Restarting the class in a new frame keeps rapid multi-hit actions legible.
+    requestAnimationFrame(() => {
+      this.battleFieldEl?.classList.add('impacting');
+      setTimeout(() => this.battleFieldEl?.classList.remove('impacting'), 320);
+    });
+  }
+
+  showCombatResult(result, targetEl) {
+    if (!this.effectsEl || !targetEl) return;
+    const targetRect = targetEl.getBoundingClientRect();
+    const stageRect = this.effectsEl.getBoundingClientRect();
+    const effect = document.createElement('span');
+    effect.className = `combat-result ${result.type}`;
+    if (result.element) effect.classList.add(`element-${safeToken(result.element)}`);
+
+    if (['damage', 'mp-damage'].includes(result.type)) {
+      const outcome = result.nullified ? 'NULL' : result.resisted ? 'RESIST' : result.weak ? 'WEAK' : 'HIT';
+      effect.textContent = `${outcome} −${result.amount ?? 0}`;
+    }
+    else if (['heal', 'mp-heal', 'revive', 'absorb'].includes(result.type)) effect.textContent = `+${result.amount ?? 0}`;
+    else if (result.type === 'miss') effect.textContent = 'MISS';
+    else if (result.type === 'blocked' || result.type === 'defend') effect.textContent = 'GUARD';
+    else if (result.type === 'status') effect.textContent = statusNamesJa[result.statuses?.[0]] ?? result.statuses?.[0] ?? 'STATUS';
+    else if (result.type === 'status-resist') effect.textContent = `RESIST ${statusNamesJa[result.statuses?.[0]] ?? result.statuses?.[0] ?? ''}`;
+    else effect.textContent = result.label ?? 'EFFECT';
+
+    effect.style.left = `${targetRect.left - stageRect.left + targetRect.width / 2}px`;
+    effect.style.top = `${targetRect.top - stageRect.top + targetRect.height * 0.22}px`;
+    this.effectsEl.appendChild(effect);
+    effect.addEventListener('animationend', () => effect.remove(), { once: true });
+    setTimeout(() => effect.remove(), 1300);
+  }
+
+  entryDetail(entry, kind) {
+    const parts = [];
+    if (entry.element) parts.push(elementNames[entry.element] ?? entry.element);
+    if (entry.target) parts.push(targetNamesJa[entry.target] ?? entry.target);
+    const effect = entry.effect ?? entry.battle?.description ?? entry.description;
+    if (effect) parts.push(String(effect).replace(/\s+/g, ' ').slice(0, 34));
+    else if (kind === 'item' && entry.healAmount) parts.push(`HP ${entry.healAmount} 回復`);
+    return parts.join('・');
+  }
+
+  clearTelegraph() {
+    this.telegraphEl.classList.add('hidden');
+    this.telegraphEl.classList.remove('countered');
+    this.telegraphEl.textContent = '';
+  }
+
+  createChoice(label, onActivate, { disabled = false, accent = false, detail = '' } = {}) {
+    const li = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `battle-choice${accent ? ' accent' : ''}`;
+    const primary = document.createElement('span');
+    primary.className = 'choice-primary';
+    primary.textContent = label;
+    button.appendChild(primary);
+    if (detail) {
+      const secondary = document.createElement('small');
+      secondary.className = 'choice-detail';
+      secondary.textContent = detail;
+      button.appendChild(secondary);
+    }
+    button.disabled = disabled;
+    if (disabled) button.setAttribute('aria-disabled', 'true');
+    else button.addEventListener('click', onActivate);
+    li.appendChild(button);
+    return li;
   }
 }
 
@@ -2623,6 +3445,11 @@ class IntermissionUI {
   constructor() {
     this.containerEl = document.getElementById('intermission-party');
     this.nextBossLabelEl = document.getElementById('next-boss-label');
+  }
+
+  clear() {
+    this.containerEl.replaceChildren();
+    this.nextBossLabelEl.textContent = '';
   }
 
   render(partyUnits, nextBoss) {
@@ -3377,15 +4204,34 @@ function beginCourseSetup() {
   openPartySetup(bossData[0], { canReturnToMenu: true, readyLabel: 'バトル開始' });
 }
 
+function profileItemStock(itemId) {
+  if (['potion', 'item_potion'].includes(itemId)) return profile.potions;
+  return 0;
+}
+
+function consumeProfileItem(itemId, amount = 1) {
+  if (!['potion', 'item_potion'].includes(itemId) || profile.potions < amount) return false;
+  profile.potions -= amount;
+  saveProfile();
+  return true;
+}
+
 // ---------- Boss rush flow ----------
 function startBossBattle() {
   GameState.set(States.BATTLE);
+
+  // Formation lists contain hundreds of option nodes. They are rebuilt only
+  // when needed, keeping the live battle DOM lean on mobile Safari.
+  intermissionUI.clear();
 
   const partyUnits = buildPartyUnits(livingParty);
   const bossConfig = bossData[GameState.bossIndex];
   const bossUnit = buildBossUnit(bossConfig);
 
-  const battleManager = new BattleManager(partyUnits, bossUnit);
+  const battleManager = new BattleManager(partyUnits, bossUnit, {
+    getItemStock: profileItemStock,
+    consumeItem: consumeProfileItem,
+  });
   battleUI.attachBattle(battleManager);
 
   const onEnd = ({ result }) => {

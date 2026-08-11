@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 const sourceFiles = [
   'src/core/EventBus.js',
   'src/core/GameState.js',
+  'src/battle/StatusEngine.js',
   'src/battle/Unit.js',
   'src/battle/ActionResolver.js',
   'src/battle/CTBEngine.js',
@@ -13,6 +14,7 @@ const sourceFiles = [
   'src/data/abilityData.js',
   'src/data/partyData.js',
   'src/data/bossData.js',
+  'src/battle/BossActionProfiles.js',
   'src/ui/MessageWindow.js',
   'src/battle/BattleManager.js',
   'src/ui/BattleUI.js',

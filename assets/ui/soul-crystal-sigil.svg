@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-label="Soul crystal sigil">
+  <defs>
+    <linearGradient id="crystal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7ffff"/>
+      <stop offset=".28" stop-color="#85ecff"/>
+      <stop offset=".62" stop-color="#6677ff"/>
+      <stop offset="1" stop-color="#c45fff"/>
+    </linearGradient>
+    <radialGradient id="halo">
+      <stop offset="0" stop-color="#74efff" stop-opacity=".74"/>
+      <stop offset="1" stop-color="#4164e8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="160" cy="160" r="150" fill="url(#halo)"/>
+  <g fill="none" stroke="#c7f6ff" stroke-opacity=".46">
+    <circle cx="160" cy="160" r="118"/>
+    <circle cx="160" cy="160" r="97" stroke-dasharray="4 11"/>
+    <path d="M160 34 286 160 160 286 34 160Z"/>
+    <path d="m160 62 98 170H62Z"/>
+    <path d="m160 258-98-170h196Z"/>
+  </g>
+  <path fill="url(#crystal)" d="m160 65 54 61-19 105-35 31-35-31-19-105Z"/>
+  <path fill="#eaffff" fill-opacity=".66" d="m160 65 11 143-46 23-19-105Z"/>
+  <path fill="#364cca" fill-opacity=".55" d="m160 65 54 61-19 105-24-23Z"/>
+  <circle cx="160" cy="160" r="9" fill="#fff"/>
+</svg>

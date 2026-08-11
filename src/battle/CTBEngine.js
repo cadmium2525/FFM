@@ -11,6 +11,8 @@
  *  - previewQueue() runs a side simulation (cloned CT values only) to show
  *    the upcoming turn order without mutating real battle state.
  */
+import { effectiveAgility } from './StatusEngine.js';
+
 export const BASE_THRESHOLD = 1000;
 
 export class CTBEngine {
@@ -19,7 +21,7 @@ export class CTBEngine {
   }
 
   aliveUnits() {
-    return this.units.filter((u) => u.isAlive());
+    return this.units.filter((u) => u.isAlive() && !u.removedFromBattle);
   }
 
   /**
@@ -38,18 +40,18 @@ export class CTBEngine {
     while (guard++ < 100000) {
       const ready = alive.filter((u) => u.ctValue >= BASE_THRESHOLD);
       if (ready.length > 0) {
-        ready.sort((a, b) => (b.ctValue - a.ctValue) || (b.agility - a.agility));
+        ready.sort((a, b) => (b.ctValue - a.ctValue) || (effectiveAgility(b) - effectiveAgility(a)));
         return ready[0];
       }
       // Jump forward by the minimum number of ticks needed for the fastest
       // unit-to-threshold gap, applied to everyone at once (equivalent to
       // simulating tick-by-tick, just faster).
       const ticksNeeded = alive.map((u) =>
-        Math.ceil((BASE_THRESHOLD - u.ctValue) / Math.max(1, u.agility))
+        Math.ceil((BASE_THRESHOLD - u.ctValue) / Math.max(1, effectiveAgility(u)))
       );
       const jump = Math.max(1, Math.min(...ticksNeeded));
       alive.forEach((u) => {
-        u.ctValue += u.agility * jump;
+        u.ctValue += Math.max(1, effectiveAgility(u)) * jump;
       });
     }
     return alive[0];
@@ -76,7 +78,7 @@ export class CTBEngine {
       name: u.name,
       isEnemy: u.isEnemy,
       ct: u.ctValue,
-      agi: u.agility,
+      agi: Math.max(1, effectiveAgility(u)),
     }));
     if (clones.length === 0) return [];
 
