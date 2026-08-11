@@ -8,6 +8,7 @@ const sourceFiles = [
   'src/battle/CTBEngine.js',
   'src/database/ff5Database.js',
   'src/battle/EquipmentSystem.js',
+  'src/database/battleCatalog.js',
   'src/services/FirebaseAccountService.js',
   'src/data/abilityData.js',
   'src/data/partyData.js',

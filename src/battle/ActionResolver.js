@@ -60,11 +60,58 @@ export function resolveHeal(amount) {
   return Math.max(1, Math.round(randomVariance(amount)));
 }
 
+function operationToAction(operation, actor) {
+  const common = { _compiledOperation: true, mpCost: 0 };
+  switch (operation.op) {
+    case 'damage.magic': return { ...common, kind: 'magic-attack', power: operation.power, hits: operation.hits, element: operation.element };
+    case 'damage.physical': return { ...common, kind: 'physical-attack', power: operation.power, sameLevelMultiplier: operation.sameLevelMultiplier };
+    case 'damage.fixed': return { ...common, kind: 'fixed-damage', fixedDamage: operation.amount };
+    case 'damage.caster_hp': return { ...common, kind: 'fixed-damage', fixedDamage: actor.hp, sacrificeCaster: operation.sacrificeCaster };
+    case 'damage.missing_hp': return { ...common, kind: 'fixed-damage', fixedDamage: actor.maxHp - actor.hp };
+    case 'damage.hp_ratio': return { ...common, kind: 'ratio-damage', ratio: operation.ratio };
+    case 'damage.mp_ratio': return { ...common, kind: 'mp-ratio-damage', ratio: operation.ratio };
+    case 'drain.hp': return { ...common, kind: 'magic-attack', power: operation.power, drain: true };
+    case 'drain.mp': return { ...common, kind: 'mp-drain', power: operation.power };
+    case 'heal.hp': return { ...common, kind: 'heal', healAmount: operation.amount };
+    case 'heal.caster_hp': return { ...common, kind: 'heal', healAmount: actor.hp };
+    case 'heal.mp': return { ...common, kind: 'mp-heal-target', mpAmount: operation.amount };
+    case 'restore.full': return { ...common, kind: 'full-restore' };
+    case 'revive': return { ...common, kind: 'revive', hpRatio: operation.hpRatio };
+    case 'inspect': return { ...common, kind: 'scan', fields: operation.fields };
+    case 'status.apply': return { ...common, kind: 'status', statuses: operation.statuses, toggle: operation.toggle, imageHits: operation.imageHits };
+    case 'status.remove': return { ...common, kind: 'cleanse', statuses: operation.statuses, mode: operation.mode };
+    case 'status.dispel': return { ...common, kind: 'dispel' };
+    case 'stat.modify': return { ...common, kind: 'stat-modify', stat: operation.stat, multiplier: operation.multiplier };
+    case 'caster.sacrifice': return { ...common, kind: 'sacrifice' };
+    default: return { ...common, kind: 'scripted', label: operation.handlerKey ?? operation.op };
+  }
+}
+
 /**
  * Resolve a full action given the actor, the chosen action definition,
  * and the target(s). Returns a log-friendly result object.
  */
 export function resolveAction({ actor, action, targets }) {
+  if (action.operations?.length && !action._compiledOperation) {
+    if (action.mpCost) actor.spendMp(Math.ceil(action.mpCost * (actor.mpCostMultiplier ?? 1)));
+    return action.operations.flatMap((operation) => {
+      const operationTargets = operation.targetSide
+        ? targets.filter((target) => operation.targetSide === 'enemy' ? target.isEnemy : !target.isEnemy)
+        : targets;
+      const eligibleTargets = operation.conditionalLevel
+        ? operationTargets.filter((target) => target.level % operation.conditionalLevel === 0)
+        : operationTargets;
+      if (operation.conditionalLevel && eligibleTargets.length === 0) {
+        return [{ type: 'miss', targetUid: operationTargets[0]?.uid ?? actor.uid, hits: 1 }];
+      }
+      return resolveAction({
+        actor,
+        action: { ...operationToAction(operation, actor), element: operation.element ?? action.element },
+        targets: eligibleTargets.length ? eligibleTargets : [actor],
+      });
+    });
+  }
+
   const results = [];
 
   switch (action.kind) {
@@ -84,7 +131,10 @@ export function resolveAction({ actor, action, targets }) {
           missedHits += 1;
           continue;
         }
-        const damage = resolvePhysicalDamage(actor, target, { ...action, attackMultiplier });
+        const sameLevelPower = action.sameLevelMultiplier && actor.level === target.level
+          ? (action.power ?? 1) * action.sameLevelMultiplier
+          : action.power;
+        const damage = resolvePhysicalDamage(actor, target, { ...action, power: sameLevelPower, attackMultiplier });
         if (damage <= 0) blockedHits += 1;
         else dealtTotal += target.applyDamage(damage);
       }
@@ -103,31 +153,134 @@ export function resolveAction({ actor, action, targets }) {
       break;
     }
     case 'magic-attack': {
-      const target = targets[0];
       actor.spendMp(Math.ceil((action.mpCost ?? 0) * (actor.mpCostMultiplier ?? 1)));
-      const elementState = equipmentElementState(target, action.element);
-      const dmg = resolveMagicDamage(actor, target, action);
-      if (elementState === 'absorb') {
-        const healed = target.applyHeal(dmg);
-        results.push({ type: 'absorb', targetUid: target.uid, amount: healed });
-      } else {
-        const dealt = elementState === 'null' ? 0 : target.applyDamage(dmg);
-        results.push({ type: 'damage', targetUid: target.uid, amount: dealt, weak: elementState === 'weak', nullified: elementState === 'null' });
-      }
+      let drainedTotal = 0;
+      targets.forEach((target) => {
+        const elementState = equipmentElementState(target, action.element);
+        const dmg = resolveMagicDamage(actor, target, action) * (target.magicDamageMultiplier ?? 1);
+        if (elementState === 'absorb') {
+          const healed = target.applyHeal(dmg);
+          results.push({ type: 'absorb', targetUid: target.uid, amount: healed });
+        } else {
+          const dealt = elementState === 'null' ? 0 : target.applyDamage(dmg);
+          drainedTotal += dealt;
+          results.push({ type: 'damage', targetUid: target.uid, amount: dealt, weak: elementState === 'weak', nullified: elementState === 'null' });
+        }
+      });
+      if (action.drain && drainedTotal > 0) results.push({ type: 'heal', targetUid: actor.uid, amount: actor.applyHeal(drainedTotal) });
       break;
     }
     case 'heal': {
-      const target = targets[0];
       if (action.mpCost) actor.spendMp(Math.ceil(action.mpCost * (actor.mpCostMultiplier ?? 1)));
-      const healed = target.applyHeal(resolveHeal(action.healAmount));
-      results.push({ type: 'heal', targetUid: target.uid, amount: healed });
+      targets.forEach((target) => {
+        const healed = target.applyHeal(resolveHeal(action.healAmount));
+        results.push({ type: 'heal', targetUid: target.uid, amount: healed });
+      });
       break;
     }
     case 'fixed-damage': {
-      const target = targets[0];
       if (action.mpCost) actor.spendMp(Math.ceil(action.mpCost * (actor.mpCostMultiplier ?? 1)));
-      const dealt = target.applyDamage(action.fixedDamage ?? 1);
-      results.push({ type: 'damage', targetUid: target.uid, amount: dealt });
+      targets.forEach((target) => results.push({ type: 'damage', targetUid: target.uid, amount: target.applyDamage(action.fixedDamage ?? 1) }));
+      if (action.sacrificeCaster) actor.applyDamage(actor.hp);
+      break;
+    }
+    case 'ratio-damage': {
+      targets.forEach((target) => results.push({ type: 'damage', targetUid: target.uid, amount: target.applyDamage(Math.floor(target.hp * (action.ratio ?? 0.5))) }));
+      break;
+    }
+    case 'mp-ratio-damage': {
+      targets.forEach((target) => {
+        const amount = Math.floor(target.mp * (action.ratio ?? 0.5));
+        target.spendMp(amount);
+        results.push({ type: 'mp-damage', targetUid: target.uid, amount });
+      });
+      break;
+    }
+    case 'mp-drain': {
+      targets.forEach((target) => {
+        const amount = Math.min(target.mp, Math.max(1, Math.round(actor.magic * (action.power ?? 1))));
+        target.spendMp(amount);
+        const restored = Math.min(actor.maxMp - actor.mp, amount);
+        actor.mp += restored;
+        results.push({ type: 'mp-damage', targetUid: target.uid, amount }, { type: 'mp-heal', targetUid: actor.uid, amount: restored });
+      });
+      break;
+    }
+    case 'mp-heal-target': {
+      targets.forEach((target) => {
+        const amount = Math.min(target.maxMp - target.mp, action.mpAmount ?? 0);
+        target.mp += amount;
+        results.push({ type: 'mp-heal', targetUid: target.uid, amount });
+      });
+      break;
+    }
+    case 'full-restore': {
+      targets.forEach((target) => {
+        const healed = target.applyHeal(target.maxHp);
+        const mpAmount = target.maxMp - target.mp;
+        target.mp = target.maxMp;
+        results.push({ type: 'heal', targetUid: target.uid, amount: healed }, { type: 'mp-heal', targetUid: target.uid, amount: mpAmount });
+      });
+      break;
+    }
+    case 'revive': {
+      targets.forEach((target) => {
+        if (target.hp > 0) return;
+        target.hp = Math.max(1, Math.round(target.maxHp * (action.hpRatio ?? 0.25)));
+        results.push({ type: 'revive', targetUid: target.uid, amount: target.hp });
+      });
+      break;
+    }
+    case 'scan': {
+      targets.forEach((target) => results.push({ type: 'scan', targetUid: target.uid, hp: target.hp, maxHp: target.maxHp, weakness: target.weakness }));
+      break;
+    }
+    case 'status': {
+      targets.forEach((target) => {
+        (action.statuses ?? []).forEach((status) => {
+          if (action.toggle && target.statuses.has(status)) target.statuses.delete(status);
+          else target.statuses.add(status);
+          if (status === 'protect') target.physicalDamageMultiplier *= 0.75;
+          if (status === 'shell') target.magicDamageMultiplier *= 0.75;
+          if (status === 'haste') target.agility = Math.round(target.agility * 1.25);
+          if (status === 'slow') target.agility = Math.max(1, Math.round(target.agility * 0.75));
+          if (status === 'ko') target.hp = 0;
+        });
+        if (action.imageHits) target.imageHits = Math.max(target.imageHits, action.imageHits);
+        results.push({ type: 'status', targetUid: target.uid, statuses: action.statuses ?? [] });
+      });
+      break;
+    }
+    case 'cleanse': {
+      targets.forEach((target) => {
+        const removed = action.mode === 'all_curable' ? [...target.statuses] : (action.statuses ?? []);
+        removed.forEach((status) => target.statuses.delete(status));
+        results.push({ type: 'cleanse', targetUid: target.uid, statuses: removed });
+      });
+      break;
+    }
+    case 'dispel': {
+      const positive = ['protect', 'shell', 'haste', 'regen', 'reflect', 'float'];
+      targets.forEach((target) => {
+        positive.forEach((status) => target.statuses.delete(status));
+        results.push({ type: 'dispel', targetUid: target.uid });
+      });
+      break;
+    }
+    case 'stat-modify': {
+      targets.forEach((target) => {
+        if (typeof target[action.stat] === 'number') target[action.stat] = Math.max(1, Math.round(target[action.stat] * (action.multiplier ?? 1)));
+        results.push({ type: 'buff', targetUid: target.uid, label: `${action.stat}変化` });
+      });
+      break;
+    }
+    case 'sacrifice': {
+      actor.applyDamage(actor.hp);
+      results.push({ type: 'status', targetUid: actor.uid, statuses: ['ko'] });
+      break;
+    }
+    case 'scripted': {
+      results.push({ type: 'effect', targetUid: targets[0]?.uid ?? actor.uid, label: action.label });
       break;
     }
     case 'defend': {

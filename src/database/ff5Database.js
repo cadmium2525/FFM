@@ -148,7 +148,7 @@ const magicRows = [
 ];
 
 export const ff5Magic = Object.freeze(magicRows.map(([school, level, nameEn, nameJa, mpCost, element, target, effect, buyPrice]) => Object.freeze({
-  id: `magic_${slug(nameEn)}`,
+  id: `magic_${slug(nameEn) || 'question_marks'}`,
   sourceVersion: SOURCE_VERSION,
   school,
   level,

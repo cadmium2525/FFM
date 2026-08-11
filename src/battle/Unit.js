@@ -36,6 +36,9 @@ export class Unit {
     this.physicalDamageMultiplier = this.equipmentEffects.physicalDamageMultiplier ?? 1;
     this.imageHits = this.equipmentEffects.initialImageHits ?? 0;
     this.nextAttackMultiplier = 1;
+    this.magicDamageMultiplier = 1;
+    this.statuses = new Set(config.statuses ?? []);
+    this.level = config.level ?? 1;
     this.equippedAbilitySet = config.equippedAbilitySet ?? 'たたかう型';
     this.equipment = config.equipment ?? {
       weapon: null,

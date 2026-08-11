@@ -20,6 +20,34 @@ The baseline is **Final Fantasy V Pixel Remaster**. It contains:
 - Effects are short factual summaries written for FFM. They are not copied guide descriptions.
 - Formation saves references by ID, never by array position or display text.
 
+## Battle adapter contract
+
+`battleCatalog.js` wraps every database record with a required `battle` descriptor:
+
+```js
+{
+  sourceType: 'magic',
+  target: { id: 'one_or_all_enemies', scope: 'one_or_all', side: 'enemy' },
+  mpCost: 4,
+  element: 'fire',
+  formulaVersion: 'ff5_adapter_v1',
+  operations: [
+    { op: 'damage.magic', formula: 'ff5_magic', power: 1.73, hits: 1 }
+  ],
+  runtimeReady: true
+}
+```
+
+Composite effects contain multiple ordered operations. For example Phoenix has an enemy
+damage operation and a separate ally revive operation. `scripts/validate-database.mjs`
+fails when any record has no stable ID, target descriptor, formula version, or operation.
+Magic menus are generated from this adapter rather than a second hand-written spell list.
+
+`runtimeReady` means that the record has a stable machine-readable route into battle. It
+does not claim that every animation, enemy immunity, inventory rule, or Pixel Remaster
+edge case is already presented in the current UI. Formula keys remain versioned so exact
+balance values can be corrected without changing IDs or menu wiring.
+
 ## Formation shape
 
 ```js

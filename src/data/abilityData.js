@@ -1,3 +1,5 @@
+import { magicActionsForSchool } from '../database/battleCatalog.js';
+
 /**
  * ctbCost is a multiplier applied to the CTB threshold when an action is
  * consumed: >1.0 delays the unit's next turn (slow/heavy actions),
@@ -48,45 +50,21 @@ export const itemActions = [
   },
 ];
 
-// Magic lists keyed by the ability-set a character has equipped.
+// Battle menus are generated directly from the reference database. Adding or
+// correcting a spell record therefore updates every command that consumes it.
 export const magicSets = {
-  '白魔法': [
-    { id: 'cure', name: 'ケアル', ctbCost: 1.0, mpCost: 20, healAmount: 500, element: null, target: 'single-ally' },
-    { id: 'cura', name: 'ケアルラ', ctbCost: 1.4, mpCost: 45, healAmount: 1100, element: null, target: 'single-ally' },
-    { id: 'esuna', name: 'エスナ', ctbCost: 0.9, mpCost: 15, healAmount: 0, element: null, target: 'single-ally' },
+  '白魔法': magicActionsForSchool('white'),
+  '黒魔法': magicActionsForSchool('black'),
+  '召喚魔法': magicActionsForSchool('summon'),
+  '時空魔法': magicActionsForSchool('time'),
+  '青魔法': magicActionsForSchool('blue'),
+  '赤魔法': [
+    ...magicActionsForSchool('white', { maxLevel: 3 }),
+    ...magicActionsForSchool('black', { maxLevel: 3 }),
   ],
-  '黒魔法': [
-    { id: 'fire', name: 'ファイア', ctbCost: 1.1, mpCost: 15, power: 2.0, element: 'fire', target: 'single-enemy' },
-    { id: 'blizzard', name: 'ブリザド', ctbCost: 1.1, mpCost: 15, power: 2.0, element: 'ice', target: 'single-enemy' },
-    { id: 'thunder', name: 'サンダー', ctbCost: 1.1, mpCost: 15, power: 2.0, element: 'thunder', target: 'single-enemy' },
-    { id: 'water', name: 'ウォータ', ctbCost: 1.1, mpCost: 15, power: 2.0, element: 'water', target: 'single-enemy' },
-    { id: 'firaga', name: 'ファイガ', ctbCost: 1.8, mpCost: 40, power: 3.6, element: 'fire', target: 'single-enemy' },
-  ],
-  '召喚魔法': [
-    { id: 'shiva', name: 'シヴァ', ctbCost: 1.6, mpCost: 35, power: 2.6, element: 'ice', target: 'single-enemy' },
-    { id: 'ifrit', name: 'イフリート', ctbCost: 1.6, mpCost: 35, power: 2.6, element: 'fire', target: 'single-enemy' },
-    { id: 'leviathan', name: 'リヴァイアサン', ctbCost: 1.9, mpCost: 50, power: 3.2, element: 'water', target: 'single-enemy' },
-  ],
-  'たたかう型': [
-    // Melee-focused characters get a light support spell instead of a full list.
-    { id: 'cure', name: 'ケアル', ctbCost: 1.0, mpCost: 20, healAmount: 400, element: null, target: 'single-ally' },
-  ],
-  '時空魔法': [
-    { id: 'comet', name: 'コメット', ctbCost: 1.3, mpCost: 7, power: 2.4, element: null, target: 'single-enemy' },
-    { id: 'gravity', name: 'グラビデ', ctbCost: 1.1, mpCost: 9, power: 1.8, element: null, target: 'single-enemy' },
-    { id: 'haste', name: 'ヘイスト', ctbCost: 0.9, mpCost: 10, actionKind: 'haste', target: 'self' },
-  ],
-  '青魔法': [
-    { id: 'aero', name: 'エアロ', ctbCost: 1.0, mpCost: 4, power: 1.8, element: 'wind', target: 'single-enemy' },
-    { id: '1000-needles', name: 'はりせんぼん', ctbCost: 1.4, mpCost: 25, fixedDamage: 1000, actionKind: 'fixed-damage', target: 'single-enemy' },
-    { id: 'white-wind', name: 'ホワイトウインド', ctbCost: 1.4, mpCost: 28, healAmount: 700, target: 'single-ally' },
-  ],
+  // Characters without a magic command keep a single basic recovery option.
+  'たたかう型': magicActionsForSchool('white').filter((spell) => spell.sourceId === 'magic_cure'),
 };
-
-magicSets['赤魔法'] = [
-  ...magicSets['白魔法'].slice(0, 2),
-  ...magicSets['黒魔法'].slice(0, 4),
-];
 
 const directAbilityActions = Object.freeze({
   ability_guard: [{ id: 'guard', name: 'まもり', actionKind: 'guard', ctbCost: 0.7, target: 'self' }],

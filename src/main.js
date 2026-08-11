@@ -17,6 +17,14 @@ import {
 } from './database/ff5Database.js';
 import { FirebaseAccountService } from './services/FirebaseAccountService.js';
 import { bossData } from './data/bossData.js';
+import {
+  battleReadyAbilities,
+  battleReadyEquipment,
+  battleReadyItems,
+  battleReadyMagic,
+  battleReadyShards,
+  battleReadySongs,
+} from './database/battleCatalog.js';
 
 // ---------- Screen switching ----------
 const screens = {
@@ -379,11 +387,11 @@ function renderOptions(message = '') {
 }
 
 const adminCatalogs = {
-  equipment: { label: `装備 (${ff5Equipment.length})`, records: ff5Equipment },
-  magic: { label: `魔法 (${ff5Magic.length})`, records: ff5Magic },
-  abilities: { label: `アビリティ・歌 (${ff5JobAbilities.length + ff5Songs.length})`, records: [...ff5JobAbilities, ...ff5Songs] },
-  items: { label: `アイテム (${ff5Items.length})`, records: ff5Items },
-  crystals: { label: `クリスタルのかけら (${crystalShards.length})`, records: crystalShards },
+  equipment: { label: `装備 (${battleReadyEquipment.length})`, records: battleReadyEquipment },
+  magic: { label: `魔法 (${battleReadyMagic.length})`, records: battleReadyMagic },
+  abilities: { label: `アビリティ・歌 (${battleReadyAbilities.length + battleReadySongs.length})`, records: [...battleReadyAbilities, ...battleReadySongs] },
+  items: { label: `アイテム (${battleReadyItems.length})`, records: battleReadyItems },
+  crystals: { label: `クリスタルのかけら (${battleReadyShards.length})`, records: battleReadyShards },
   battle: { label: 'バトル仕様', records: [ff5BattleRules] },
 };
 
@@ -392,9 +400,10 @@ function adminRecordName(record) {
 }
 
 function adminRecordDetail(record) {
-  if (record.slot) return `${equipmentDetailText(record)} / 基礎性能と対応済み追加効果は戦闘反映`;
-  if (record.effect) return `効果: ${record.effect}`;
-  if (record.techniqueNameJa) return `記憶技: ${record.techniqueNameJa} / ${record.lore}`;
+  const operations = record.battle?.operations?.map((operation) => operation.op).join(' → ');
+  if (record.slot) return `${equipmentDetailText(record)} / 戦闘処理: ${operations}`;
+  if (record.effect) return `効果: ${record.effect} / 戦闘処理: ${operations}`;
+  if (record.techniqueNameJa) return `記憶技: ${record.techniqueNameJa} / ${record.lore} / 戦闘処理: ${operations}`;
   return JSON.stringify(record);
 }
 

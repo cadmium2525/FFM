@@ -301,11 +301,25 @@ export class BattleUI {
   }
 
   promptTarget(entry, kind, actor) {
+    const allyTarget = ['single-ally', 'one_ally', 'one_or_all_allies', 'all_allies', 'party', 'enemy_group_and_ally'].includes(entry.target);
+    const automaticTarget = ['all_allies', 'all_enemies', 'all_units', 'party', 'enemy_group', 'enemy_and_party', 'random_unit'].includes(entry.target);
+    const reviveAction = entry.operations?.some((operation) => operation.op === 'revive');
     const targets = entry.target === 'self'
       ? [actor]
-      : entry.target === 'single-ally'
-        ? this.battleManager.party.filter((p) => p.isAlive())
+      : allyTarget
+        ? this.battleManager.party.filter((partyUnit) => reviveAction ? !partyUnit.isAlive() : partyUnit.isAlive())
         : [this.battleManager.boss];
+
+    if (targets.length === 0) {
+      this.closeActionWindows();
+      this.messageWindow.show(reviveAction ? '戦闘不能の味方はいない。' : '対象がいない。');
+      return;
+    }
+
+    if (automaticTarget) {
+      this.finalizeAction(entry, kind, targets[0]);
+      return;
+    }
 
     if (targets.length === 1) {
       this.finalizeAction(entry, kind, targets[0]);

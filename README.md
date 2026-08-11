@@ -14,6 +14,10 @@ FF5由来のデータと分離しています。スキーマと運用方針は
 node scripts/validate-database.mjs
 ```
 
+The validator also requires every magic, item, ability, song, equipment item, crystal
+shard and shop record to have a battle/runtime adapter. The current catalog contains
+413 validated runtime-ready records; battle magic menus are generated directly from it.
+
 ## Firebase account setup
 
 アカウントUI、Firestore同期、管理者モードは実装済みですが、接続先となる
