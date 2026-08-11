@@ -1,5 +1,5 @@
 import { eventBus } from '../core/EventBus.js';
-import { basicCommands, attackAction, defendAction, itemActions, magicSets } from '../data/abilityData.js';
+import { basicCommands, attackAction, defendAction, getAbilityActions, itemActions, magicSets } from '../data/abilityData.js';
 import { elementNames } from '../data/bossData.js';
 import { MessageWindow } from './MessageWindow.js';
 
@@ -180,7 +180,7 @@ export class BattleUI {
       const row = document.createElement('div');
       row.className = 'status-row';
       row.innerHTML = `
-        <div class="p-name">${unit.name}</div>
+        <div class="p-name">${unit.name}<small>攻${unit.atk} 防${unit.def} 魔防${unit.magicDef}</small></div>
         <div class="p-nums">
           <span>HP ${unit.hp}/${unit.maxHp}</span>
           <div class="stat-bar-track"><div class="stat-bar-fill hp ${hpBarClass(unit)}" style="width:${Math.max(0, unit.hpRatio() * 100)}%"></div></div>
@@ -223,11 +223,14 @@ export class BattleUI {
       case 'defend':
         this.submitDefend(actor);
         break;
-      case 'magic':
-      case 'ability': {
+      case 'magic': {
         const setName = actor.equippedAbilitySet ?? 'たたかう型';
         const list = magicSets[setName] ?? [];
-        this.openSubmenu(commandId === 'magic' ? 'まほう' : 'アビリティ', list, 'spell', actor);
+        this.openSubmenu('まほう', list, 'spell', actor);
+        break;
+      }
+      case 'ability': {
+        this.openSubmenu('アビリティ', getAbilityActions(actor.abilityId), 'ability', actor);
         break;
       }
       case 'item':
@@ -258,9 +261,10 @@ export class BattleUI {
 
     list.forEach((entry) => {
       const li = document.createElement('li');
-      const costLabel = entry.mpCost ? ` (MP${entry.mpCost})` : '';
+      const actualMpCost = Math.ceil((entry.mpCost ?? 0) * (actor.mpCostMultiplier ?? 1));
+      const costLabel = entry.mpCost ? ` (MP${actualMpCost})` : '';
       li.textContent = `${entry.name}${costLabel}`;
-      const disabled = kind === 'spell' && entry.mpCost && actor.mp < entry.mpCost;
+      const disabled = ['spell', 'ability'].includes(kind) && actualMpCost && actor.mp < actualMpCost;
       if (disabled) {
         li.style.opacity = '0.4';
         li.style.cursor = 'not-allowed';
@@ -297,8 +301,11 @@ export class BattleUI {
   }
 
   promptTarget(entry, kind, actor) {
-    const isHeal = entry.healAmount !== undefined;
-    const targets = isHeal ? this.battleManager.party.filter((p) => p.isAlive()) : [this.battleManager.boss];
+    const targets = entry.target === 'self'
+      ? [actor]
+      : entry.target === 'single-ally'
+        ? this.battleManager.party.filter((p) => p.isAlive())
+        : [this.battleManager.boss];
 
     if (targets.length === 1) {
       this.finalizeAction(entry, kind, targets[0]);
@@ -326,6 +333,8 @@ export class BattleUI {
     this.closeActionWindows();
     if (kind === 'spell') {
       this.battleManager.submitPlayerAction({ type: 'magic', spell: entry, ctbCost: entry.ctbCost }, target);
+    } else if (kind === 'ability') {
+      this.battleManager.submitPlayerAction({ type: 'ability', ability: entry, ctbCost: entry.ctbCost }, target);
     } else if (kind === 'item') {
       this.battleManager.submitPlayerAction({ type: 'item', item: entry, ctbCost: entry.ctbCost }, target);
     }

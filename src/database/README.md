@@ -36,6 +36,8 @@ The baseline is **Final Fantasy V Pixel Remaster**. It contains:
 }
 ```
 
-The current battle prototype intentionally keeps its existing damage/magic behavior.
-Equipment stats, job restrictions, inventory ownership, shop stock and shard techniques
-can be connected one subsystem at a time by switching each record's implementation status.
+The battle runtime currently applies weapon attack/accuracy/element, armor defense/magic
+defense/evasion, supported stat and elemental equipment effects, and every command ability
+shown as `戦闘反映` in formation. Unsupported command abilities remain in this catalog but
+are disabled in formation as `準備中`. Job restrictions, inventory ownership, shop stock,
+the remaining special procs/statuses, and shard techniques are still future subsystems.

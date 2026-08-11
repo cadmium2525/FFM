@@ -12,8 +12,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="assets/icons/icon-192.png">
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
-<link rel="stylesheet" href="css/style.css?v=account-admin-v3">
-<link rel="stylesheet" href="css/ff5-ui.css?v=account-admin-v3">
+<link rel="stylesheet" href="css/style.css?v=equipment-runtime-v5">
+<link rel="stylesheet" href="css/ff5-ui.css?v=equipment-runtime-v5">
 </head>
 <body>
   <div id="game-root">
@@ -243,14 +243,27 @@ class Unit {
 
     this.atk = config.atk ?? 10;
     this.def = config.def ?? 10;
+    this.magicDef = config.magicDef ?? Math.round(this.def * 0.5);
     this.magic = config.magic ?? 10;
     this.agility = config.agility ?? 20;
+    this.evasion = config.evasion ?? 0;
 
     this.weakness = config.weakness ?? null; // element string
     this.resist = config.resist ?? null;
     this.weaponElement = config.weaponElement ?? null;
+    this.weaponAccuracy = config.weaponAccuracy ?? 100;
+    this.weaponSpecial = config.weaponSpecial ?? null;
     this.weaponId = config.weaponId ?? 'w_neutral';
     this.baseAtk = config.baseAtk ?? this.atk;
+    this.baseDef = config.baseDef ?? this.def;
+    this.baseMagicDef = config.baseMagicDef ?? this.magicDef;
+    this.baseMagic = config.baseMagic ?? this.magic;
+    this.baseAgility = config.baseAgility ?? this.agility;
+    this.equipmentEffects = config.equipmentEffects ?? {};
+    this.mpCostMultiplier = this.equipmentEffects.mpCostMultiplier ?? 1;
+    this.physicalDamageMultiplier = this.equipmentEffects.physicalDamageMultiplier ?? 1;
+    this.imageHits = this.equipmentEffects.initialImageHits ?? 0;
+    this.nextAttackMultiplier = 1;
     this.equippedAbilitySet = config.equippedAbilitySet ?? 'たたかう型';
     this.equipment = config.equipment ?? {
       weapon: null,
@@ -312,24 +325,44 @@ function randomVariance(base) {
   return base * factor;
 }
 
-/** Physical attack damage: ATK vs DEF, with a defend-state cut. */
-function resolvePhysicalDamage(attacker, defender) {
-  const raw = Math.max(1, attacker.atk * 2.2 - defender.def * 1.1);
+function equipmentElementState(defender, element) {
+  const effects = defender.equipmentEffects ?? {};
+  if (!element) return 'normal';
+  if (effects.absorbs?.includes(element)) return 'absorb';
+  if (effects.nullElements?.includes(element)) return 'null';
+  if (effects.weaknesses?.includes(element) || defender.weakness === element) return 'weak';
+  if (effects.resistances?.includes(element) || defender.resist === element) return 'resist';
+  return 'normal';
+}
+
+/** Physical attack damage: ATK vs DEF, with weapon and armor effects. */
+function resolvePhysicalDamage(attacker, defender, action = {}) {
+  if (attacker.weaponSpecial === 'always_1_damage') return 1;
+  const multiplier = (action.power ?? 1) * (action.attackMultiplier ?? 1);
+  const raw = Math.max(1, attacker.atk * 2.2 * multiplier - defender.def * 1.1);
   let dmg = randomVariance(raw);
-  if (attacker.weaponElement && defender.weakness === attacker.weaponElement) dmg *= 1.5;
-  if (attacker.weaponElement && defender.resist === attacker.weaponElement) dmg *= 0.5;
+  const elementState = equipmentElementState(defender, attacker.weaponElement);
+  if (elementState === 'weak') dmg *= 1.5;
+  if (elementState === 'resist') dmg *= 0.5;
+  if (elementState === 'null' || elementState === 'absorb') dmg = 0;
+  if (attacker.weaponSpecial === 'critical' && Math.random() < 0.12) dmg *= 2;
+  if (attacker.weaponSpecial === 'high_critical' && Math.random() < 0.25) dmg *= 2;
   if (defender.defending) dmg *= 0.5;
-  return Math.max(1, Math.round(dmg));
+  dmg *= defender.physicalDamageMultiplier ?? 1;
+  return Math.max(0, Math.round(dmg));
 }
 
 /** Magic/elemental damage: MAGIC stat * spell power, weakness/resist modifiers. */
 function resolveMagicDamage(caster, defender, spell) {
-  const raw = Math.max(1, caster.magic * 2.6 * (spell.power ?? 1.0) - defender.def * 0.4);
+  const boost = caster.equipmentEffects?.magicBoostElements?.includes(spell.element) ? 1.25 : 1;
+  const raw = Math.max(1, caster.magic * 2.6 * (spell.power ?? 1.0) * boost - defender.magicDef * 0.7);
   let dmg = randomVariance(raw);
 
   if (spell.element) {
-    if (defender.weakness === spell.element) dmg *= 1.75;
-    if (defender.resist === spell.element) dmg *= 0.4;
+    const elementState = equipmentElementState(defender, spell.element);
+    if (elementState === 'weak') dmg *= 1.75;
+    if (elementState === 'resist') dmg *= 0.4;
+    if (elementState === 'null') dmg = 0;
   }
   if (defender.defending) dmg *= 0.5;
   return Math.max(1, Math.round(dmg));
@@ -350,30 +383,97 @@ function resolveAction({ actor, action, targets }) {
   switch (action.kind) {
     case 'physical-attack': {
       const target = targets[0];
-      const dmg = resolvePhysicalDamage(actor, target);
-      const dealt = target.applyDamage(dmg);
-      results.push({ type: 'damage', targetUid: target.uid, amount: dealt });
+      const hits = Math.max(1, action.hits ?? (actor.weaponSpecial === 'double_hit' ? 2 : 1));
+      const attackMultiplier = actor.nextAttackMultiplier ?? 1;
+      actor.nextAttackMultiplier = 1;
+      let dealtTotal = 0;
+      let missedHits = 0;
+      let blockedHits = 0;
+      for (let hit = 0; hit < hits; hit += 1) {
+        const blockedByImage = !action.ignoreEvasion && target.imageHits > 0;
+        if (blockedByImage) target.imageHits -= 1;
+        const hitChance = Math.min(1, Math.max(0.2, ((actor.weaponAccuracy ?? 100) - (action.ignoreEvasion ? 0 : target.evasion ?? 0)) / 100));
+        if (blockedByImage || Math.random() > hitChance) {
+          missedHits += 1;
+          continue;
+        }
+        const damage = resolvePhysicalDamage(actor, target, { ...action, attackMultiplier });
+        if (damage <= 0) blockedHits += 1;
+        else dealtTotal += target.applyDamage(damage);
+      }
+      if (dealtTotal > 0) results.push({ type: 'damage', targetUid: target.uid, amount: dealtTotal, hits });
+      if (missedHits > 0) results.push({ type: 'miss', targetUid: target.uid, hits: missedHits });
+      if (blockedHits > 0) results.push({ type: 'blocked', targetUid: target.uid, hits: blockedHits });
+      if (action.drain || actor.weaponSpecial === 'hp_drain') {
+        const healed = actor.applyHeal(Math.round(dealtTotal * 0.5));
+        if (healed > 0) results.push({ type: 'heal', targetUid: actor.uid, amount: healed });
+      }
+      if (action.mpDrain || actor.weaponSpecial === 'mp_drain') {
+        const restored = Math.min(actor.maxMp - actor.mp, action.mpDrain ?? 8);
+        actor.mp += restored;
+        if (restored > 0) results.push({ type: 'mp-heal', targetUid: actor.uid, amount: restored });
+      }
       break;
     }
     case 'magic-attack': {
       const target = targets[0];
-      actor.spendMp(action.mpCost ?? 0);
+      actor.spendMp(Math.ceil((action.mpCost ?? 0) * (actor.mpCostMultiplier ?? 1)));
+      const elementState = equipmentElementState(target, action.element);
       const dmg = resolveMagicDamage(actor, target, action);
-      const dealt = target.applyDamage(dmg);
-      const isWeak = target.weakness === action.element;
-      results.push({ type: 'damage', targetUid: target.uid, amount: dealt, weak: isWeak });
+      if (elementState === 'absorb') {
+        const healed = target.applyHeal(dmg);
+        results.push({ type: 'absorb', targetUid: target.uid, amount: healed });
+      } else {
+        const dealt = elementState === 'null' ? 0 : target.applyDamage(dmg);
+        results.push({ type: 'damage', targetUid: target.uid, amount: dealt, weak: elementState === 'weak', nullified: elementState === 'null' });
+      }
       break;
     }
     case 'heal': {
       const target = targets[0];
-      if (action.mpCost) actor.spendMp(action.mpCost);
+      if (action.mpCost) actor.spendMp(Math.ceil(action.mpCost * (actor.mpCostMultiplier ?? 1)));
       const healed = target.applyHeal(resolveHeal(action.healAmount));
       results.push({ type: 'heal', targetUid: target.uid, amount: healed });
+      break;
+    }
+    case 'fixed-damage': {
+      const target = targets[0];
+      if (action.mpCost) actor.spendMp(Math.ceil(action.mpCost * (actor.mpCostMultiplier ?? 1)));
+      const dealt = target.applyDamage(action.fixedDamage ?? 1);
+      results.push({ type: 'damage', targetUid: target.uid, amount: dealt });
       break;
     }
     case 'defend': {
       actor.defending = true;
       results.push({ type: 'defend', targetUid: actor.uid });
+      break;
+    }
+    case 'guard': {
+      actor.defending = true;
+      actor.physicalDamageMultiplier = 0;
+      results.push({ type: 'buff', targetUid: actor.uid, label: '物理攻撃無効' });
+      break;
+    }
+    case 'focus': {
+      actor.nextAttackMultiplier = Math.max(actor.nextAttackMultiplier ?? 1, 2);
+      results.push({ type: 'buff', targetUid: actor.uid, label: '次の物理攻撃強化' });
+      break;
+    }
+    case 'image': {
+      actor.imageHits = Math.max(actor.imageHits ?? 0, action.imageHits ?? 2);
+      results.push({ type: 'buff', targetUid: actor.uid, label: `分身${actor.imageHits}回` });
+      break;
+    }
+    case 'haste': {
+      actor.spendMp(Math.ceil((action.mpCost ?? 0) * (actor.mpCostMultiplier ?? 1)));
+      actor.agility += 8;
+      results.push({ type: 'buff', targetUid: actor.uid, label: '素早さ上昇' });
+      break;
+    }
+    case 'imbue': {
+      actor.spendMp(Math.ceil((action.mpCost ?? 0) * (actor.mpCostMultiplier ?? 1)));
+      actor.weaponElement = action.element;
+      results.push({ type: 'buff', targetUid: actor.uid, label: `${action.element}属性付与` });
       break;
     }
     default:
@@ -875,6 +975,154 @@ const ff5Database = Object.freeze({
   crystalShards,
 });
 
+// ---- src/battle/EquipmentSystem.js ----
+const elementLabels = Object.freeze({
+  fire: '炎', ice: '冷気', lightning: '雷', thunder: '雷', water: '水',
+  wind: '風', earth: '地', holy: '聖', poison: '毒',
+});
+
+const specialEffectDescriptions = Object.freeze({
+  absorb_fire: '炎属性を吸収',
+  absorb_fire_null_ice_weak_water: '炎吸収・冷気無効・水弱点',
+  absorb_ice: '冷気属性を吸収',
+  absorb_water_null_fire_weak_lightning: '水吸収・炎無効・雷弱点',
+  aevis_killer: 'エイビス系へ特効',
+  agi_plus_1: '素早さ+1', agi_plus_2: '素早さ+2',
+  always_1_damage: '与えるダメージが1になる',
+  auto_doom: '戦闘開始時に死の宣告',
+  auto_haste_and_status_immunity: '常時ヘイスト・複数の状態異常を防ぐ',
+  auto_image: '戦闘開始時に分身', auto_reflect: '常時リフレク',
+  auto_regen_vit_plus_5: '常時リジェネ・体力+5',
+  back_row_full_damage: '後列からでも威力が下がらない',
+  barehanded_boost_str_plus_5: '格闘強化・力+5',
+  berserk_on_hit: '攻撃時にバーサクを付与', blind: '攻撃時に暗闇を付与',
+  blind_immunity: '暗闇を防ぐ', boost_and_break_cast: '対応属性を強化・使用すると魔法発動',
+  boost_earth: '地属性を強化', boost_fire_ice_lightning: '炎・冷気・雷属性を強化',
+  boost_holy_and_raise: '聖属性とレイズ系を強化', boost_wind: '風属性を強化',
+  break_cast_holy: '使用すると聖属性魔法を発動', cast_dispel: '攻撃時にディスペルを発動',
+  catch_boost: 'とらえる成功率上昇', confuse: '攻撃時に混乱を付与',
+  confuse_immunity_and_dance_boost: '混乱を防ぎ、おどるを強化',
+  confuse_mini_immunity: '混乱・小人を防ぐ', confuse_toad_immunity: '混乱・カエルを防ぐ',
+  control_boost: 'あやつる成功率上昇', critical: 'クリティカルが発生する',
+  dance_proc: '攻撃時に踊りが発動することがある', double_hit: '2回攻撃',
+  dragon_and_undead_killer: '竜・アンデッド系へ特効', dragon_killer: '竜系へ特効',
+  earthquake_proc: '攻撃時に地震が発動することがある', evasion_and_protect: '回避率上昇・プロテス発動',
+  firaga_proc: '攻撃時にファイガが発動することがある', first_strike_and_haste: '先制行動・ヘイスト',
+  giant_killer: '巨人系へ特効', half_mp_cost: '消費MP半減', heal_on_hit: '攻撃対象のHPを回復',
+  high_critical: '高確率でクリティカル', hp_drain: '与えたダメージの一部を吸収',
+  human_killer: '人間系へ特効', instant_death: '攻撃時に即死を付与することがある',
+  mag_plus_1: '魔力+1', mag_plus_2: '魔力+2', mag_plus_3: '魔力+3', mag_plus_5: '魔力+5',
+  magic_beast_killer: '魔獣系へ特効', magic_plus: '魔力+3',
+  mini_immunity_stat_changes: '小人を防ぐ・能力値変化', most_status_immunity_and_all_stats_plus_5: '多くの状態異常を防ぎ、全能力+5',
+  mp_critical: 'MPを消費してクリティカルが発生することがある', mp_drain: '攻撃時にMP吸収',
+  multi_element_boost: '炎・冷気・雷・地・風属性を強化', old: '攻撃時に老化を付与',
+  paralyze: '攻撃時に麻痺を付与', paralyze_mini_immunity: '麻痺・小人を防ぐ',
+  paralyze_toad_immunity: '麻痺・カエルを防ぐ', petrify_immunity_and_magic_block: '石化を防ぎ、魔法を回避することがある',
+  physical_evasion: '物理回避率上昇', poison: '攻撃時に毒を付与',
+  poison_null_and_vit_plus_5: '毒属性無効・体力+5', power_changes_with_escapes: '逃走回数に応じて攻撃力が変化',
+  rapid_fire_proc: '攻撃時にみだれうちが発動することがある', resist_lightning: '雷属性を半減',
+  sap_sleep_immunity_mag_minus_5: 'スリップ・睡眠を防ぎ、魔力-5', silence: '攻撃時に沈黙を付与',
+  silence_immunity: '沈黙を防ぐ', sleep: '攻撃時に睡眠を付与',
+  spell_cycle_and_return: '魔法を順番に発動し、最後に初期状態へ戻す',
+  steal_boost_agi_plus_1: 'ぬすむ成功率上昇・素早さ+1', steal_proc: '攻撃時にぬすむが発動することがある',
+  str_agi_plus_1: '力+1・素早さ+1', str_plus_1: '力+1', str_plus_3: '力+3',
+  throw_only: 'なげる専用', throwable: 'なげるで使用可能', thunder_proc: '攻撃時にサンダーが発動することがある',
+  two_handed: '両手武器', undead_properties: '装備者がアンデッドの性質を持つ',
+  vit_mag_plus_3: '体力+3・魔力+3', wind_slash: '攻撃時にかまいたちが発動することがある',
+  zombie_old_immunity: 'ゾンビ・老化を防ぐ',
+});
+
+function normalizeElement(element) {
+  return element === 'lightning' ? 'thunder' : element;
+}
+
+function addUnique(list, value) {
+  if (value && !list.includes(value)) list.push(value);
+}
+
+function findEquipment(id) {
+  return id ? ff5Equipment.find((item) => item.id === id) ?? null : null;
+}
+
+function equipmentEffectText(item) {
+  if (!item) return 'なし';
+  return item.special ? specialEffectDescriptions[item.special] ?? item.special : '追加効果なし';
+}
+
+function equipmentDetailText(item) {
+  if (!item) return '装備なし';
+  const parts = [];
+  if (item.slot === 'weapon') {
+    parts.push(`攻撃力 ${item.attack}`, `命中 ${item.accuracy ?? '-'}%`);
+    if (item.element) parts.push(`${elementLabels[item.element] ?? item.element}属性`);
+  } else {
+    parts.push(`防御 ${item.defense}`, `魔防 ${item.magicDefense}`, `回避 ${item.evasion}%`);
+  }
+  parts.push(`追加効果: ${equipmentEffectText(item)}`);
+  return parts.join(' / ');
+}
+
+function calculateEquipmentBonuses(equipment = {}) {
+  const items = Object.values(equipment).map(findEquipment).filter(Boolean);
+  const weapon = findEquipment(equipment.weapon);
+  const result = {
+    attack: weapon?.attack ?? 0,
+    defense: items.reduce((sum, item) => sum + (item.defense ?? 0), 0),
+    magicDefense: items.reduce((sum, item) => sum + (item.magicDefense ?? 0), 0),
+    evasion: items.reduce((sum, item) => sum + (item.evasion ?? 0), 0),
+    magic: 0,
+    agility: 0,
+    weaponElement: normalizeElement(weapon?.element ?? null),
+    weaponAccuracy: weapon?.accuracy ?? 100,
+    weaponSpecial: weapon?.special ?? null,
+    resistances: [], nullElements: [], absorbs: [], weaknesses: [], magicBoostElements: [],
+    mpCostMultiplier: 1,
+    physicalDamageMultiplier: 1,
+    initialImageHits: 0,
+  };
+
+  items.forEach((item) => {
+    const special = item.special ?? '';
+    const statBonus = (pattern) => Number(special.match(pattern)?.[1] ?? 0);
+    result.attack += statBonus(/^str_plus_(\d+)/) + statBonus(/^str_agi_plus_(\d+)/);
+    result.magic += statBonus(/^mag_plus_(\d+)/) + statBonus(/^vit_mag_plus_(\d+)/);
+    result.agility += statBonus(/^agi_plus_(\d+)/) + statBonus(/^str_agi_plus_(\d+)/);
+    if (special === 'magic_plus') result.magic += 3;
+    if (special === 'most_status_immunity_and_all_stats_plus_5') {
+      result.attack += 5; result.defense += 5; result.magic += 5; result.agility += 5;
+    }
+    if (special === 'barehanded_boost_str_plus_5') result.attack += 5;
+    if (special === 'steal_boost_agi_plus_1') result.agility += 1;
+    if (special === 'sap_sleep_immunity_mag_minus_5') result.magic -= 5;
+    if (special === 'physical_evasion') result.evasion += 25;
+    if (special === 'evasion_and_protect') { result.evasion += 10; result.physicalDamageMultiplier *= 0.75; }
+    if (special === 'auto_haste_and_status_immunity' || special === 'first_strike_and_haste') result.agility += 10;
+    if (special === 'auto_image') result.initialImageHits = Math.max(result.initialImageHits, 1);
+    if (special === 'half_mp_cost') result.mpCostMultiplier = 0.5;
+
+    if (special === 'resist_lightning') addUnique(result.resistances, 'thunder');
+    if (special.includes('absorb_fire')) addUnique(result.absorbs, 'fire');
+    if (special.includes('absorb_ice')) addUnique(result.absorbs, 'ice');
+    if (special.includes('absorb_water')) addUnique(result.absorbs, 'water');
+    if (special.includes('null_ice')) addUnique(result.nullElements, 'ice');
+    if (special.includes('null_fire')) addUnique(result.nullElements, 'fire');
+    if (special.includes('poison_null')) addUnique(result.nullElements, 'poison');
+    if (special.includes('weak_water')) addUnique(result.weaknesses, 'water');
+    if (special.includes('weak_lightning')) addUnique(result.weaknesses, 'thunder');
+    if (special === 'boost_earth') addUnique(result.magicBoostElements, 'earth');
+    if (special === 'boost_wind') addUnique(result.magicBoostElements, 'wind');
+    if (special.includes('boost_fire_ice_lightning') || special === 'multi_element_boost') {
+      ['fire', 'ice', 'thunder'].forEach((element) => addUnique(result.magicBoostElements, element));
+    }
+    if (special === 'multi_element_boost') ['earth', 'wind'].forEach((element) => addUnique(result.magicBoostElements, element));
+    if (special === 'boost_holy_and_raise') addUnique(result.magicBoostElements, 'holy');
+    if (special === 'boost_and_break_cast' && item.element) addUnique(result.magicBoostElements, normalizeElement(item.element));
+  });
+
+  result.evasion = Math.min(80, result.evasion);
+  return result;
+}
+
 // ---- src/services/FirebaseAccountService.js ----
 const FIREBASE_SDK_VERSION = '12.16.0';
 const FIREBASE_CDN_ROOT = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
@@ -1139,7 +1387,74 @@ const magicSets = {
     // Melee-focused characters get a light support spell instead of a full list.
     { id: 'cure', name: 'ケアル', ctbCost: 1.0, mpCost: 20, healAmount: 400, element: null, target: 'single-ally' },
   ],
+  '時空魔法': [
+    { id: 'comet', name: 'コメット', ctbCost: 1.3, mpCost: 7, power: 2.4, element: null, target: 'single-enemy' },
+    { id: 'gravity', name: 'グラビデ', ctbCost: 1.1, mpCost: 9, power: 1.8, element: null, target: 'single-enemy' },
+    { id: 'haste', name: 'ヘイスト', ctbCost: 0.9, mpCost: 10, actionKind: 'haste', target: 'self' },
+  ],
+  '青魔法': [
+    { id: 'aero', name: 'エアロ', ctbCost: 1.0, mpCost: 4, power: 1.8, element: 'wind', target: 'single-enemy' },
+    { id: '1000-needles', name: 'はりせんぼん', ctbCost: 1.4, mpCost: 25, fixedDamage: 1000, actionKind: 'fixed-damage', target: 'single-enemy' },
+    { id: 'white-wind', name: 'ホワイトウインド', ctbCost: 1.4, mpCost: 28, healAmount: 700, target: 'single-ally' },
+  ],
 };
+
+magicSets['赤魔法'] = [
+  ...magicSets['白魔法'].slice(0, 2),
+  ...magicSets['黒魔法'].slice(0, 4),
+];
+
+const directAbilityActions = Object.freeze({
+  ability_guard: [{ id: 'guard', name: 'まもり', actionKind: 'guard', ctbCost: 0.7, target: 'self' }],
+  ability_focus: [{ id: 'focus', name: 'ためる', actionKind: 'focus', ctbCost: 0.8, target: 'self' }],
+  ability_chakra: [{ id: 'chakra', name: 'チャクラ', actionKind: 'heal', healAmount: 450, ctbCost: 0.9, target: 'self' }],
+  ability_image: [{ id: 'image', name: 'ぶんしん', actionKind: 'image', imageHits: 2, ctbCost: 0.9, target: 'self' }],
+  ability_aim: [{ id: 'aim', name: 'ねらう', actionKind: 'physical-attack', power: 1.2, ignoreEvasion: true, ctbCost: 1.0, target: 'single-enemy' }],
+  ability_rapid_fire: [{ id: 'rapid-fire', name: 'みだれうち', actionKind: 'physical-attack', power: 0.6, hits: 4, ignoreEvasion: true, ctbCost: 1.5, target: 'single-enemy' }],
+  ability_jump: [{ id: 'jump', name: 'ジャンプ', actionKind: 'physical-attack', power: 1.8, ctbCost: 1.4, target: 'single-enemy' }],
+  ability_lance: [{ id: 'lance', name: 'りゅうけん', actionKind: 'physical-attack', power: 0.8, drain: true, mpDrain: 12, ctbCost: 1.1, target: 'single-enemy' }],
+  ability_mug: [{ id: 'mug', name: 'ぶんどる', actionKind: 'physical-attack', power: 1.0, ctbCost: 1.1, target: 'single-enemy' }],
+  ability_gaia: [{ id: 'gaia', name: 'ちけい', actionKind: 'magic-attack', power: 2.5, element: 'earth', ctbCost: 1.1, target: 'single-enemy' }],
+  ability_throw: [{ id: 'throw', name: 'なげる', actionKind: 'fixed-damage', fixedDamage: 750, ctbCost: 1.2, target: 'single-enemy' }],
+  ability_mineuchi: [{ id: 'mineuchi', name: 'みねうち', actionKind: 'physical-attack', power: 0.9, ctbCost: 0.9, target: 'single-enemy' }],
+  ability_zeninage: [{ id: 'zeninage', name: 'ぜになげ', actionKind: 'fixed-damage', fixedDamage: 900, ctbCost: 1.3, target: 'single-enemy' }],
+  ability_iainuki: [{ id: 'iainuki', name: 'いあいぬき', actionKind: 'physical-attack', power: 1.6, ctbCost: 1.4, target: 'single-enemy' }],
+  ability_dance: [{ id: 'dance', name: 'おどる', actionKind: 'physical-attack', power: 1.7, ctbCost: 1.1, target: 'single-enemy' }],
+  ability_mix: [{ id: 'mix', name: 'ちょうごう', actionKind: 'heal', healAmount: 1000, ctbCost: 1.2, target: 'single-ally' }],
+  ability_drink: [{ id: 'drink', name: 'のむ', actionKind: 'focus', ctbCost: 0.8, target: 'self' }],
+});
+
+const abilityMagicSet = Object.freeze({
+  ability_white_magic: '白魔法', ability_black_magic: '黒魔法', ability_summon: '召喚魔法',
+  ability_time_magic: '時空魔法', ability_red_magic: '赤魔法', ability_blue_magic: '青魔法',
+});
+
+function getAbilityActions(abilityId) {
+  if (abilityMagicSet[abilityId]) return magicSets[abilityMagicSet[abilityId]];
+  if (abilityId === 'ability_dualcast') {
+    return magicSets['赤魔法'].map((spell) => ({ ...spell, id: `dual-${spell.id}`, name: `${spell.name}×2`, power: spell.power ? spell.power * 1.7 : spell.power, healAmount: spell.healAmount ? Math.round(spell.healAmount * 1.7) : spell.healAmount, mpCost: (spell.mpCost ?? 0) * 2 }));
+  }
+  if (abilityId === 'ability_spellblade') {
+    return [
+      { id: 'spellblade-fire', name: 'ファイア剣', actionKind: 'imbue', element: 'fire', mpCost: 5, ctbCost: 0.8, target: 'self' },
+      { id: 'spellblade-ice', name: 'ブリザド剣', actionKind: 'imbue', element: 'ice', mpCost: 5, ctbCost: 0.8, target: 'self' },
+      { id: 'spellblade-thunder', name: 'サンダー剣', actionKind: 'imbue', element: 'thunder', mpCost: 5, ctbCost: 0.8, target: 'self' },
+    ];
+  }
+  if (abilityId === 'ability_call') return magicSets['召喚魔法'].map((spell) => ({ ...spell, id: `call-${spell.id}`, mpCost: 0 }));
+  if (abilityId === 'ability_sing') {
+    return [
+      { id: 'mighty-march', name: 'たいりょくのうた', actionKind: 'heal', healAmount: 500, ctbCost: 1.0, target: 'single-ally' },
+      { id: 'sinewy-etude', name: 'ちからのうた', actionKind: 'focus', ctbCost: 0.9, target: 'self' },
+      { id: 'requiem', name: 'レクイエム', actionKind: 'magic-attack', power: 2.2, element: 'holy', ctbCost: 1.1, target: 'single-enemy' },
+    ];
+  }
+  return directAbilityActions[abilityId] ?? [];
+}
+
+function isAbilityImplemented(abilityId) {
+  return getAbilityActions(abilityId).length > 0;
+}
 
 const abilityMenu = {
   id: 'ability_review',
@@ -1405,6 +1720,7 @@ class BattleManager {
 
     // Reset defend stance at the start of a unit's own turn.
     actor.defending = false;
+    actor.physicalDamageMultiplier = actor.equipmentEffects?.physicalDamageMultiplier ?? 1;
 
     if (actor.isEnemy) {
       this.broadcastState();
@@ -1449,6 +1765,10 @@ class BattleManager {
     results.forEach((r) => {
       if (r.type === 'damage') {
         this.log(`${actor.name} の こうげき！ ${target.name} に ${r.amount} の ダメージ！`);
+      } else if (r.type === 'miss') {
+        this.log(`${actor.name} の こうげきは はずれた！`);
+      } else if (r.type === 'blocked') {
+        this.log(`${target.name} は こうげきを ふせいだ！`);
       }
     });
 
@@ -1479,18 +1799,23 @@ class BattleManager {
         break;
       case 'magic':
         action = {
-          kind: choice.spell.healAmount !== undefined && choice.spell.power === undefined
+          kind: choice.spell.actionKind ?? (choice.spell.healAmount !== undefined && choice.spell.power === undefined
             ? 'heal'
-            : 'magic-attack',
-          element: choice.spell.element,
-          power: choice.spell.power,
-          mpCost: choice.spell.mpCost,
-          healAmount: choice.spell.healAmount,
+            : 'magic-attack'),
+          ...choice.spell,
         };
         targets = [
           action.kind === 'heal' ? targetUnit ?? actor : targetUnit ?? this.boss,
         ];
         this.log(`${actor.name} の ${choice.spell.name}！`);
+        break;
+      case 'ability':
+        action = {
+          kind: choice.ability.actionKind ?? (choice.ability.healAmount !== undefined ? 'heal' : 'magic-attack'),
+          ...choice.ability,
+        };
+        targets = [targetUnit ?? (choice.ability.target === 'self' ? actor : this.boss)];
+        this.log(`${actor.name} の ${choice.ability.name}！`);
         break;
       case 'item':
         action = { kind: 'heal', healAmount: choice.item.healAmount };
@@ -1510,9 +1835,22 @@ class BattleManager {
     results.forEach((r) => {
       if (r.type === 'damage') {
         const weakText = r.weak ? '(弱点！)' : '';
-        this.log(`${targets[0].name} に ${r.amount} の ダメージ！${weakText}`);
+        const hitText = r.hits > 1 ? ` ${r.hits}ヒット！` : '';
+        const nullText = r.nullified ? ' 無効！' : '';
+        this.log(`${targets[0].name} に ${r.amount} の ダメージ！${hitText}${weakText}${nullText}`);
       } else if (r.type === 'heal') {
-        this.log(`${targets[0].name} の HPが ${r.amount} かいふくした。`);
+        const healedUnit = this.units.find((unit) => unit.uid === r.targetUid) ?? targets[0];
+        this.log(`${healedUnit.name} の HPが ${r.amount} かいふくした。`);
+      } else if (r.type === 'mp-heal') {
+        this.log(`${actor.name} の MPが ${r.amount} かいふくした。`);
+      } else if (r.type === 'miss') {
+        this.log(`${r.hits > 1 ? `${r.hits}回 ` : ''}ミス！`);
+      } else if (r.type === 'blocked') {
+        this.log(`${targets[0].name} は こうげきを ふせいだ！`);
+      } else if (r.type === 'absorb') {
+        this.log(`${targets[0].name} は属性攻撃を吸収し、HPが ${r.amount} かいふくした。`);
+      } else if (r.type === 'buff') {
+        this.log(`${actor.name}：${r.label}`);
       }
     });
 
@@ -1708,7 +2046,7 @@ class BattleUI {
       const row = document.createElement('div');
       row.className = 'status-row';
       row.innerHTML = `
-        <div class="p-name">${unit.name}</div>
+        <div class="p-name">${unit.name}<small>攻${unit.atk} 防${unit.def} 魔防${unit.magicDef}</small></div>
         <div class="p-nums">
           <span>HP ${unit.hp}/${unit.maxHp}</span>
           <div class="stat-bar-track"><div class="stat-bar-fill hp ${hpBarClass(unit)}" style="width:${Math.max(0, unit.hpRatio() * 100)}%"></div></div>
@@ -1751,11 +2089,14 @@ class BattleUI {
       case 'defend':
         this.submitDefend(actor);
         break;
-      case 'magic':
-      case 'ability': {
+      case 'magic': {
         const setName = actor.equippedAbilitySet ?? 'たたかう型';
         const list = magicSets[setName] ?? [];
-        this.openSubmenu(commandId === 'magic' ? 'まほう' : 'アビリティ', list, 'spell', actor);
+        this.openSubmenu('まほう', list, 'spell', actor);
+        break;
+      }
+      case 'ability': {
+        this.openSubmenu('アビリティ', getAbilityActions(actor.abilityId), 'ability', actor);
         break;
       }
       case 'item':
@@ -1786,9 +2127,10 @@ class BattleUI {
 
     list.forEach((entry) => {
       const li = document.createElement('li');
-      const costLabel = entry.mpCost ? ` (MP${entry.mpCost})` : '';
+      const actualMpCost = Math.ceil((entry.mpCost ?? 0) * (actor.mpCostMultiplier ?? 1));
+      const costLabel = entry.mpCost ? ` (MP${actualMpCost})` : '';
       li.textContent = `${entry.name}${costLabel}`;
-      const disabled = kind === 'spell' && entry.mpCost && actor.mp < entry.mpCost;
+      const disabled = ['spell', 'ability'].includes(kind) && actualMpCost && actor.mp < actualMpCost;
       if (disabled) {
         li.style.opacity = '0.4';
         li.style.cursor = 'not-allowed';
@@ -1825,8 +2167,11 @@ class BattleUI {
   }
 
   promptTarget(entry, kind, actor) {
-    const isHeal = entry.healAmount !== undefined;
-    const targets = isHeal ? this.battleManager.party.filter((p) => p.isAlive()) : [this.battleManager.boss];
+    const targets = entry.target === 'self'
+      ? [actor]
+      : entry.target === 'single-ally'
+        ? this.battleManager.party.filter((p) => p.isAlive())
+        : [this.battleManager.boss];
 
     if (targets.length === 1) {
       this.finalizeAction(entry, kind, targets[0]);
@@ -1854,6 +2199,8 @@ class BattleUI {
     this.closeActionWindows();
     if (kind === 'spell') {
       this.battleManager.submitPlayerAction({ type: 'magic', spell: entry, ctbCost: entry.ctbCost }, target);
+    } else if (kind === 'ability') {
+      this.battleManager.submitPlayerAction({ type: 'ability', ability: entry, ctbCost: entry.ctbCost }, target);
     } else if (kind === 'item') {
       this.battleManager.submitPlayerAction({ type: 'item', item: entry, ctbCost: entry.ctbCost }, target);
     }
@@ -1926,6 +2273,27 @@ class IntermissionUI {
       const selects = document.createElement('div');
       selects.className = 'formation-selects';
 
+      const detail = document.createElement('div');
+      detail.className = 'formation-detail';
+      detail.setAttribute('role', 'status');
+
+      const updateDetails = () => {
+        const bonuses = calculateEquipmentBonuses(unit.equipment);
+        const ability = selectableAbilities.find((entry) => entry.id === unit.abilityId);
+        const equipmentLines = Object.entries(slotLabels).map(([slot, label]) => {
+          const item = findEquipment(unit.equipment?.[slot]);
+          return `${label}: ${item?.nameJa ?? 'なし'} — ${equipmentDetailText(item)}`;
+        });
+        const abilityLine = ability
+          ? `アビリティ: ${ability.nameJa} — ${ability.effect}［${isAbilityImplemented(ability.id) ? '戦闘反映' : '準備中'}］`
+          : 'アビリティ: なし';
+        detail.textContent = [
+          `戦闘能力: 攻撃 ${unit.baseAtk + bonuses.attack} / 防御 ${unit.baseDef + bonuses.defense} / 魔防 ${unit.baseMagicDef + bonuses.magicDefense} / 魔力 ${unit.baseMagic + bonuses.magic} / 素早さ ${unit.baseAgility + bonuses.agility} / 回避 ${bonuses.evasion}%`,
+          ...equipmentLines,
+          abilityLine,
+        ].join('\n');
+      };
+
       Object.entries(slotLabels).forEach(([slot, labelText]) => {
         const label = document.createElement('label');
         label.className = 'formation-field';
@@ -1942,8 +2310,10 @@ class IntermissionUI {
         equipmentBySlot[slot].forEach((item) => {
           const option = document.createElement('option');
           option.value = item.id;
-          const stat = slot === 'weapon' ? `攻${item.attack}` : `防${item.defense}`;
-          option.textContent = `${item.nameJa}　${stat}`;
+          const stat = slot === 'weapon'
+            ? `攻${item.attack} 命中${item.accuracy ?? '-'}%`
+            : `防${item.defense} 魔防${item.magicDefense} 回避${item.evasion}%`;
+          option.textContent = `${item.nameJa}　${stat}${item.special ? ' ★' : ''}`;
           option.selected = unit.equipment?.[slot] === item.id;
           select.appendChild(option);
         });
@@ -1951,6 +2321,7 @@ class IntermissionUI {
         select.addEventListener('change', () => {
           unit.equipment = { ...unit.equipment, [slot]: select.value || null };
           if (slot === 'weapon') unit.weaponId = select.value || null;
+          updateDetails();
         });
         label.append(caption, select);
         selects.appendChild(label);
@@ -1976,11 +2347,16 @@ class IntermissionUI {
           option.value = ability.id;
           option.textContent = ability.nameJa;
           option.selected = unit.abilityId === ability.id;
+          option.disabled = !isAbilityImplemented(ability.id);
+          if (option.disabled) option.textContent += '（準備中）';
           group.appendChild(option);
         });
         abilitySelect.appendChild(group);
       });
-      abilitySelect.addEventListener('change', () => { unit.abilityId = abilitySelect.value; });
+      abilitySelect.addEventListener('change', () => {
+        unit.abilityId = abilitySelect.value;
+        updateDetails();
+      });
       abilityLabel.append(abilityCaption, abilitySelect);
       selects.appendChild(abilityLabel);
 
@@ -2003,9 +2379,12 @@ class IntermissionUI {
 
       info.appendChild(selects);
 
+      updateDetails();
+      info.appendChild(detail);
+
       const note = document.createElement('small');
       note.className = 'formation-note';
-      note.textContent = '装備・追加アビリティ・かけらの戦闘効果は順次実装予定';
+      note.textContent = '★は追加効果あり。装備の能力値・属性と「戦闘反映」表示のアビリティは次のバトルから有効です。';
       info.appendChild(note);
       card.appendChild(info);
       this.containerEl.appendChild(card);
@@ -2387,6 +2766,13 @@ function adminRecordName(record) {
   return record.nameJa ?? record.nameEn ?? record.id;
 }
 
+function adminRecordDetail(record) {
+  if (record.slot) return `${equipmentDetailText(record)} / 基礎性能と対応済み追加効果は戦闘反映`;
+  if (record.effect) return `効果: ${record.effect}`;
+  if (record.techniqueNameJa) return `記憶技: ${record.techniqueNameJa} / ${record.lore}`;
+  return JSON.stringify(record);
+}
+
 function renderAdminCatalog(selectedCatalog = 'equipment') {
   if (!firebaseAccount?.isAdmin) {
     openMenuPanel('管理者モード', '<p class="menu-notice">管理者アカウントでのログインが必要です。</p>');
@@ -2403,6 +2789,7 @@ function renderAdminCatalog(selectedCatalog = 'equipment') {
       return `<article class="admin-record" data-search="${escapeHtml(`${adminRecordName(record)} ${record.nameEn ?? ''} ${record.id} ${json}`.toLocaleLowerCase('ja-JP'))}">
         <strong>${escapeHtml(adminRecordName(record))}</strong>
         <small>ID: ${escapeHtml(record.id)}</small>
+        <small class="admin-record-detail">${escapeHtml(adminRecordDetail(record))}</small>
         <small>${escapeHtml(json)}</small>
       </article>`;
     })
@@ -2457,9 +2844,11 @@ function freshPartyState() {
     hp: p.maxHp,
     mp: p.maxMp,
     baseAtk: p.atk,
+    baseDef: p.def,
+    baseMagicDef: p.magicDef ?? Math.round(p.def * 0.5),
+    baseMagic: p.magic,
+    baseAgility: p.agility,
     weaponId: p.equipment?.weapon ?? null,
-    weaponElement: null,
-    weaponAtkBonus: 0,
   }));
 }
 
@@ -2468,13 +2857,16 @@ function legacyAbilitySetFor(abilityId, fallback = 'たたかう型') {
   if (abilityId === 'ability_white_magic') return '白魔法';
   if (abilityId === 'ability_black_magic') return '黒魔法';
   if (abilityId === 'ability_summon') return '召喚魔法';
+  if (abilityId === 'ability_time_magic') return '時空魔法';
+  if (abilityId === 'ability_red_magic' || abilityId === 'ability_dualcast') return '赤魔法';
+  if (abilityId === 'ability_blue_magic') return '青魔法';
   return 'たたかう型';
 }
 
 function buildPartyUnits(state) {
-  return state.map(
-    (p) =>
-      new Unit({
+  return state.map((p) => {
+    const equipmentBonuses = calculateEquipmentBonuses(p.equipment);
+    return new Unit({
         id: p.id,
         name: p.name,
         role: p.role,
@@ -2483,19 +2875,28 @@ function buildPartyUnits(state) {
         hp: p.hp,
         maxMp: p.maxMp,
         mp: p.mp,
-        atk: p.baseAtk + (p.weaponAtkBonus ?? 0),
-        def: p.def,
-        magic: p.magic,
-        agility: p.agility,
-        weaponElement: p.weaponElement,
+        atk: p.baseAtk + equipmentBonuses.attack,
+        def: p.baseDef + equipmentBonuses.defense,
+        magicDef: p.baseMagicDef + equipmentBonuses.magicDefense,
+        magic: p.baseMagic + equipmentBonuses.magic,
+        agility: p.baseAgility + equipmentBonuses.agility,
+        evasion: equipmentBonuses.evasion,
+        weaponElement: equipmentBonuses.weaponElement,
+        weaponAccuracy: equipmentBonuses.weaponAccuracy,
+        weaponSpecial: equipmentBonuses.weaponSpecial,
+        equipmentEffects: equipmentBonuses,
         weaponId: p.weaponId,
         baseAtk: p.baseAtk,
+        baseDef: p.baseDef,
+        baseMagicDef: p.baseMagicDef,
+        baseMagic: p.baseMagic,
+        baseAgility: p.baseAgility,
         equippedAbilitySet: legacyAbilitySetFor(p.abilityId, p.equippedAbilitySet),
         equipment: { ...p.equipment },
         abilityId: p.abilityId,
         crystalShardId: p.crystalShardId,
-      })
-  );
+      });
+  });
 }
 
 function syncStateFromUnits(state, units) {
@@ -2530,11 +2931,11 @@ function applyPartySetup(partyUnits) {
   partyUnits.forEach((unit, index) => {
     livingParty[index].equipment = { ...unit.equipment };
     livingParty[index].weaponId = unit.equipment.weapon;
-    const chosenWeapon = ff5Equipment.find((item) => item.id === unit.equipment.weapon);
-    livingParty[index].weaponElement = chosenWeapon?.element ?? null;
     livingParty[index].baseAtk = unit.baseAtk;
-    // Database equipment stats are intentionally not applied to the prototype battle yet.
-    livingParty[index].weaponAtkBonus = 0;
+    livingParty[index].baseDef = unit.baseDef;
+    livingParty[index].baseMagicDef = unit.baseMagicDef;
+    livingParty[index].baseMagic = unit.baseMagic;
+    livingParty[index].baseAgility = unit.baseAgility;
     livingParty[index].abilityId = unit.abilityId;
     livingParty[index].crystalShardId = unit.crystalShardId;
     livingParty[index].equippedAbilitySet = legacyAbilitySetFor(unit.abilityId, livingParty[index].equippedAbilitySet);
@@ -2549,6 +2950,10 @@ function openPartySetup(nextBoss, { canReturnToMenu = false, readyLabel = 'バ�
   const partyUnits = buildPartyUnits(livingParty).map((unit, index) =>
     Object.assign(unit, {
       baseAtk: livingParty[index].baseAtk,
+      baseDef: livingParty[index].baseDef,
+      baseMagicDef: livingParty[index].baseMagicDef,
+      baseMagic: livingParty[index].baseMagic,
+      baseAgility: livingParty[index].baseAgility,
       weaponId: livingParty[index].weaponId,
       equippedAbilitySet: livingParty[index].equippedAbilitySet,
       equipment: { ...livingParty[index].equipment },

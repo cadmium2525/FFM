@@ -1,10 +1,10 @@
-const CACHE_NAME = 'ff-crystal-rush-pwa-v4';
+const CACHE_NAME = 'ff-crystal-rush-pwa-v5';
 const APP_SHELL = [
   './',
   './index.html',
   './app.js',
-  './css/style.css?v=account-admin-v3',
-  './css/ff5-ui.css?v=account-admin-v3',
+  './css/style.css?v=equipment-runtime-v5',
+  './css/ff5-ui.css?v=equipment-runtime-v5',
   './firebase-config.js',
   './manifest.webmanifest',
   './assets/icons/icon-192.png',

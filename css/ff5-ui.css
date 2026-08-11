@@ -209,6 +209,7 @@ body {
 }
 
 .status-row .p-name { color: #ffe9a8; }
+.status-row .p-name small { display: block; margin-top: 3px; color: #bcd3ff; font-size: 6px; white-space: nowrap; }
 .status-row .p-nums { display: flex; flex-direction: column; gap: 3px; }
 .status-row .p-nums span { font-size: 10px; }
 
@@ -288,6 +289,17 @@ body {
   color: #9fb9ed;
   font-size: 6px;
   line-height: 1.5;
+}
+
+.formation-detail {
+  margin-top: 7px;
+  padding: 7px;
+  white-space: pre-line;
+  color: #eaf2ff;
+  background: rgba(0, 12, 55, 0.48);
+  border: 1px solid rgba(214, 229, 255, 0.5);
+  font-size: 6px;
+  line-height: 1.55;
 }
 
 .intermission-card .card-name {

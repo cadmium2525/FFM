@@ -68,6 +68,7 @@ export class BattleManager {
 
     // Reset defend stance at the start of a unit's own turn.
     actor.defending = false;
+    actor.physicalDamageMultiplier = actor.equipmentEffects?.physicalDamageMultiplier ?? 1;
 
     if (actor.isEnemy) {
       this.broadcastState();
@@ -112,6 +113,10 @@ export class BattleManager {
     results.forEach((r) => {
       if (r.type === 'damage') {
         this.log(`${actor.name} の こうげき！ ${target.name} に ${r.amount} の ダメージ！`);
+      } else if (r.type === 'miss') {
+        this.log(`${actor.name} の こうげきは はずれた！`);
+      } else if (r.type === 'blocked') {
+        this.log(`${target.name} は こうげきを ふせいだ！`);
       }
     });
 
@@ -142,18 +147,23 @@ export class BattleManager {
         break;
       case 'magic':
         action = {
-          kind: choice.spell.healAmount !== undefined && choice.spell.power === undefined
+          kind: choice.spell.actionKind ?? (choice.spell.healAmount !== undefined && choice.spell.power === undefined
             ? 'heal'
-            : 'magic-attack',
-          element: choice.spell.element,
-          power: choice.spell.power,
-          mpCost: choice.spell.mpCost,
-          healAmount: choice.spell.healAmount,
+            : 'magic-attack'),
+          ...choice.spell,
         };
         targets = [
           action.kind === 'heal' ? targetUnit ?? actor : targetUnit ?? this.boss,
         ];
         this.log(`${actor.name} の ${choice.spell.name}！`);
+        break;
+      case 'ability':
+        action = {
+          kind: choice.ability.actionKind ?? (choice.ability.healAmount !== undefined ? 'heal' : 'magic-attack'),
+          ...choice.ability,
+        };
+        targets = [targetUnit ?? (choice.ability.target === 'self' ? actor : this.boss)];
+        this.log(`${actor.name} の ${choice.ability.name}！`);
         break;
       case 'item':
         action = { kind: 'heal', healAmount: choice.item.healAmount };
@@ -173,9 +183,22 @@ export class BattleManager {
     results.forEach((r) => {
       if (r.type === 'damage') {
         const weakText = r.weak ? '(弱点！)' : '';
-        this.log(`${targets[0].name} に ${r.amount} の ダメージ！${weakText}`);
+        const hitText = r.hits > 1 ? ` ${r.hits}ヒット！` : '';
+        const nullText = r.nullified ? ' 無効！' : '';
+        this.log(`${targets[0].name} に ${r.amount} の ダメージ！${hitText}${weakText}${nullText}`);
       } else if (r.type === 'heal') {
-        this.log(`${targets[0].name} の HPが ${r.amount} かいふくした。`);
+        const healedUnit = this.units.find((unit) => unit.uid === r.targetUid) ?? targets[0];
+        this.log(`${healedUnit.name} の HPが ${r.amount} かいふくした。`);
+      } else if (r.type === 'mp-heal') {
+        this.log(`${actor.name} の MPが ${r.amount} かいふくした。`);
+      } else if (r.type === 'miss') {
+        this.log(`${r.hits > 1 ? `${r.hits}回 ` : ''}ミス！`);
+      } else if (r.type === 'blocked') {
+        this.log(`${targets[0].name} は こうげきを ふせいだ！`);
+      } else if (r.type === 'absorb') {
+        this.log(`${targets[0].name} は属性攻撃を吸収し、HPが ${r.amount} かいふくした。`);
+      } else if (r.type === 'buff') {
+        this.log(`${actor.name}：${r.label}`);
       }
     });
 

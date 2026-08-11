@@ -1,4 +1,6 @@
 import { equipmentBySlot, selectableAbilities, crystalShards } from '../database/ff5Database.js';
+import { calculateEquipmentBonuses, equipmentDetailText, findEquipment } from '../battle/EquipmentSystem.js';
+import { isAbilityImplemented } from '../data/abilityData.js';
 
 const slotLabels = {
   weapon: '武器',
@@ -65,6 +67,27 @@ export class IntermissionUI {
       const selects = document.createElement('div');
       selects.className = 'formation-selects';
 
+      const detail = document.createElement('div');
+      detail.className = 'formation-detail';
+      detail.setAttribute('role', 'status');
+
+      const updateDetails = () => {
+        const bonuses = calculateEquipmentBonuses(unit.equipment);
+        const ability = selectableAbilities.find((entry) => entry.id === unit.abilityId);
+        const equipmentLines = Object.entries(slotLabels).map(([slot, label]) => {
+          const item = findEquipment(unit.equipment?.[slot]);
+          return `${label}: ${item?.nameJa ?? 'なし'} — ${equipmentDetailText(item)}`;
+        });
+        const abilityLine = ability
+          ? `アビリティ: ${ability.nameJa} — ${ability.effect}［${isAbilityImplemented(ability.id) ? '戦闘反映' : '準備中'}］`
+          : 'アビリティ: なし';
+        detail.textContent = [
+          `戦闘能力: 攻撃 ${unit.baseAtk + bonuses.attack} / 防御 ${unit.baseDef + bonuses.defense} / 魔防 ${unit.baseMagicDef + bonuses.magicDefense} / 魔力 ${unit.baseMagic + bonuses.magic} / 素早さ ${unit.baseAgility + bonuses.agility} / 回避 ${bonuses.evasion}%`,
+          ...equipmentLines,
+          abilityLine,
+        ].join('\n');
+      };
+
       Object.entries(slotLabels).forEach(([slot, labelText]) => {
         const label = document.createElement('label');
         label.className = 'formation-field';
@@ -81,8 +104,10 @@ export class IntermissionUI {
         equipmentBySlot[slot].forEach((item) => {
           const option = document.createElement('option');
           option.value = item.id;
-          const stat = slot === 'weapon' ? `攻${item.attack}` : `防${item.defense}`;
-          option.textContent = `${item.nameJa}　${stat}`;
+          const stat = slot === 'weapon'
+            ? `攻${item.attack} 命中${item.accuracy ?? '-'}%`
+            : `防${item.defense} 魔防${item.magicDefense} 回避${item.evasion}%`;
+          option.textContent = `${item.nameJa}　${stat}${item.special ? ' ★' : ''}`;
           option.selected = unit.equipment?.[slot] === item.id;
           select.appendChild(option);
         });
@@ -90,6 +115,7 @@ export class IntermissionUI {
         select.addEventListener('change', () => {
           unit.equipment = { ...unit.equipment, [slot]: select.value || null };
           if (slot === 'weapon') unit.weaponId = select.value || null;
+          updateDetails();
         });
         label.append(caption, select);
         selects.appendChild(label);
@@ -115,11 +141,16 @@ export class IntermissionUI {
           option.value = ability.id;
           option.textContent = ability.nameJa;
           option.selected = unit.abilityId === ability.id;
+          option.disabled = !isAbilityImplemented(ability.id);
+          if (option.disabled) option.textContent += '（準備中）';
           group.appendChild(option);
         });
         abilitySelect.appendChild(group);
       });
-      abilitySelect.addEventListener('change', () => { unit.abilityId = abilitySelect.value; });
+      abilitySelect.addEventListener('change', () => {
+        unit.abilityId = abilitySelect.value;
+        updateDetails();
+      });
       abilityLabel.append(abilityCaption, abilitySelect);
       selects.appendChild(abilityLabel);
 
@@ -142,9 +173,12 @@ export class IntermissionUI {
 
       info.appendChild(selects);
 
+      updateDetails();
+      info.appendChild(detail);
+
       const note = document.createElement('small');
       note.className = 'formation-note';
-      note.textContent = '装備・追加アビリティ・かけらの戦闘効果は順次実装予定';
+      note.textContent = '★は追加効果あり。装備の能力値・属性と「戦闘反映」表示のアビリティは次のバトルから有効です。';
       info.appendChild(note);
       card.appendChild(info);
       this.containerEl.appendChild(card);

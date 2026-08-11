@@ -1,6 +1,7 @@
 import { GameState, States } from './core/GameState.js';
 import { eventBus } from './core/EventBus.js';
 import { Unit } from './battle/Unit.js';
+import { calculateEquipmentBonuses, equipmentDetailText } from './battle/EquipmentSystem.js';
 import { BattleManager } from './battle/BattleManager.js';
 import { BattleUI } from './ui/BattleUI.js';
 import { IntermissionUI } from './ui/IntermissionUI.js';
@@ -390,6 +391,13 @@ function adminRecordName(record) {
   return record.nameJa ?? record.nameEn ?? record.id;
 }
 
+function adminRecordDetail(record) {
+  if (record.slot) return `${equipmentDetailText(record)} / 基礎性能と対応済み追加効果は戦闘反映`;
+  if (record.effect) return `効果: ${record.effect}`;
+  if (record.techniqueNameJa) return `記憶技: ${record.techniqueNameJa} / ${record.lore}`;
+  return JSON.stringify(record);
+}
+
 function renderAdminCatalog(selectedCatalog = 'equipment') {
   if (!firebaseAccount?.isAdmin) {
     openMenuPanel('管理者モード', '<p class="menu-notice">管理者アカウントでのログインが必要です。</p>');
@@ -406,6 +414,7 @@ function renderAdminCatalog(selectedCatalog = 'equipment') {
       return `<article class="admin-record" data-search="${escapeHtml(`${adminRecordName(record)} ${record.nameEn ?? ''} ${record.id} ${json}`.toLocaleLowerCase('ja-JP'))}">
         <strong>${escapeHtml(adminRecordName(record))}</strong>
         <small>ID: ${escapeHtml(record.id)}</small>
+        <small class="admin-record-detail">${escapeHtml(adminRecordDetail(record))}</small>
         <small>${escapeHtml(json)}</small>
       </article>`;
     })
@@ -460,9 +469,11 @@ function freshPartyState() {
     hp: p.maxHp,
     mp: p.maxMp,
     baseAtk: p.atk,
+    baseDef: p.def,
+    baseMagicDef: p.magicDef ?? Math.round(p.def * 0.5),
+    baseMagic: p.magic,
+    baseAgility: p.agility,
     weaponId: p.equipment?.weapon ?? null,
-    weaponElement: null,
-    weaponAtkBonus: 0,
   }));
 }
 
@@ -471,13 +482,16 @@ function legacyAbilitySetFor(abilityId, fallback = 'たたかう型') {
   if (abilityId === 'ability_white_magic') return '白魔法';
   if (abilityId === 'ability_black_magic') return '黒魔法';
   if (abilityId === 'ability_summon') return '召喚魔法';
+  if (abilityId === 'ability_time_magic') return '時空魔法';
+  if (abilityId === 'ability_red_magic' || abilityId === 'ability_dualcast') return '赤魔法';
+  if (abilityId === 'ability_blue_magic') return '青魔法';
   return 'たたかう型';
 }
 
 function buildPartyUnits(state) {
-  return state.map(
-    (p) =>
-      new Unit({
+  return state.map((p) => {
+    const equipmentBonuses = calculateEquipmentBonuses(p.equipment);
+    return new Unit({
         id: p.id,
         name: p.name,
         role: p.role,
@@ -486,19 +500,28 @@ function buildPartyUnits(state) {
         hp: p.hp,
         maxMp: p.maxMp,
         mp: p.mp,
-        atk: p.baseAtk + (p.weaponAtkBonus ?? 0),
-        def: p.def,
-        magic: p.magic,
-        agility: p.agility,
-        weaponElement: p.weaponElement,
+        atk: p.baseAtk + equipmentBonuses.attack,
+        def: p.baseDef + equipmentBonuses.defense,
+        magicDef: p.baseMagicDef + equipmentBonuses.magicDefense,
+        magic: p.baseMagic + equipmentBonuses.magic,
+        agility: p.baseAgility + equipmentBonuses.agility,
+        evasion: equipmentBonuses.evasion,
+        weaponElement: equipmentBonuses.weaponElement,
+        weaponAccuracy: equipmentBonuses.weaponAccuracy,
+        weaponSpecial: equipmentBonuses.weaponSpecial,
+        equipmentEffects: equipmentBonuses,
         weaponId: p.weaponId,
         baseAtk: p.baseAtk,
+        baseDef: p.baseDef,
+        baseMagicDef: p.baseMagicDef,
+        baseMagic: p.baseMagic,
+        baseAgility: p.baseAgility,
         equippedAbilitySet: legacyAbilitySetFor(p.abilityId, p.equippedAbilitySet),
         equipment: { ...p.equipment },
         abilityId: p.abilityId,
         crystalShardId: p.crystalShardId,
-      })
-  );
+      });
+  });
 }
 
 function syncStateFromUnits(state, units) {
@@ -533,11 +556,11 @@ function applyPartySetup(partyUnits) {
   partyUnits.forEach((unit, index) => {
     livingParty[index].equipment = { ...unit.equipment };
     livingParty[index].weaponId = unit.equipment.weapon;
-    const chosenWeapon = ff5Equipment.find((item) => item.id === unit.equipment.weapon);
-    livingParty[index].weaponElement = chosenWeapon?.element ?? null;
     livingParty[index].baseAtk = unit.baseAtk;
-    // Database equipment stats are intentionally not applied to the prototype battle yet.
-    livingParty[index].weaponAtkBonus = 0;
+    livingParty[index].baseDef = unit.baseDef;
+    livingParty[index].baseMagicDef = unit.baseMagicDef;
+    livingParty[index].baseMagic = unit.baseMagic;
+    livingParty[index].baseAgility = unit.baseAgility;
     livingParty[index].abilityId = unit.abilityId;
     livingParty[index].crystalShardId = unit.crystalShardId;
     livingParty[index].equippedAbilitySet = legacyAbilitySetFor(unit.abilityId, livingParty[index].equippedAbilitySet);
@@ -552,6 +575,10 @@ function openPartySetup(nextBoss, { canReturnToMenu = false, readyLabel = 'バ�
   const partyUnits = buildPartyUnits(livingParty).map((unit, index) =>
     Object.assign(unit, {
       baseAtk: livingParty[index].baseAtk,
+      baseDef: livingParty[index].baseDef,
+      baseMagicDef: livingParty[index].baseMagicDef,
+      baseMagic: livingParty[index].baseMagic,
+      baseAgility: livingParty[index].baseAgility,
       weaponId: livingParty[index].weaponId,
       equippedAbilitySet: livingParty[index].equippedAbilitySet,
       equipment: { ...livingParty[index].equipment },

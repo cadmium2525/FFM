@@ -719,6 +719,12 @@ body {
   display: block;
 }
 
+.admin-record .admin-record-detail {
+  margin: 5px 0;
+  color: #ffe9a8;
+  font-size: 7px;
+}
+
 .admin-record strong {
   margin-bottom: 7px;
   color: #fff;

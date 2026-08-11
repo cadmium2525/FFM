@@ -15,14 +15,27 @@ export class Unit {
 
     this.atk = config.atk ?? 10;
     this.def = config.def ?? 10;
+    this.magicDef = config.magicDef ?? Math.round(this.def * 0.5);
     this.magic = config.magic ?? 10;
     this.agility = config.agility ?? 20;
+    this.evasion = config.evasion ?? 0;
 
     this.weakness = config.weakness ?? null; // element string
     this.resist = config.resist ?? null;
     this.weaponElement = config.weaponElement ?? null;
+    this.weaponAccuracy = config.weaponAccuracy ?? 100;
+    this.weaponSpecial = config.weaponSpecial ?? null;
     this.weaponId = config.weaponId ?? 'w_neutral';
     this.baseAtk = config.baseAtk ?? this.atk;
+    this.baseDef = config.baseDef ?? this.def;
+    this.baseMagicDef = config.baseMagicDef ?? this.magicDef;
+    this.baseMagic = config.baseMagic ?? this.magic;
+    this.baseAgility = config.baseAgility ?? this.agility;
+    this.equipmentEffects = config.equipmentEffects ?? {};
+    this.mpCostMultiplier = this.equipmentEffects.mpCostMultiplier ?? 1;
+    this.physicalDamageMultiplier = this.equipmentEffects.physicalDamageMultiplier ?? 1;
+    this.imageHits = this.equipmentEffects.initialImageHits ?? 0;
+    this.nextAttackMultiplier = 1;
     this.equippedAbilitySet = config.equippedAbilitySet ?? 'たたかう型';
     this.equipment = config.equipment ?? {
       weapon: null,
