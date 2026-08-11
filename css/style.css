@@ -1579,7 +1579,7 @@ body {
 
 @media (orientation: portrait), (max-aspect-ratio: 4/5) {
   #battle-screen .battle-layout {
-    grid-template-rows: minmax(0, 1fr) 72px 320px;
+    grid-template-rows: minmax(0, 1fr) 72px 280px;
   }
 
   #battle-screen #command-window {

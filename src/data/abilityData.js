@@ -8,7 +8,6 @@ import { magicActionsForSchool } from '../database/battleCatalog.js';
 
 export const basicCommands = [
   { id: 'attack', label: 'たたかう' },
-  { id: 'magic', label: 'まほう' },
   { id: 'ability', label: 'アビリティ' },
   { id: 'crystal', label: '結晶技' },
   { id: 'item', label: 'アイテム' },

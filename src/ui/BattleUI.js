@@ -1,6 +1,7 @@
 import { eventBus } from '../core/EventBus.js';
-import { basicCommands, attackAction, defendAction, getAbilityActions, itemActions, magicSets } from '../data/abilityData.js';
+import { basicCommands, attackAction, defendAction, getAbilityActions, itemActions } from '../data/abilityData.js';
 import { elementNames } from '../data/bossData.js';
+import { selectableAbilities } from '../database/ff5Database.js';
 import { crystalShardAction } from '../database/battleCatalog.js';
 import { MessageWindow } from './MessageWindow.js';
 
@@ -30,6 +31,10 @@ const unitRunes = Object.freeze({ p1: '✦', p2: '◈', p3: '⬢', p4: '⌁', bo
 function safeToken(value, fallback = 'unknown') {
   const token = String(value ?? fallback).toLowerCase().replace(/[^a-z0-9_-]/g, '');
   return token || fallback;
+}
+
+function abilityCommandName(abilityId) {
+  return selectableAbilities.find((ability) => ability.id === abilityId)?.nameJa ?? 'アビリティ';
 }
 
 export class BattleUI {
@@ -304,7 +309,8 @@ export class BattleUI {
     this.commandHeadingEl.textContent = actor.name;
     this.commandListEl.innerHTML = '';
     basicCommands.forEach((cmd) => {
-      const li = this.createChoice(cmd.label, () => this.handleCommandSelect(cmd.id, actor));
+      const label = cmd.id === 'ability' ? abilityCommandName(actor.abilityId) : cmd.label;
+      const li = this.createChoice(label, () => this.handleCommandSelect(cmd.id, actor));
       this.commandListEl.appendChild(li);
     });
   }
@@ -322,14 +328,8 @@ export class BattleUI {
       case 'defend':
         this.submitDefend(actor);
         break;
-      case 'magic': {
-        const setName = actor.equippedAbilitySet ?? 'たたかう型';
-        const list = magicSets[setName] ?? [];
-        this.openSubmenu('まほう', list, 'spell', actor);
-        break;
-      }
       case 'ability': {
-        this.openSubmenu('アビリティ', getAbilityActions(actor.abilityId), 'ability', actor);
+        this.openSubmenu(abilityCommandName(actor.abilityId), getAbilityActions(actor.abilityId), 'ability', actor);
         break;
       }
       case 'crystal': {

@@ -1896,7 +1896,6 @@ class FirebaseAccountService {
 
 const basicCommands = [
   { id: 'attack', label: 'たたかう' },
-  { id: 'magic', label: 'まほう' },
   { id: 'ability', label: 'アビリティ' },
   { id: 'crystal', label: '結晶技' },
   { id: 'item', label: 'アイテム' },
@@ -2725,6 +2724,10 @@ function safeToken(value, fallback = 'unknown') {
   return token || fallback;
 }
 
+function abilityCommandName(abilityId) {
+  return selectableAbilities.find((ability) => ability.id === abilityId)?.nameJa ?? 'アビリティ';
+}
+
 class BattleUI {
   constructor() {
     this.enemyFieldEl = document.getElementById('enemy-field');
@@ -2997,7 +3000,8 @@ class BattleUI {
     this.commandHeadingEl.textContent = actor.name;
     this.commandListEl.innerHTML = '';
     basicCommands.forEach((cmd) => {
-      const li = this.createChoice(cmd.label, () => this.handleCommandSelect(cmd.id, actor));
+      const label = cmd.id === 'ability' ? abilityCommandName(actor.abilityId) : cmd.label;
+      const li = this.createChoice(label, () => this.handleCommandSelect(cmd.id, actor));
       this.commandListEl.appendChild(li);
     });
   }
@@ -3015,14 +3019,8 @@ class BattleUI {
       case 'defend':
         this.submitDefend(actor);
         break;
-      case 'magic': {
-        const setName = actor.equippedAbilitySet ?? 'たたかう型';
-        const list = magicSets[setName] ?? [];
-        this.openSubmenu('まほう', list, 'spell', actor);
-        break;
-      }
       case 'ability': {
-        this.openSubmenu('アビリティ', getAbilityActions(actor.abilityId), 'ability', actor);
+        this.openSubmenu(abilityCommandName(actor.abilityId), getAbilityActions(actor.abilityId), 'ability', actor);
         break;
       }
       case 'crystal': {
