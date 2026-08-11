@@ -3,6 +3,7 @@ import { basicCommands, attackAction, defendAction, getAbilityActions, itemActio
 import { elementNames } from '../data/bossData.js';
 import { selectableAbilities } from '../database/ff5Database.js';
 import { crystalShardAction } from '../database/battleCatalog.js';
+import { getBattleEffectDescriptor, resolveBattleEffectDescriptor } from './BattleEffectRegistry.js';
 import { MessageWindow } from './MessageWindow.js';
 
 function hpBarClass(unit) {
@@ -37,20 +38,45 @@ function abilityCommandName(abilityId) {
   return selectableAbilities.find((ability) => ability.id === abilityId)?.nameJa ?? 'アビリティ';
 }
 
-export function spellVisualProfile(action = {}, visualType = 'cast-impact') {
-  const id = String(action.sourceId ?? action.id ?? '').toLowerCase();
-  const name = String(action.name ?? '魔法');
-  if (id === 'magic_missile') return Object.freeze({ kind: 'missile', eyebrow: 'BLUE TECH // TARGET LOCK', glyph: '⌖', particles: 6, duration: 1180 });
-  if (id === 'magic_flare' || id === 'magic_level_3_flare') return Object.freeze({ kind: 'flare', eyebrow: 'BLACK MAGIC // STELLAR CORE', glyph: '✹', particles: 10, duration: 1540 });
-  if (id === 'magic_level_5_death') return Object.freeze({ kind: 'level-death', eyebrow: 'BLUE TECH // LEVEL JUDGMENT', glyph: 'Ⅴ', particles: 5, duration: 1580 });
-  if (/death|doom|roulette/.test(id)) return Object.freeze({ kind: 'death', eyebrow: 'ARCANA // SOUL SEAL', glyph: '†', particles: 7, duration: 1420 });
-  if (/meteor|comet/.test(id)) return Object.freeze({ kind: 'meteor', eyebrow: 'TIME MAGIC // ORBITAL FALL', glyph: '☄', particles: 10, duration: 1440 });
-  if (/gravity|graviga/.test(id)) return Object.freeze({ kind: 'gravity', eyebrow: 'TIME MAGIC // GRAVITY WELL', glyph: '◎', particles: 8, duration: 1320 });
-  if (/drain|osmose|vampire/.test(id)) return Object.freeze({ kind: 'drain', eyebrow: 'ARCANA // LIFE SIPHON', glyph: '◇', particles: 8, duration: 1240 });
-  if (action.school === 'summon') return Object.freeze({ kind: 'summon', eyebrow: 'SUMMON // SOUL GATE', glyph: null, particles: 12, duration: 1750 });
-  if (visualType === 'cast-heal') return Object.freeze({ kind: 'healing', eyebrow: 'WHITE MAGIC // RESTORE', glyph: '✦', particles: 8, duration: 1180 });
-  if (visualType === 'cast-arcane') return Object.freeze({ kind: 'status', eyebrow: 'ARCANA // ALTER STATE', glyph: '◈', particles: 8, duration: 1180 });
-  return Object.freeze({ kind: 'elemental', eyebrow: `${action.school === 'blue' ? 'BLUE TECH' : 'ARCANA'} // CAST`, glyph: name.includes('ホーリー') ? '✧' : null, particles: 8, duration: 1120 });
+function effectModifier(prefix, value) {
+  return value ? `${prefix}-${safeToken(value)}` : '';
+}
+
+function effectDuration(descriptor) {
+  const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  // Keep the signature frame readable while suppressing the full travel and
+  // camera choreography. 160ms was effectively invisible on mobile capture.
+  return reducedMotion ? 360 : Math.min(1600, Math.max(620, descriptor.duration));
+}
+
+export function battleEffectRenderProfile(actionOrDescriptor = {}, results = []) {
+  const descriptor = actionOrDescriptor.family && actionOrDescriptor.phaseTopology
+    ? actionOrDescriptor
+    : resolveBattleEffectDescriptor(actionOrDescriptor);
+  const action = actionOrDescriptor.family ? {} : actionOrDescriptor;
+  const family = safeToken(descriptor.family);
+  const motion = safeToken(descriptor.motion.kind);
+  const geometry = safeToken(descriptor.geometry.primary);
+  const impact = safeToken(descriptor.impact.topology);
+  const modifiers = [
+    effectModifier('entrance', descriptor.motion.entrance),
+    effectModifier('secondary', descriptor.geometry.secondary),
+    effectModifier('formation', descriptor.geometry.formation),
+    effectModifier('placement', descriptor.impact?.placement),
+    effectModifier('pulse', descriptor.pulsePattern.shape),
+    effectModifier('texture', descriptor.textureMode),
+    effectModifier('camera', descriptor.cameraCue),
+    effectModifier('reaction', descriptor.targetReaction),
+    effectModifier('phases', descriptor.phaseTopology.phases),
+    effectModifier('topology', descriptor.phaseTopology.topology),
+    effectModifier('trajectory', descriptor.trajectory.kind),
+    effectModifier('origin', descriptor.trajectory.origin),
+    effectModifier('turns', descriptor.trajectory.turns),
+    effectModifier('source', descriptor.sourceType),
+    effectModifier('school', String(descriptor.titleTag).split(':')[0]),
+    effectModifier('command', action.commandSourceId),
+  ].filter(Boolean);
+  return Object.freeze({ descriptor, family, motion, geometry, impact, modifiers: Object.freeze(modifiers) });
 }
 
 export class BattleUI {
@@ -92,6 +118,10 @@ export class BattleUI {
     this.battleManager = null;
     this.pendingCommandType = null; // 'attack' | 'magic' | 'item' | 'defend'
     this.pendingSpellOrItem = null;
+    this.effectQueue = [];
+    this.activeEffect = null;
+    this.effectTimer = null;
+    this.activeEffectDeadline = 0;
 
     this._bindStaticEvents();
   }
@@ -101,7 +131,7 @@ export class BattleUI {
     this.messageWindow.reset();
     this.clearTelegraph();
     this.currentPhase = 1;
-    if (this.effectsEl) this.effectsEl.innerHTML = '';
+    this.clearBattleEffects();
     this.battleFieldEl?.classList.remove('impacting');
     this.closeActionWindows();
     this.renderCommandListIdle();
@@ -126,11 +156,15 @@ export class BattleUI {
     eventBus.on('battle:actionResolved', ({ actor, action, results }) => {
       if (actor?.isEnemy) this.clearTelegraph();
       this.playActionPulse(actor, results, action);
+      const effectDescriptor = action?.id || action?.sourceId || action?.visualId || action?.name
+        ? resolveBattleEffectDescriptor(action)
+        : null;
       results.forEach((r) => {
         const el = document.querySelector(`[data-uid="${r.targetUid}"]`);
         if (el) {
           el.classList.add('flash');
           setTimeout(() => el.classList.remove('flash'), 440);
+          if (effectDescriptor) this.playTargetReaction(el, effectDescriptor, r);
         }
         this.showCombatResult(r, el);
       });
@@ -401,11 +435,16 @@ export class BattleUI {
         ?? (itemStock === 0 ? '在庫がない。' : '');
       const stockLabel = itemStock == null ? '' : ` ×${Number.isFinite(itemStock) ? itemStock : '∞'}`;
       const disabled = (['spell', 'ability', 'crystal'].includes(kind) && actualMpCost && actor.mp < actualMpCost)
-        || Boolean(entry.disabledReason) || itemStock === 0 || itemUsable === false;
+        || itemStock === 0 || itemUsable === false;
       const li = this.createChoice(
         `${entry.name}${costLabel}${stockLabel}`,
         () => {
           this.closeSubmenu();
+          if (entry.disabledReason) {
+            this.messageWindow.show(entry.disabledReason);
+            this.playActionPulse(actor, [{ type: 'status', targetUid: actor.uid, statuses: ['unavailable'] }], entry);
+            return;
+          }
           this.pendingCommandType = kind;
           this.pendingSpellOrItem = entry;
           this.promptTarget(entry, kind, actor);
@@ -487,6 +526,20 @@ export class BattleUI {
     const actorEl = actor ? document.querySelector(`[data-uid="${actor.uid}"]`) : null;
     actorEl?.classList.add('action-pulse');
     setTimeout(() => actorEl?.classList.remove('action-pulse'), 420);
+    if (actorEl && (action?.id || action?.sourceId || action?.visualId || action?.name)) {
+      const castDescriptor = getBattleEffectDescriptor(action.commandSourceId) ?? resolveBattleEffectDescriptor(action);
+      const castClass = `cast-motion-${safeToken(castDescriptor.castMotion)}`;
+      [...actorEl.classList].filter((name) => name.startsWith('cast-motion-')).forEach((name) => actorEl.classList.remove(name));
+      actorEl.classList.add('casting-effect', castClass);
+      const castDistance = 4 + castDescriptor.motion.oscillation * 2;
+      actorEl.style.setProperty('--cast-distance', `${castDistance}px`);
+      actorEl.style.setProperty('--cast-distance-negative', `${-castDistance}px`);
+      actorEl.style.setProperty('--cast-distance-half-negative', `${Math.round(castDistance * -0.6)}px`);
+      actorEl.style.setProperty('--cast-distance-half-positive', `${Math.round(castDistance * 0.6)}px`);
+      actorEl.style.setProperty('--cast-angle-negative', `${castDescriptor.motion.rotationDegrees * -0.15}deg`);
+      actorEl.style.setProperty('--cast-angle-positive', `${castDescriptor.motion.rotationDegrees * 0.12}deg`);
+      setTimeout(() => actorEl.classList.remove('casting-effect', castClass), 720);
+    }
 
     if (!this.battleFieldEl || results.length === 0) return;
     const element = action?.element ?? results.find((result) => result.element)?.element;
@@ -503,7 +556,9 @@ export class BattleUI {
         this.effectsEl?.classList.remove(visualType);
         if (element) this.effectsEl?.classList.remove(`element-${safeToken(element)}`);
       }, 650);
-      this.playSpellCinematic(action, element, visualType);
+      if (action?.id || action?.sourceId || action?.visualId || action?.name) {
+        this.enqueueBattleEffect(actor, action, results, visualType);
+      }
     }
     this.battleFieldEl.classList.remove('impacting');
     // Restarting the class in a new frame keeps rapid multi-hit actions legible.
@@ -513,56 +568,209 @@ export class BattleUI {
     });
   }
 
-  playSpellCinematic(action = {}, element, visualType) {
-    if (!this.effectsEl) return;
-    const profile = spellVisualProfile(action, visualType);
-    const isSummon = profile.kind === 'summon';
-    const isMagic = isSummon || action.sourceType === 'magic' || action.kind === 'magic-attack';
-    if (!isMagic) return;
-
-    this.effectsEl.querySelectorAll('.spell-cinematic').forEach((node) => node.remove());
-    const cinematic = document.createElement('div');
-    const normalizedElement = safeToken(element ?? 'arcane');
-    cinematic.className = `spell-cinematic ${isSummon ? 'summon-cinematic' : 'magic-cinematic'} visual-${profile.kind} element-${normalizedElement} ${visualType}`;
-    cinematic.dataset.spell = safeToken(action.sourceId ?? action.id ?? action.name);
-    cinematic.style.animationDuration = `${profile.duration}ms`;
-
-    const glyphs = ['✦', '◇', '⌁', '◈', '⬡', '✧'];
-    const glyphIndex = [...String(action.sourceId ?? action.name ?? '')].reduce((sum, char) => sum + char.charCodeAt(0), 0) % glyphs.length;
-    const particleCount = profile.particles;
-    const particles = Array.from({ length: particleCount }, (_, index) =>
-      `<i class="spell-particle" style="--i:${index};--angle:${Math.round((360 / particleCount) * index + (index % 2) * 11)}deg;--distance:${74 + (index % 4) * 20}px"></i>`
-    ).join('');
-
-    cinematic.innerHTML = `
-      <span class="spell-vignette"></span>
-      <span class="spell-title"><small>${profile.eyebrow}</small><strong>${action.name ?? '魔法'}</strong></span>
-      <span class="spell-seal"><i class="seal-ring ring-outer"></i><i class="seal-ring ring-inner"></i><b>${profile.glyph ?? glyphs[glyphIndex]}</b></span>
-      <span class="spell-beam"></span>
-      <span class="spell-impact-core"></span>
-      <span class="spell-particles">${particles}</span>
-      ${isSummon ? `<span class="summon-avatar"><i></i><b>${glyphs[glyphIndex]}</b></span>` : ''}
-      ${this.signatureSpellMarkup(profile.kind)}
-    `;
-    this.effectsEl.appendChild(cinematic);
-    const duration = profile.duration;
-    cinematic.addEventListener('animationend', (event) => {
-      if (event.target === cinematic) cinematic.remove();
-    }, { once: true });
-    setTimeout(() => cinematic.remove(), duration + 120);
+  playTargetReaction(targetEl, descriptor, result = {}) {
+    const semanticReaction = ['heal', 'mp-heal', 'buff'].includes(result.type)
+      ? 'lift'
+      : result.type === 'revive'
+        ? 'silhouette-flash'
+        : ['cleanse', 'dispel'].includes(result.type)
+          ? 'dissolve-edge'
+          : descriptor.targetReaction;
+    const reactionClass = `reaction-${safeToken(semanticReaction)}`;
+    [...targetEl.classList].filter((name) => name.startsWith('reaction-')).forEach((name) => targetEl.classList.remove(name));
+    targetEl.classList.remove('target-reaction');
+    requestAnimationFrame(() => {
+      targetEl.classList.add('target-reaction', reactionClass);
+      setTimeout(() => targetEl.classList.remove('target-reaction', reactionClass), 720);
+    });
   }
 
-  signatureSpellMarkup(kind) {
-    if (kind === 'missile') {
-      return `<span class="signature-spell signature-missile"><i class="missile-lock"><b>LOCK</b></i><i class="missile-trail"></i><i class="missile-body"></i><i class="missile-burst"></i></span>`;
+  enqueueBattleEffect(actor, action = {}, results = [], visualType = 'cast-impact') {
+    if (!this.effectsEl) return;
+    const descriptor = resolveBattleEffectDescriptor(action);
+    const duration = effectDuration(descriptor);
+    this.effectQueue.push({ actor, action, results, visualType, descriptor, duration });
+    const remainingMs = Math.max(0, this.activeEffectDeadline - Date.now());
+    const queuedMs = this.effectQueue.reduce((total, queued) => total + queued.duration + 180, 0);
+    this.battleManager?.deferNextTurnFor(remainingMs + queuedMs + 20);
+    this.runNextBattleEffect();
+  }
+
+  runNextBattleEffect() {
+    if (this.activeEffect || !this.effectsEl || this.effectQueue.length === 0) return;
+    const effectState = this.effectQueue.shift();
+    const { actor, action, results, visualType, descriptor, duration } = effectState;
+    const commandDescriptor = getBattleEffectDescriptor(action.commandSourceId);
+    const sequence = document.createElement('div');
+    const profile = battleEffectRenderProfile(action, results);
+    const { family, motion, geometry, impact } = profile;
+    const targetUnits = [...new Set(results.map((result) => result.targetUid).filter(Boolean))]
+      .map((uid) => this.battleManager?.units.find((unit) => unit.uid === uid))
+      .filter(Boolean);
+    const alliedTargets = actor ? targetUnits.filter((unit) => unit.isEnemy === actor.isEnemy) : [];
+    const hostileTargets = actor ? targetUnits.filter((unit) => unit.isEnemy !== actor.isEnemy) : targetUnits;
+    const friendlyTarget = Boolean(actor && targetUnits.length && alliedTargets.length === targetUnits.length);
+    const mixedTarget = alliedTargets.length > 0 && hostileTargets.length > 0;
+    const multiTarget = targetUnits.length > 1 || ['all_allies', 'all_enemies', 'all_units', 'party', 'enemy_group', 'enemy_and_party', 'enemy_group_and_ally'].includes(action.target);
+    const directionClass = friendlyTarget
+      ? `target-friendly-${actor?.isEnemy ? 'enemy' : 'player'}`
+      : actor?.isEnemy ? 'direction-enemy' : 'direction-player';
+    const modifiers = [
+      ...profile.modifiers,
+      directionClass,
+      friendlyTarget ? 'target-friendly' : 'target-hostile',
+      mixedTarget ? 'target-mixed' : '',
+      multiTarget ? 'target-multi' : 'target-single',
+      descriptor.summonMotif ? `motif-${safeToken(descriptor.summonMotif)}` : '',
+      descriptor.songPattern ? `song-${safeToken(descriptor.songPattern)}` : '',
+    ].filter(Boolean);
+    sequence.className = [
+      'effect-sequence', `effect-${safeToken(descriptor.actionId)}`, `family-${family}`, `motion-${motion}`, `geometry-${geometry}`,
+      `impact-${impact}`, visualType, ...modifiers,
+    ].join(' ');
+    sequence.dataset.effectId = descriptor.actionId;
+    sequence.dataset.visualId = String(action.visualId ?? action.sourceId ?? action.id ?? descriptor.actionId);
+    sequence.dataset.effectFamily = descriptor.family;
+    sequence.dataset.motion = descriptor.motion.kind;
+    sequence.dataset.geometry = descriptor.geometry.primary;
+    sequence.dataset.phaseTopology = descriptor.phaseTopology.topology;
+    sequence.style.setProperty('--fx-duration', `${duration}ms`);
+    sequence.style.setProperty('--fx-primary', descriptor.palette[1]);
+    sequence.style.setProperty('--fx-secondary', descriptor.palette[2]);
+    sequence.style.setProperty('--fx-highlight', descriptor.palette[0]);
+    sequence.style.setProperty('--fx-rotation', `${descriptor.motion.rotationDegrees}deg`);
+    sequence.style.setProperty('--fx-intensity', String(descriptor.pulsePattern.amplitude));
+    sequence.style.setProperty('--fx-beats', String(descriptor.pulsePattern.beats));
+    sequence.style.setProperty('--fx-layers', String(descriptor.geometry.layers));
+    sequence.style.setProperty('--fx-symmetry', String(descriptor.geometry.symmetry));
+    sequence.style.setProperty('--fx-arc-bias', String(descriptor.trajectory.arcBias));
+    sequence.style.setProperty('--fx-turns', String(descriptor.trajectory.turns));
+
+    if (friendlyTarget) {
+      const stageRect = this.effectsEl.getBoundingClientRect();
+      const pointFor = (unit) => {
+        const element = unit ? document.querySelector(`[data-uid="${unit.uid}"]`) : null;
+        const rect = element?.getBoundingClientRect();
+        return rect ? {
+          x: ((rect.left - stageRect.left + rect.width / 2) / Math.max(1, stageRect.width)) * 100,
+          y: ((rect.top - stageRect.top + rect.height / 2) / Math.max(1, stageRect.height)) * 100,
+        } : null;
+      };
+      const casterPoint = pointFor(actor) ?? { x: actor?.isEnemy ? 24 : 78, y: 42 };
+      const targetPoints = targetUnits.map(pointFor).filter(Boolean);
+      const targetPoint = targetPoints.length ? {
+        x: targetPoints.reduce((sum, point) => sum + point.x, 0) / targetPoints.length,
+        y: targetPoints.reduce((sum, point) => sum + point.y, 0) / targetPoints.length,
+      } : casterPoint;
+      sequence.style.setProperty('--fx-caster-x', `${casterPoint.x.toFixed(2)}%`);
+      sequence.style.setProperty('--fx-caster-y', `${casterPoint.y.toFixed(2)}%`);
+      sequence.style.setProperty('--fx-target-x', `${targetPoint.x.toFixed(2)}%`);
+      sequence.style.setProperty('--fx-target-y', `${targetPoint.y.toFixed(2)}%`);
     }
-    if (kind === 'flare') {
-      return `<span class="signature-spell signature-flare"><i class="flare-orbit orbit-a"></i><i class="flare-orbit orbit-b"></i><i class="flare-star"></i><i class="flare-collapse"></i><i class="flare-shockwave"></i></span>`;
+
+    const backdrop = document.createElement('span');
+    backdrop.className = 'fx-backdrop';
+    const title = document.createElement('span');
+    title.className = 'fx-title';
+    const titleText = document.createElement('b');
+    titleText.textContent = `${String(descriptor.titleTag).split(':')[0].toUpperCase()} // ${action.name ?? descriptor.actionId}`;
+    title.appendChild(titleText);
+    const sigil = document.createElement('span');
+    sigil.className = 'fx-caster-sigil';
+    let commandLayer = null;
+    if (commandDescriptor && commandDescriptor.actionId !== descriptor.actionId) {
+      commandLayer = document.createElement('span');
+      commandLayer.className = [
+        'fx-command-layer',
+        `family-${safeToken(commandDescriptor.family)}`,
+        `motion-${safeToken(commandDescriptor.motion.kind)}`,
+        `geometry-${safeToken(commandDescriptor.geometry.primary)}`,
+        `entrance-${safeToken(commandDescriptor.motion.entrance)}`,
+      ].join(' ');
+      commandLayer.dataset.commandEffectId = commandDescriptor.actionId;
+      const commandCore = document.createElement('i');
+      commandCore.className = 'fx-core';
+      commandCore.textContent = commandDescriptor.glyph.symbol;
+      commandLayer.appendChild(commandCore);
     }
-    if (kind === 'level-death') {
-      return `<span class="signature-spell signature-level-death"><i class="level-scan"></i><i class="death-pillar pillar-a"></i><i class="death-pillar pillar-b"></i><i class="death-pillar pillar-c"></i><i class="death-gate"><b>LV 5</b><em>JUDGMENT</em></i></span>`;
+    const path = document.createElement('span');
+    path.className = 'fx-path';
+    const core = document.createElement('span');
+    core.className = 'fx-core';
+    const orbit = document.createElement('span');
+    orbit.className = 'fx-orbit';
+    const hit = document.createElement('span');
+    hit.className = 'fx-impact';
+    let mixedImpact = null;
+    if (mixedTarget) {
+      mixedImpact = document.createElement('span');
+      mixedImpact.className = 'fx-impact fx-impact-echo';
+      mixedImpact.setAttribute('aria-hidden', 'true');
     }
-    return '';
+    const glyph = document.createElement('span');
+    glyph.className = 'fx-glyph';
+    const glyphText = document.createElement('b');
+    glyphText.textContent = descriptor.glyph.symbol;
+    glyph.appendChild(glyphText);
+    glyph.setAttribute('aria-hidden', 'true');
+    let summonEmblem = null;
+    if (descriptor.summonMotif) {
+      summonEmblem = document.createElement('span');
+      summonEmblem.className = `fx-summon-emblem motif-${safeToken(descriptor.summonMotif)}`;
+      summonEmblem.setAttribute('aria-hidden', 'true');
+    }
+    let songWave = null;
+    if (descriptor.songPattern) {
+      songWave = document.createElement('span');
+      songWave.className = `fx-song-wave song-${safeToken(descriptor.songPattern)}`;
+      songWave.setAttribute('aria-hidden', 'true');
+    }
+    const particles = document.createElement('span');
+    particles.className = 'fx-particles';
+    const reservedAnimatedNodes = Number(Boolean(commandLayer)) + Number(Boolean(summonEmblem)) + Number(Boolean(songWave)) + Number(Boolean(mixedImpact));
+    const particleCount = Math.max(8, Math.min(descriptor.mobileBudget.maxParticles - reservedAnimatedNodes, descriptor.particleCount));
+    for (let index = 0; index < particleCount; index += 1) {
+      const particle = document.createElement('i');
+      const angle = Math.round((360 / particleCount) * index + ((descriptor.seed >>> (index % 16)) & 15));
+      particle.style.setProperty('--particle-angle', `${angle}deg`);
+      particle.style.setProperty('--particle-distance', `${48 + ((descriptor.seed >>> (index % 19)) & 63)}px`);
+      particle.style.setProperty('--fx-delay', `${Math.round((index % Math.max(1, descriptor.pulsePattern.beats)) * descriptor.pulsePattern.spacingMs * -0.18)}ms`);
+      particles.appendChild(particle);
+    }
+    sequence.append(backdrop, title, sigil);
+    if (commandLayer) sequence.appendChild(commandLayer);
+    sequence.append(path, core, orbit, hit);
+    if (mixedImpact) sequence.appendChild(mixedImpact);
+    sequence.append(particles, glyph);
+    if (summonEmblem) sequence.appendChild(summonEmblem);
+    if (songWave) sequence.appendChild(songWave);
+    this.effectsEl.appendChild(sequence);
+    this.activeEffect = sequence;
+
+    this.activeEffectDeadline = Date.now() + duration + 180;
+    const finish = () => {
+      if (this.activeEffect !== sequence) return;
+      sequence.remove();
+      this.activeEffect = null;
+      this.activeEffectDeadline = 0;
+      clearTimeout(this.effectTimer);
+      this.effectTimer = null;
+      eventBus.emit('battle:effectComplete', { actor, action, descriptor });
+      this.runNextBattleEffect();
+    };
+    sequence.addEventListener('animationend', (event) => {
+      if (event.target === sequence) finish();
+    }, { once: true });
+    this.effectTimer = setTimeout(finish, duration + 160);
+  }
+
+  clearBattleEffects() {
+    clearTimeout(this.effectTimer);
+    this.effectTimer = null;
+    this.effectQueue = [];
+    this.activeEffect = null;
+    this.activeEffectDeadline = 0;
+    if (this.effectsEl) this.effectsEl.innerHTML = '';
   }
 
   showCombatResult(result, targetEl) {

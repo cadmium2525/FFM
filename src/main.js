@@ -651,9 +651,9 @@ function startBossBattle() {
     syncStateFromUnits(livingParty, partyUnits);
 
     if (result === 'victory') {
-      setTimeout(() => goToIntermissionOrWin(), 1200);
+      setTimeout(() => goToIntermissionOrWin(), 1800);
     } else {
-      setTimeout(() => GameState.set(States.GAMEOVER), 1200);
+      setTimeout(() => GameState.set(States.GAMEOVER), 1800);
     }
   };
   eventBus.on('battle:end', onEnd);

@@ -1,4 +1,5 @@
 import { magicActionsForSchool } from '../database/battleCatalog.js';
+import { ff5Songs } from '../database/ff5Database.js';
 
 /**
  * ctbCost is a multiplier applied to the CTB threshold when an action is
@@ -84,6 +85,20 @@ const directAbilityActions = Object.freeze({
   ability_dance: [{ id: 'dance', name: 'おどる', actionKind: 'physical-attack', power: 1.7, ctbCost: 1.1, target: 'single-enemy' }],
   ability_mix: [{ id: 'mix', name: 'ちょうごう', actionKind: 'heal', healAmount: 1000, ctbCost: 1.2, target: 'single-ally' }],
   ability_drink: [{ id: 'drink', name: 'のむ', actionKind: 'focus', ctbCost: 0.8, target: 'self' }],
+  ability_scram: [{ id: 'scram', name: 'とんずら', actionKind: 'scripted', ctbCost: 0.45, target: 'self', disabledReason: 'ボス戦からは逃走できない。' }],
+  ability_steal: [{ id: 'steal', name: 'ぬすむ', actionKind: 'scripted', label: '盗みを試みた', ctbCost: 0.75, target: 'single-enemy' }],
+  ability_check: [{ id: 'check', name: 'しらべる', actionKind: 'scan', ctbCost: 0.65, target: 'single-enemy' }],
+  ability_scan: [{ id: 'scan', name: 'みやぶる', actionKind: 'scan', ctbCost: 0.8, target: 'single-enemy' }],
+  ability_calm: [{ id: 'calm', name: 'なだめる', actionKind: 'status', statuses: ['stop'], statusChance: 0.7, ctbCost: 0.8, target: 'single-enemy' }],
+  ability_control: [{ id: 'control', name: 'あやつる', actionKind: 'status', statuses: ['confuse'], statusChance: 0.62, ctbCost: 1.0, target: 'single-enemy' }],
+  ability_catch: [{ id: 'catch', name: 'とらえる', actionKind: 'remove-from-battle', ctbCost: 1.15, target: 'single-enemy' }],
+  ability_smoke: [{ id: 'smoke', name: 'けむりだま', actionKind: 'scripted', ctbCost: 0.45, target: 'self', disabledReason: 'ボス戦からは逃走できない。' }],
+  ability_animals: [{ id: 'animals', name: 'どうぶつ', actionKind: 'magic-attack', power: 2.1, element: 'wind', ctbCost: 1.0, target: 'single-enemy' }],
+  ability_hide: [{ id: 'hide', name: 'かくれる', actionKind: 'image', imageHits: 3, ctbCost: 0.65, target: 'self' }],
+  ability_flirt: [{ id: 'flirt', name: 'いろめ', actionKind: 'status', statuses: ['confuse'], statusChance: 0.78, ctbCost: 0.85, target: 'single-enemy' }],
+  ability_recover: [{ id: 'recover', name: 'ちゆ', actionKind: 'cleanse', mode: 'all_curable', statuses: [], ctbCost: 1.15, target: 'all_allies' }],
+  ability_revive: [{ id: 'revive-party', name: 'そせい', actionKind: 'revive', hpRatio: 0.25, ctbCost: 1.4, target: 'all_allies' }],
+  ability_mimic: [{ id: 'mimic', name: 'ものまね', actionKind: 'scripted', label: '直前の行動を写し取った', ctbCost: 0.9, target: 'self' }],
 });
 
 const abilityMagicSet = Object.freeze({
@@ -92,26 +107,48 @@ const abilityMagicSet = Object.freeze({
 });
 
 export function getAbilityActions(abilityId) {
-  if (abilityMagicSet[abilityId]) return magicSets[abilityMagicSet[abilityId]];
+  if (abilityMagicSet[abilityId]) {
+    return magicSets[abilityMagicSet[abilityId]].map((spell) => ({
+      ...spell,
+      commandSourceId: abilityId,
+    }));
+  }
   if (abilityId === 'ability_dualcast') {
-    return magicSets['赤魔法'].map((spell) => ({ ...spell, id: `dual-${spell.id}`, name: `${spell.name}×2`, power: spell.power ? spell.power * 1.7 : spell.power, healAmount: spell.healAmount ? Math.round(spell.healAmount * 1.7) : spell.healAmount, mpCost: (spell.mpCost ?? 0) * 2 }));
+    return magicSets['赤魔法'].map((spell) => ({ ...spell, id: `dual-${spell.id}`, visualId: `ability_dualcast_${spell.sourceId}`, commandSourceId: 'ability_dualcast', name: `${spell.name}×2`, power: spell.power ? spell.power * 1.7 : spell.power, healAmount: spell.healAmount ? Math.round(spell.healAmount * 1.7) : spell.healAmount, mpCost: (spell.mpCost ?? 0) * 2 }));
   }
   if (abilityId === 'ability_spellblade') {
     return [
       { id: 'spellblade-fire', name: 'ファイア剣', actionKind: 'imbue', element: 'fire', mpCost: 5, ctbCost: 0.8, target: 'self' },
       { id: 'spellblade-ice', name: 'ブリザド剣', actionKind: 'imbue', element: 'ice', mpCost: 5, ctbCost: 0.8, target: 'self' },
       { id: 'spellblade-thunder', name: 'サンダー剣', actionKind: 'imbue', element: 'thunder', mpCost: 5, ctbCost: 0.8, target: 'self' },
-    ];
+    ].map((action) => ({ ...action, sourceType: 'ability', sourceId: 'ability_spellblade', visualId: `ability_spellblade_${action.id}` }));
   }
-  if (abilityId === 'ability_call') return magicSets['召喚魔法'].map((spell) => ({ ...spell, id: `call-${spell.id}`, mpCost: 0 }));
+  if (abilityId === 'ability_call') return magicSets['召喚魔法'].map((spell) => ({ ...spell, id: `call-${spell.id}`, visualId: `ability_call_${spell.sourceId}`, commandSourceId: 'ability_call', mpCost: 0 }));
   if (abilityId === 'ability_sing') {
-    return [
-      { id: 'mighty-march', name: 'たいりょくのうた', actionKind: 'heal', healAmount: 500, ctbCost: 1.0, target: 'single-ally' },
-      { id: 'sinewy-etude', name: 'ちからのうた', actionKind: 'focus', ctbCost: 0.9, target: 'self' },
-      { id: 'requiem', name: 'レクイエム', actionKind: 'magic-attack', power: 2.2, element: 'holy', ctbCost: 1.1, target: 'single-enemy' },
-    ];
+    return ff5Songs.map((song, index) => ({
+      id: song.id,
+      sourceId: song.id,
+      sourceType: 'song',
+      commandSourceId: 'ability_sing',
+      visualId: song.id,
+      name: song.nameJa,
+      actionKind: song.id === 'song_requiem' ? 'magic-attack' : song.id === 'song_mighty_march' ? 'status' : 'stat-modify',
+      element: song.id === 'song_requiem' ? 'holy' : null,
+      power: song.id === 'song_requiem' ? 2.2 : undefined,
+      statuses: song.id === 'song_mighty_march' ? ['regen'] : [],
+      stat: song.id.includes('mana') ? 'magic' : song.id.includes('sinewy') ? 'atk' : 'agility',
+      multiplier: 1.18 + index * 0.01,
+      ctbCost: song.mode === 'continuous' ? 1.15 : 1,
+      target: song.target,
+      effect: song.effect,
+    }));
   }
-  return directAbilityActions[abilityId] ?? [];
+  return (directAbilityActions[abilityId] ?? []).map((action) => ({
+    ...action,
+    sourceType: 'ability',
+    sourceId: abilityId,
+    visualId: `${abilityId}_${action.id}`,
+  }));
 }
 
 export function isAbilityImplemented(abilityId) {

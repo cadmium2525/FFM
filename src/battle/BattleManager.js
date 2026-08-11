@@ -23,6 +23,7 @@ export class BattleManager {
     this.logJournal = [];
     this.pendingEnemyActions = new Map();
     this.bossPhase = 0;
+    this.presentationHoldUntil = 0;
     this.itemStockProvider = options.getItemStock ?? (() => Infinity);
     this.itemConsumer = options.consumeItem ?? (() => true);
   }
@@ -79,9 +80,15 @@ export class BattleManager {
     this.scheduleNextTurn(400);
   }
 
+  deferNextTurnFor(durationMs = 0) {
+    const safeDuration = Math.max(0, Number(durationMs) || 0);
+    this.presentationHoldUntil = Math.max(this.presentationHoldUntil, Date.now() + safeDuration);
+  }
+
   scheduleNextTurn(delay = AUTO_ADVANCE_DELAY_MS) {
     if (this.finished) return;
-    setTimeout(() => this.advanceTurn(), delay);
+    const presentationDelay = Math.max(0, this.presentationHoldUntil - Date.now());
+    setTimeout(() => this.advanceTurn(), Math.max(delay, presentationDelay));
   }
 
   checkBattleEnd() {

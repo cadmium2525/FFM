@@ -17,6 +17,7 @@ const sourceFiles = [
   'src/battle/BossActionProfiles.js',
   'src/ui/MessageWindow.js',
   'src/battle/BattleManager.js',
+  'src/ui/BattleEffectRegistry.js',
   'src/ui/BattleUI.js',
   'src/ui/IntermissionUI.js',
   'src/main.js',

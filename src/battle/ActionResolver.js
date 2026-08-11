@@ -112,7 +112,10 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
   if (!action._compiledOperation && actionMpCost > actor.mp) {
     return [{ type: 'insufficient-mp', targetUid: actor.uid, required: actionMpCost }];
   }
-  if (!action._compiledOperation && ['magic-attack', 'heal', 'status', 'cleanse', 'dispel', 'revive'].includes(action.kind) && !actor.canUseMagic?.()) {
+  const sealedMagicAction = action.usesMagic !== false
+    && !['ability', 'song'].includes(action.sourceType)
+    && ['magic-attack', 'heal', 'status', 'cleanse', 'dispel', 'revive'].includes(action.kind);
+  if (!action._compiledOperation && sealedMagicAction && !actor.canUseMagic?.()) {
     return [{ type: 'sealed', targetUid: actor.uid }];
   }
   if (action.operations?.length && !action._compiledOperation) {

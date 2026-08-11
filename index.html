@@ -14,6 +14,7 @@
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 <link rel="stylesheet" href="css/style.css?v=soul-arena-v15">
 <link rel="stylesheet" href="css/ff5-ui.css?v=soul-arena-v15">
+<link rel="stylesheet" href="css/battle-effects.css?v=unique-vfx-v1">
 </head>
 <body>
   <div id="game-root">
@@ -81,10 +82,9 @@
           <div class="ambient-mote mote-b"></div>
           <div class="ambient-mote mote-c"></div>
         </div>
-        <div id="battle-effects" class="battle-effects" aria-hidden="true"></div>
-
         <!-- Field: enemies (left) + party (right) -->
         <div class="battle-field ff5-window" aria-label="戦闘フィールド">
+          <div id="battle-effects" class="battle-effects" aria-hidden="true"></div>
           <div id="enemy-field" class="enemy-field"></div>
           <div id="party-field" class="party-field"></div>
         </div>
@@ -599,7 +599,10 @@ function resolveAction({ actor, action, targets, battleUnits = targets }) {
   if (!action._compiledOperation && actionMpCost > actor.mp) {
     return [{ type: 'insufficient-mp', targetUid: actor.uid, required: actionMpCost }];
   }
-  if (!action._compiledOperation && ['magic-attack', 'heal', 'status', 'cleanse', 'dispel', 'revive'].includes(action.kind) && !actor.canUseMagic?.()) {
+  const sealedMagicAction = action.usesMagic !== false
+    && !['ability', 'song'].includes(action.sourceType)
+    && ['magic-attack', 'heal', 'status', 'cleanse', 'dispel', 'revive'].includes(action.kind);
+  if (!action._compiledOperation && sealedMagicAction && !actor.canUseMagic?.()) {
     return [{ type: 'sealed', targetUid: actor.uid }];
   }
   if (action.operations?.length && !action._compiledOperation) {
@@ -2144,6 +2147,20 @@ const directAbilityActions = Object.freeze({
   ability_dance: [{ id: 'dance', name: 'おどる', actionKind: 'physical-attack', power: 1.7, ctbCost: 1.1, target: 'single-enemy' }],
   ability_mix: [{ id: 'mix', name: 'ちょうごう', actionKind: 'heal', healAmount: 1000, ctbCost: 1.2, target: 'single-ally' }],
   ability_drink: [{ id: 'drink', name: 'のむ', actionKind: 'focus', ctbCost: 0.8, target: 'self' }],
+  ability_scram: [{ id: 'scram', name: 'とんずら', actionKind: 'scripted', ctbCost: 0.45, target: 'self', disabledReason: 'ボス戦からは逃走できない。' }],
+  ability_steal: [{ id: 'steal', name: 'ぬすむ', actionKind: 'scripted', label: '盗みを試みた', ctbCost: 0.75, target: 'single-enemy' }],
+  ability_check: [{ id: 'check', name: 'しらべる', actionKind: 'scan', ctbCost: 0.65, target: 'single-enemy' }],
+  ability_scan: [{ id: 'scan', name: 'みやぶる', actionKind: 'scan', ctbCost: 0.8, target: 'single-enemy' }],
+  ability_calm: [{ id: 'calm', name: 'なだめる', actionKind: 'status', statuses: ['stop'], statusChance: 0.7, ctbCost: 0.8, target: 'single-enemy' }],
+  ability_control: [{ id: 'control', name: 'あやつる', actionKind: 'status', statuses: ['confuse'], statusChance: 0.62, ctbCost: 1.0, target: 'single-enemy' }],
+  ability_catch: [{ id: 'catch', name: 'とらえる', actionKind: 'remove-from-battle', ctbCost: 1.15, target: 'single-enemy' }],
+  ability_smoke: [{ id: 'smoke', name: 'けむりだま', actionKind: 'scripted', ctbCost: 0.45, target: 'self', disabledReason: 'ボス戦からは逃走できない。' }],
+  ability_animals: [{ id: 'animals', name: 'どうぶつ', actionKind: 'magic-attack', power: 2.1, element: 'wind', ctbCost: 1.0, target: 'single-enemy' }],
+  ability_hide: [{ id: 'hide', name: 'かくれる', actionKind: 'image', imageHits: 3, ctbCost: 0.65, target: 'self' }],
+  ability_flirt: [{ id: 'flirt', name: 'いろめ', actionKind: 'status', statuses: ['confuse'], statusChance: 0.78, ctbCost: 0.85, target: 'single-enemy' }],
+  ability_recover: [{ id: 'recover', name: 'ちゆ', actionKind: 'cleanse', mode: 'all_curable', statuses: [], ctbCost: 1.15, target: 'all_allies' }],
+  ability_revive: [{ id: 'revive-party', name: 'そせい', actionKind: 'revive', hpRatio: 0.25, ctbCost: 1.4, target: 'all_allies' }],
+  ability_mimic: [{ id: 'mimic', name: 'ものまね', actionKind: 'scripted', label: '直前の行動を写し取った', ctbCost: 0.9, target: 'self' }],
 });
 
 const abilityMagicSet = Object.freeze({
@@ -2152,26 +2169,48 @@ const abilityMagicSet = Object.freeze({
 });
 
 function getAbilityActions(abilityId) {
-  if (abilityMagicSet[abilityId]) return magicSets[abilityMagicSet[abilityId]];
+  if (abilityMagicSet[abilityId]) {
+    return magicSets[abilityMagicSet[abilityId]].map((spell) => ({
+      ...spell,
+      commandSourceId: abilityId,
+    }));
+  }
   if (abilityId === 'ability_dualcast') {
-    return magicSets['赤魔法'].map((spell) => ({ ...spell, id: `dual-${spell.id}`, name: `${spell.name}×2`, power: spell.power ? spell.power * 1.7 : spell.power, healAmount: spell.healAmount ? Math.round(spell.healAmount * 1.7) : spell.healAmount, mpCost: (spell.mpCost ?? 0) * 2 }));
+    return magicSets['赤魔法'].map((spell) => ({ ...spell, id: `dual-${spell.id}`, visualId: `ability_dualcast_${spell.sourceId}`, commandSourceId: 'ability_dualcast', name: `${spell.name}×2`, power: spell.power ? spell.power * 1.7 : spell.power, healAmount: spell.healAmount ? Math.round(spell.healAmount * 1.7) : spell.healAmount, mpCost: (spell.mpCost ?? 0) * 2 }));
   }
   if (abilityId === 'ability_spellblade') {
     return [
       { id: 'spellblade-fire', name: 'ファイア剣', actionKind: 'imbue', element: 'fire', mpCost: 5, ctbCost: 0.8, target: 'self' },
       { id: 'spellblade-ice', name: 'ブリザド剣', actionKind: 'imbue', element: 'ice', mpCost: 5, ctbCost: 0.8, target: 'self' },
       { id: 'spellblade-thunder', name: 'サンダー剣', actionKind: 'imbue', element: 'thunder', mpCost: 5, ctbCost: 0.8, target: 'self' },
-    ];
+    ].map((action) => ({ ...action, sourceType: 'ability', sourceId: 'ability_spellblade', visualId: `ability_spellblade_${action.id}` }));
   }
-  if (abilityId === 'ability_call') return magicSets['召喚魔法'].map((spell) => ({ ...spell, id: `call-${spell.id}`, mpCost: 0 }));
+  if (abilityId === 'ability_call') return magicSets['召喚魔法'].map((spell) => ({ ...spell, id: `call-${spell.id}`, visualId: `ability_call_${spell.sourceId}`, commandSourceId: 'ability_call', mpCost: 0 }));
   if (abilityId === 'ability_sing') {
-    return [
-      { id: 'mighty-march', name: 'たいりょくのうた', actionKind: 'heal', healAmount: 500, ctbCost: 1.0, target: 'single-ally' },
-      { id: 'sinewy-etude', name: 'ちからのうた', actionKind: 'focus', ctbCost: 0.9, target: 'self' },
-      { id: 'requiem', name: 'レクイエム', actionKind: 'magic-attack', power: 2.2, element: 'holy', ctbCost: 1.1, target: 'single-enemy' },
-    ];
+    return ff5Songs.map((song, index) => ({
+      id: song.id,
+      sourceId: song.id,
+      sourceType: 'song',
+      commandSourceId: 'ability_sing',
+      visualId: song.id,
+      name: song.nameJa,
+      actionKind: song.id === 'song_requiem' ? 'magic-attack' : song.id === 'song_mighty_march' ? 'status' : 'stat-modify',
+      element: song.id === 'song_requiem' ? 'holy' : null,
+      power: song.id === 'song_requiem' ? 2.2 : undefined,
+      statuses: song.id === 'song_mighty_march' ? ['regen'] : [],
+      stat: song.id.includes('mana') ? 'magic' : song.id.includes('sinewy') ? 'atk' : 'agility',
+      multiplier: 1.18 + index * 0.01,
+      ctbCost: song.mode === 'continuous' ? 1.15 : 1,
+      target: song.target,
+      effect: song.effect,
+    }));
   }
-  return directAbilityActions[abilityId] ?? [];
+  return (directAbilityActions[abilityId] ?? []).map((action) => ({
+    ...action,
+    sourceType: 'ability',
+    sourceId: abilityId,
+    visualId: `${abilityId}_${action.id}`,
+  }));
 }
 
 function isAbilityImplemented(abilityId) {
@@ -2480,6 +2519,7 @@ class BattleManager {
     this.logJournal = [];
     this.pendingEnemyActions = new Map();
     this.bossPhase = 0;
+    this.presentationHoldUntil = 0;
     this.itemStockProvider = options.getItemStock ?? (() => Infinity);
     this.itemConsumer = options.consumeItem ?? (() => true);
   }
@@ -2536,9 +2576,15 @@ class BattleManager {
     this.scheduleNextTurn(400);
   }
 
+  deferNextTurnFor(durationMs = 0) {
+    const safeDuration = Math.max(0, Number(durationMs) || 0);
+    this.presentationHoldUntil = Math.max(this.presentationHoldUntil, Date.now() + safeDuration);
+  }
+
   scheduleNextTurn(delay = AUTO_ADVANCE_DELAY_MS) {
     if (this.finished) return;
-    setTimeout(() => this.advanceTurn(), delay);
+    const presentationDelay = Math.max(0, this.presentationHoldUntil - Date.now());
+    setTimeout(() => this.advanceTurn(), Math.max(delay, presentationDelay));
   }
 
   checkBattleEnd() {
@@ -2878,6 +2924,431 @@ class BattleManager {
   }
 }
 
+// ---- src/ui/BattleEffectRegistry.js ----
+const FAMILY_PROFILES = Object.freeze({
+  restorative: ['ascend', 'petal-mandala', 'orbit-inward', 'soft-bloom'],
+  resurrection: ['rise', 'winged-halo', 'vertical-return', 'soul-rejoin'],
+  cleanse: ['unweave', 'concentric-lattice', 'radial-outward', 'prismatic-dissolve'],
+  ward: ['assemble', 'hex-shield', 'intercept', 'barrier-ripple'],
+  pyromancy: ['coil-and-burst', 'ember-torus', 'ballistic-arc', 'cinder-bloom'],
+  cryomancy: ['crystallize', 'fractal-spire', 'ground-eruption', 'shard-fracture'],
+  voltaic: ['branch', 'forked-bolt', 'sky-strike', 'arc-discharge'],
+  aeromancy: ['spiral-cut', 'crescent-vortex', 'crosswind', 'vacuum-slice'],
+  geomancy: ['heave', 'fault-prism', 'ground-wave', 'terrain-rupture'],
+  hydromancy: ['ribbon-flow', 'water-lens', 'serpentine', 'pressure-ring'],
+  sacred: ['consecrate', 'solar-cross', 'zenith-ray', 'radiant-pillar'],
+  venom: ['seep', 'spore-cell', 'drifting-cloud', 'corrosive-splash'],
+  astral: ['stellar-bloom', 'star-core', 'converging-orbit', 'whiteout-nova'],
+  gravity: ['implode', 'target-reticle', 'lock-on-drop', 'space-compress'],
+  judgment: ['countdown', 'execution-sigil', 'vertical-descent', 'soul-shatter'],
+  affliction: ['bind', 'thorn-glyph', 'homing-thread', 'status-brand'],
+  enhancement: ['attune', 'crown-ring', 'ally-orbit', 'aura-lock'],
+  chronomancy: ['phase-shift', 'clock-lattice', 'time-helix', 'afterimage-snap'],
+  'null-field': ['hush', 'broken-staff-ring', 'field-expansion', 'sound-collapse'],
+  spatial: ['fold', 'doorway-polyhedron', 'vanishing-curve', 'space-iris'],
+  'temporal-reversal': ['rewind', 'reverse-hourglass', 'reverse-spiral', 'timeline-snap'],
+  siphon: ['tether', 'double-helix', 'target-to-caster', 'essence-transfer'],
+  kinetic: ['lunge', 'impact-chevron', 'direct-line', 'hit-stop'],
+  barrage: ['stutter-dash', 'multi-chevron', 'ricochet-chain', 'multi-impact'],
+  scan: ['sweep', 'analysis-grid', 'orbital-scan', 'data-resolve'],
+  sacrifice: ['collapse-inward', 'broken-halo', 'caster-to-target', 'bloodless-flash'],
+  invocation: ['manifest', 'summoning-polygram', 'gate-to-field', 'eidolon-echo'],
+  performance: ['conduct', 'wave-staff', 'stage-sweep', 'resonance-ring'],
+  alchemy: ['combine', 'vial-constellation', 'cross-orbit', 'compound-pop'],
+  stealth: ['vanish', 'smoke-knot', 'evasive-curve', 'shadow-cut'],
+  armament: ['equip-flare', 'weapon-wireframe', 'hand-to-weapon', 'metal-chime'],
+  'passive-aura': ['breathe', 'inscribed-aura', 'body-orbit', 'aura-pulse'],
+  fieldcraft: ['survey', 'map-contour', 'forward-scan', 'path-reveal'],
+  grimoire: ['page-turn', 'spellbook-grid', 'glyph-to-caster', 'command-ready'],
+  mimicry: ['echo', 'mirror-frame', 'trace-replay', 'echo-impact'],
+  throw: ['lunge', 'impact-chevron', 'ballistic-arc', 'hit-stop'],
+  jump: ['lunge', 'fault-prism', 'sky-strike', 'terrain-rupture'],
+  dance: ['conduct', 'wave-staff', 'stage-sweep', 'resonance-ring'],
+  steal: ['vanish', 'smoke-knot', 'target-to-caster', 'shadow-cut'],
+});
+
+const ELEMENT_FAMILY = Object.freeze({
+  fire: 'pyromancy', ice: 'cryomancy', lightning: 'voltaic', thunder: 'voltaic',
+  wind: 'aeromancy', earth: 'geomancy', water: 'hydromancy', holy: 'sacred', poison: 'venom',
+});
+
+const ABILITY_FAMILY_BY_ID = Object.freeze({
+  ability_guard: 'ward',
+  ability_focus: 'enhancement',
+  ability_chakra: 'restorative',
+  ability_scram: 'stealth',
+  ability_steal: 'steal',
+  ability_mug: 'steal',
+  ability_check: 'scan',
+  ability_blue_magic: 'grimoire',
+  ability_scan: 'scan',
+  ability_white_magic: 'grimoire',
+  ability_black_magic: 'grimoire',
+  ability_spellblade: 'armament',
+  ability_summon: 'invocation',
+  ability_call: 'invocation',
+  ability_time_magic: 'chronomancy',
+  ability_red_magic: 'grimoire',
+  ability_dualcast: 'barrage',
+  ability_calm: 'affliction',
+  ability_control: 'affliction',
+  ability_catch: 'stealth',
+  ability_gaia: 'geomancy',
+  ability_smoke: 'stealth',
+  ability_image: 'ward',
+  ability_throw: 'throw',
+  ability_animals: 'invocation',
+  ability_aim: 'kinetic',
+  ability_rapid_fire: 'barrage',
+  ability_hide: 'stealth',
+  ability_sing: 'performance',
+  ability_mineuchi: 'affliction',
+  ability_zeninage: 'throw',
+  ability_iainuki: 'judgment',
+  ability_flirt: 'affliction',
+  ability_dance: 'dance',
+  ability_jump: 'jump',
+  ability_lance: 'siphon',
+  ability_mix: 'alchemy',
+  ability_drink: 'alchemy',
+  ability_recover: 'cleanse',
+  ability_revive: 'resurrection',
+  ability_mimic: 'mimicry',
+});
+
+const SUMMON_MOTIFS = Object.freeze({
+  magic_chocobo: 'comet-beak',
+  magic_sylph: 'twin-feather',
+  magic_remora: 'chain-cell',
+  magic_shiva: 'frost-crown',
+  magic_ramuh: 'forked-staff',
+  magic_ifrit: 'horned-flame',
+  magic_titan: 'mountain-fist',
+  magic_golem: 'guardian-slab',
+  magic_catoblepas: 'gaze-eye',
+  magic_carbuncle: 'prism-jewel',
+  magic_syldra: 'tidal-wing',
+  magic_odin: 'spear-wheel',
+  magic_phoenix: 'rebirth-wing',
+  magic_leviathan: 'abyss-spiral',
+  magic_bahamut: 'megaflare-crown',
+});
+
+const SONG_PATTERNS = Object.freeze({
+  song_mighty_march: 'march-pulse',
+  song_romeo_s_ballad: 'heart-stop',
+  song_alluring_air: 'allure-spiral',
+  song_requiem: 'requiem-fall',
+  song_swift_song: 'swift-staccato',
+  song_mana_s_paean: 'mana-helix',
+  song_sinewy_etude: 'sinewy-beat',
+  song_hero_s_rime: 'hero-crescendo',
+});
+
+const SIGNATURE_GLYPHS = Object.freeze({
+  magic_missile: '⌖',
+  magic_flare: '✹',
+  magic_level_3_flare: 'Ⅲ',
+  magic_level_5_death: 'Ⅴ',
+});
+
+const TEXTURE_MODES = Object.freeze([
+  'etched-light', 'volumetric-mist', 'faceted-glass', 'inked-energy',
+  'metallic-rune', 'soft-plasma', 'refractive-crystal', 'grain-spark',
+]);
+const PULSE_PATTERNS = Object.freeze(['single-accent', 'doublet', 'triplet-rise', 'syncopated', 'accelerando', 'heartbeat', 'countdown', 'wave-train']);
+const SECONDARY_GEOMETRY = Object.freeze(['orbit-dots', 'split-rings', 'rune-spokes', 'trailing-diamonds', 'micro-spirals', 'radial-bars', 'broken-arcs', 'constellation-lines']);
+const EASINGS = Object.freeze(['cubic-out', 'sine-in-out', 'expo-out', 'back-out', 'circ-in-out']);
+const ENTRANCES = Object.freeze(['fade-scale', 'draw-on', 'materialize', 'snap-focus']);
+const FORMATIONS = Object.freeze(['radial', 'staggered-line', 'nested-orbit', 'fan', 'cross-axis', 'constellation']);
+const IMPACT_PLACEMENTS = Object.freeze(['target-core', 'ground-contact', 'silhouette-edge', 'screen-depth']);
+const CAMERA_CUES = Object.freeze(['micro-push', 'lateral-track', 'impact-lock', 'depth-rack', 'vertical-tilt']);
+const TARGET_REACTIONS = Object.freeze(['recoil', 'lift', 'compress', 'stagger-freeze', 'silhouette-flash', 'dissolve-edge']);
+const SCHOOL_GLYPHS = Object.freeze({ white: '✦', black: '◆', time: '⌛', summon: '◇', blue: '◈' });
+const TYPE_GLYPHS = Object.freeze({ command: '✧', passive: '○', equip: '△', field: '⌖' });
+const FAMILY_PALETTES = Object.freeze({
+  restorative: ['#f5fff7', '#65f0b1', '#168f70'], resurrection: ['#fffceb', '#ffd96a', '#f28b4b'],
+  cleanse: ['#f8ffff', '#8de9ff', '#8c7cff'], ward: ['#edf7ff', '#55b9ff', '#3256bd'],
+  pyromancy: ['#fff0bc', '#ff7538', '#a81231'], cryomancy: ['#f4ffff', '#79d7ff', '#5265ca'],
+  voltaic: ['#ffffcf', '#b594ff', '#4c26a8'], aeromancy: ['#eafff4', '#6ce0c1', '#297f9a'],
+  geomancy: ['#ffefc3', '#c39255', '#61433d'], hydromancy: ['#e9fbff', '#3fbce7', '#1856a4'],
+  sacred: ['#fffef0', '#ffe672', '#e8a937'], venom: ['#efffc7', '#70ca4f', '#6b267f'],
+  astral: ['#ffffff', '#70d4ff', '#7251d1'], gravity: ['#eadfff', '#7f62b7', '#1c173f'],
+  judgment: ['#fff4e5', '#eb4b63', '#3a0c28'], affliction: ['#ffdff3', '#c852aa', '#49205c'],
+  enhancement: ['#f4f5ff', '#77a5ff', '#4a4fd4'], chronomancy: ['#e7ffff', '#41e5dc', '#4b45bd'],
+  'null-field': ['#edf0ff', '#788099', '#171b2f'], spatial: ['#edffff', '#4cc8c9', '#34368e'],
+  'temporal-reversal': ['#fff2fa', '#e178cd', '#564eae'], siphon: ['#ffe6eb', '#d75075', '#5a214c'],
+  kinetic: ['#fff4dc', '#ff9b48', '#8c3c32'], barrage: ['#fff8d6', '#ffc23d', '#d44439'],
+  scan: ['#e7ffff', '#4be1ed', '#25639f'], sacrifice: ['#fff0f0', '#d74559', '#46182a'],
+  invocation: ['#fff8e8', '#d99cff', '#4b469d'], performance: ['#fff0ff', '#ed7fda', '#6255c9'],
+  alchemy: ['#efffdc', '#91dc5c', '#3d8473'], stealth: ['#edf1f4', '#6b8294', '#242b3b'],
+  armament: ['#f5f8ff', '#9aafc9', '#46556d'], 'passive-aura': ['#f3f7ff', '#8ba9db', '#435878'],
+  fieldcraft: ['#f3ffe8', '#79be72', '#3f6558'], grimoire: ['#f4edff', '#9b80e8', '#473879'],
+  mimicry: ['#ffffff', '#a5b5ca', '#4b536b'],
+  throw: ['#fff7df', '#ffbd5c', '#73412f'], jump: ['#effcff', '#82dcff', '#344c9c'],
+  dance: ['#fff0ff', '#ef86dc', '#5c4cc0'], steal: ['#eafffb', '#79ead3', '#4059a8'],
+});
+const POSITIVE_STATUS = /回復|復帰|治療|上昇|軽減|回避|リフレク|浮遊|強化|無効|防ぐ|肩代わり/;
+
+function hash32(value) {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
+function hasOperation(record, ...operations) {
+  return record.battle.operations.some((operation) => operations.includes(operation.op));
+}
+
+function magicFamily(record) {
+  if (record.id === 'magic_missile') return 'gravity';
+  if (record.id === 'magic_flare' || record.id === 'magic_level_3_flare') return 'astral';
+  if (record.id === 'magic_level_5_death') return 'judgment';
+  if (record.id === 'magic_return') return 'temporal-reversal';
+  if (hasOperation(record, 'barrier.physical')) return 'ward';
+  if (hasOperation(record, 'battle.speed', 'turn.extra', 'stat.song_growth')) return 'chronomancy';
+  if (hasOperation(record, 'battle.field_status')) return 'null-field';
+  if (hasOperation(record, 'battle.escape', 'remove.from_battle')) return 'spatial';
+  if (hasOperation(record, 'revive')) return 'resurrection';
+  if (hasOperation(record, 'restore.full', 'heal.hp', 'heal.caster_hp', 'heal.mp')) return 'restorative';
+  if (hasOperation(record, 'status.remove', 'status.dispel')) return 'cleanse';
+  if (hasOperation(record, 'drain.hp', 'drain.mp')) return 'siphon';
+  if (hasOperation(record, 'damage.hp_ratio', 'damage.mp_ratio')) return 'gravity';
+  if (hasOperation(record, 'damage.fixed', 'damage.missing_hp')) return 'kinetic';
+  if (hasOperation(record, 'damage.caster_hp', 'caster.sacrifice')) return 'sacrifice';
+  if (hasOperation(record, 'inspect')) return 'scan';
+  if (hasOperation(record, 'status.apply')) return POSITIVE_STATUS.test(record.effect) ? 'enhancement' : 'affliction';
+  if (record.battle.element && ELEMENT_FAMILY[record.battle.element]) return ELEMENT_FAMILY[record.battle.element];
+  if (record.school === 'summon') return 'invocation';
+  if (hasOperation(record, 'damage.magic')) return record.effect.includes('複数回') ? 'barrage' : 'astral';
+  return record.school === 'time' ? 'chronomancy' : 'grimoire';
+}
+
+function abilityFamily(record) {
+  const effect = record.effect ?? '';
+  if (ABILITY_FAMILY_BY_ID[record.id]) return ABILITY_FAMILY_BY_ID[record.id];
+  if (record.id === 'ability_mimic') return 'mimicry';
+  if (record.type === 'equip') return 'armament';
+  if (record.type === 'passive') return 'passive-aura';
+  if (record.type === 'field') return 'fieldcraft';
+  if (/魔法を使用|青魔法|白魔法|黒魔法|召喚魔法|時空魔法|連続で/.test(effect)) return 'grimoire';
+  if (/回復|治療|復帰|そせい/.test(effect)) return 'restorative';
+  if (/歌|うた|踊り|おどる/.test(effect)) return 'performance';
+  if (/調合|薬|飲む|アイテム/.test(effect)) return 'alchemy';
+  if (/逃走|退避|隠し|盗|捕獲|けむり/.test(effect)) return 'stealth';
+  if (/調べる|詳細情報|発見/.test(effect)) return 'scan';
+  if (/複数|4回|2回攻撃|連撃/.test(effect)) return 'barrage';
+  if (/攻撃|一撃|投擲|ジャンプ|即死|麻痺/.test(effect)) return 'kinetic';
+  if (/無効|回避|バリア|分身|止める/.test(effect)) return 'ward';
+  if (/付与|上昇|強化|高める/.test(effect)) return 'enhancement';
+  return 'mimicry';
+}
+
+function deepFreeze(value) {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  Object.values(value).forEach(deepFreeze);
+  return Object.freeze(value);
+}
+
+function familyFor(record, sourceType) {
+  if (sourceType === 'magic') return magicFamily(record);
+  if (sourceType === 'song') return 'performance';
+  if (sourceType === 'crystal') return ELEMENT_FAMILY[record.battle.element] ?? 'invocation';
+  return abilityFamily(record);
+}
+
+function makeDescriptor(record, sourceType, ordinal, familyOrdinal) {
+  const family = familyFor(record, sourceType);
+  const [motionKind, primaryGeometry, trajectoryKind, baseImpact] = FAMILY_PROFILES[family];
+  const seed = hash32(`${record.id}|${record.effect}|${ordinal}`);
+  const pick = (list, shift = 0) => list[(seed >>> shift) % list.length];
+  const intensity = sourceType === 'magic'
+    ? Math.max(1, Math.min(6, (record.level ?? Math.ceil((record.mpCost ?? 0) / 14)) || 2))
+    : Math.max(1, Math.min(6, Math.ceil((record.abp ?? 10) / 170)));
+  const windupMs = 170 + intensity * 38 + (seed % 47);
+  const travelMs = 120 + ((seed >>> 5) % 190);
+  const impactMs = 110 + intensity * 26 + ((seed >>> 11) % 71);
+  const decayMs = 160 + ((seed >>> 17) % 180);
+  const beats = 1 + intensity + ((seed >>> 23) % 3);
+  const glyphRoot = SIGNATURE_GLYPHS[record.id] ?? (sourceType === 'magic' ? SCHOOL_GLYPHS[record.school] : sourceType === 'song' ? '♫' : sourceType === 'crystal' ? '◇' : TYPE_GLYPHS[record.type]);
+  // Mixed-radix structural axes: the tuple remains unique within a family
+  // without relying on palette, text, ID, glyph, particles, timing, or seed.
+  const entrance = ENTRANCES[familyOrdinal % ENTRANCES.length];
+  const secondary = SECONDARY_GEOMETRY[Math.floor(familyOrdinal / ENTRANCES.length) % SECONDARY_GEOMETRY.length];
+  const formation = FORMATIONS[Math.floor(familyOrdinal / (ENTRANCES.length * SECONDARY_GEOMETRY.length)) % FORMATIONS.length];
+  const placement = IMPACT_PLACEMENTS[Math.floor(familyOrdinal / 2) % IMPACT_PLACEMENTS.length];
+  const cameraCue = CAMERA_CUES[Math.floor(familyOrdinal / 3) % CAMERA_CUES.length];
+  const generatedReaction = TARGET_REACTIONS[Math.floor(familyOrdinal / 5) % TARGET_REACTIONS.length];
+  const targetReaction = ({
+    restorative: 'lift', resurrection: 'silhouette-flash', cleanse: 'dissolve-edge', ward: 'silhouette-flash',
+    enhancement: 'lift', alchemy: 'lift', performance: 'lift', cryomancy: 'stagger-freeze',
+    gravity: 'compress', judgment: 'dissolve-edge', sacrifice: 'dissolve-edge', kinetic: 'recoil',
+    barrage: 'recoil', siphon: 'compress', affliction: 'stagger-freeze', spatial: 'dissolve-edge',
+    stealth: 'dissolve-edge', steal: 'dissolve-edge',
+  })[family] ?? generatedReaction;
+  const summonMotif = sourceType === 'magic' && record.school === 'summon' ? SUMMON_MOTIFS[record.id] : null;
+  const songPattern = sourceType === 'song' ? SONG_PATTERNS[record.id] : null;
+
+  return deepFreeze({
+    key: record.id,
+    id: record.id,
+    actionId: record.id,
+    sourceType,
+    summonMotif,
+    songPattern,
+    family,
+    motion: {
+      kind: motionKind,
+      entrance,
+      rotationDegrees: ((seed >>> 7) % 9 - 4) * 45,
+      oscillation: 1 + ((seed >>> 15) % 4),
+    },
+    geometry: {
+      primary: primaryGeometry,
+      secondary,
+      formation,
+      symmetry: 3 + ((seed >>> 9) % 10),
+      layers: 2 + ((seed >>> 19) % 4),
+    },
+    trajectory: {
+      kind: trajectoryKind,
+      origin: record.target === 'self' ? 'caster-core' : 'caster-glyph',
+      targetMode: record.target ?? 'none',
+      arcBias: Number((((seed >>> 13) % 101) / 100 - 0.5).toFixed(2)),
+      turns: Math.floor(familyOrdinal / (ENTRANCES.length * 2)) % 4,
+    },
+    pulsePattern: {
+      shape: pick(PULSE_PATTERNS, 2),
+      beats,
+      spacingMs: 48 + ((seed >>> 8) % 93),
+      amplitude: Number((0.55 + ((seed >>> 20) % 41) / 100).toFixed(2)),
+    },
+    particleCount: Math.min(14, 8 + intensity + ((seed >>> 24) % 4)),
+    timing: {
+      windupMs,
+      travelMs,
+      impactMs,
+      decayMs,
+      totalMs: windupMs + travelMs + impactMs + decayMs,
+      easing: pick(EASINGS, 6),
+    },
+    glyph: {
+      symbol: glyphRoot ?? '✦',
+      runeSequence: `${record.id.replace(/^(magic|ability|song|shard)_/, '').slice(0, 12)}-${seed.toString(36).padStart(7, '0')}`,
+      ringCount: 1 + ((seed >>> 12) % 4),
+      clockwise: Boolean(seed & 1),
+    },
+    textureMode: pick(TEXTURE_MODES, 10),
+    impactMode: `${baseImpact}:${pick(['center', 'radial', 'directional', 'layered'], 18)}`,
+    impact: deepFreeze({ topology: baseImpact, placement }),
+    palette: FAMILY_PALETTES[family] ?? FAMILY_PALETTES.astral,
+    duration: windupMs + travelMs + impactMs + decayMs,
+    titleTag: `${sourceType === 'magic' ? record.school : sourceType === 'song' ? 'song' : record.type}:${record.nameJa ?? record.name ?? record.id}`,
+    castMotion: motionKind,
+    cameraCue,
+    targetReaction,
+    audioCue: `${family}:${pick(['chime', 'snap', 'rush', 'rumble', 'pulse'], 16)}`,
+    reducedMotionVariant: deepFreeze({ motion: 'cross-fade', cameraCue: 'none', particleCount: Math.min(6, 3 + intensity) }),
+    performanceTier: 'iphone12-dom',
+    phaseTopology: deepFreeze({
+      phases: 2 + (familyOrdinal % 3),
+      topology: `${['linear', 'overlap', 'call-response', 'nested'][Math.floor(familyOrdinal / 4) % 4]}-${Math.floor(familyOrdinal / 16) + 1}`,
+    }),
+    seed,
+    mobileBudget: deepFreeze({ maxParticles: 14, usesTransformOnly: true, maxOverdrawLayers: 5 }),
+  });
+}
+
+const familyCounts = new Map();
+function makeRegistry(records, sourceType, offset) {
+  return Object.freeze(Object.fromEntries(records.map((record, index) => {
+    const family = familyFor(record, sourceType);
+    const familyOrdinal = familyCounts.get(family) ?? 0;
+    familyCounts.set(family, familyOrdinal + 1);
+    return [record.id, makeDescriptor(record, sourceType, offset + index, familyOrdinal)];
+  })));
+}
+
+const magicEffectDescriptors = makeRegistry(battleReadyMagic, 'magic', 0);
+const abilityEffectDescriptors = makeRegistry(battleReadyAbilities, 'ability', battleReadyMagic.length);
+const songEffectDescriptors = makeRegistry(battleReadySongs, 'song', battleReadyMagic.length + battleReadyAbilities.length);
+const crystalEffectDescriptors = makeRegistry(battleReadyShards, 'crystal', battleReadyMagic.length + battleReadyAbilities.length + battleReadySongs.length);
+
+const battleEffectDescriptors = Object.freeze({
+  ...magicEffectDescriptors,
+  ...abilityEffectDescriptors,
+  ...songEffectDescriptors,
+  ...crystalEffectDescriptors,
+});
+
+const battleEffectRecipes = battleEffectDescriptors;
+const runtimeDescriptorCache = new Map();
+
+function getBattleEffectDescriptor(id) {
+  return battleEffectDescriptors[id] ?? null;
+}
+
+function hasBattleEffectDescriptor(id) {
+  return Object.hasOwn(battleEffectDescriptors, id);
+}
+
+function getBattleEffectRecipe(actionOrId) {
+  if (typeof actionOrId === 'string') return getBattleEffectDescriptor(actionOrId);
+  if (!actionOrId) return null;
+  const nested = actionOrId.spell ?? actionOrId.ability ?? actionOrId.song ?? null;
+  const candidates = [
+    actionOrId.visualId, actionOrId.sourceId, actionOrId.commandSourceId,
+    nested?.visualId, nested?.sourceId, nested?.commandSourceId, nested?.id, actionOrId.id,
+  ];
+  for (const id of candidates) {
+    if (id && battleEffectRecipes[id]) return battleEffectRecipes[id];
+  }
+  return null;
+}
+
+/**
+ * Renderer-facing resolver. It accepts wrapped menu actions, prefixed runtime
+ * IDs (for example dual-magic_fire), or creates a deterministic fallback for
+ * a future command that is not in the reference catalog yet.
+ */
+function resolveBattleEffectDescriptor(actionOrId) {
+  const exact = getBattleEffectRecipe(actionOrId);
+  if (exact) return exact;
+  const action = typeof actionOrId === 'string' ? { id: actionOrId } : (actionOrId ?? {});
+  const nested = action.spell ?? action.ability ?? action.song ?? {};
+  const candidates = [action.visualId, action.sourceId, action.commandSourceId, nested.visualId, nested.sourceId, nested.commandSourceId, nested.id, action.id].filter(Boolean);
+  const registeredIds = Object.keys(battleEffectRecipes);
+  for (const candidate of candidates) {
+    const normalized = String(candidate).replaceAll('-', '_');
+    const alias = registeredIds.find((id) => normalized === id || normalized.endsWith(id) || normalized.endsWith(id.replace(/^(magic|ability|song)_/, '')));
+    if (alias) return battleEffectRecipes[alias];
+  }
+
+  const fallbackKey = candidates[0] ?? `runtime_${hash32(JSON.stringify({ kind: action.kind, name: action.name }))}`;
+  if (!runtimeDescriptorCache.has(fallbackKey)) {
+    runtimeDescriptorCache.set(fallbackKey, makeDescriptor({
+      id: `runtime_${String(fallbackKey).replace(/[^a-z0-9_]+/gi, '_').toLowerCase()}`,
+      nameJa: action.name ?? nested.name ?? '未登録アクション',
+      effect: action.effect ?? nested.effect ?? action.kind ?? '未来の戦闘コマンド',
+      target: action.target ?? nested.target ?? 'one_enemy',
+      type: 'command',
+      abp: 0,
+    }, 'ability', hash32(String(fallbackKey)), hash32(String(fallbackKey)) % 128));
+  }
+  return runtimeDescriptorCache.get(fallbackKey);
+}
+
+const battleEffectRegistryStats = Object.freeze({
+  magic: Object.keys(magicEffectDescriptors).length,
+  abilities: Object.keys(abilityEffectDescriptors).length,
+  songs: Object.keys(songEffectDescriptors).length,
+  crystals: Object.keys(crystalEffectDescriptors).length,
+  total: Object.keys(battleEffectDescriptors).length,
+});
+
 // ---- src/ui/BattleUI.js ----
 function hpBarClass(unit) {
   const ratio = unit.hpRatio();
@@ -2911,20 +3382,45 @@ function abilityCommandName(abilityId) {
   return selectableAbilities.find((ability) => ability.id === abilityId)?.nameJa ?? 'アビリティ';
 }
 
-function spellVisualProfile(action = {}, visualType = 'cast-impact') {
-  const id = String(action.sourceId ?? action.id ?? '').toLowerCase();
-  const name = String(action.name ?? '魔法');
-  if (id === 'magic_missile') return Object.freeze({ kind: 'missile', eyebrow: 'BLUE TECH // TARGET LOCK', glyph: '⌖', particles: 6, duration: 1180 });
-  if (id === 'magic_flare' || id === 'magic_level_3_flare') return Object.freeze({ kind: 'flare', eyebrow: 'BLACK MAGIC // STELLAR CORE', glyph: '✹', particles: 10, duration: 1540 });
-  if (id === 'magic_level_5_death') return Object.freeze({ kind: 'level-death', eyebrow: 'BLUE TECH // LEVEL JUDGMENT', glyph: 'Ⅴ', particles: 5, duration: 1580 });
-  if (/death|doom|roulette/.test(id)) return Object.freeze({ kind: 'death', eyebrow: 'ARCANA // SOUL SEAL', glyph: '†', particles: 7, duration: 1420 });
-  if (/meteor|comet/.test(id)) return Object.freeze({ kind: 'meteor', eyebrow: 'TIME MAGIC // ORBITAL FALL', glyph: '☄', particles: 10, duration: 1440 });
-  if (/gravity|graviga/.test(id)) return Object.freeze({ kind: 'gravity', eyebrow: 'TIME MAGIC // GRAVITY WELL', glyph: '◎', particles: 8, duration: 1320 });
-  if (/drain|osmose|vampire/.test(id)) return Object.freeze({ kind: 'drain', eyebrow: 'ARCANA // LIFE SIPHON', glyph: '◇', particles: 8, duration: 1240 });
-  if (action.school === 'summon') return Object.freeze({ kind: 'summon', eyebrow: 'SUMMON // SOUL GATE', glyph: null, particles: 12, duration: 1750 });
-  if (visualType === 'cast-heal') return Object.freeze({ kind: 'healing', eyebrow: 'WHITE MAGIC // RESTORE', glyph: '✦', particles: 8, duration: 1180 });
-  if (visualType === 'cast-arcane') return Object.freeze({ kind: 'status', eyebrow: 'ARCANA // ALTER STATE', glyph: '◈', particles: 8, duration: 1180 });
-  return Object.freeze({ kind: 'elemental', eyebrow: `${action.school === 'blue' ? 'BLUE TECH' : 'ARCANA'} // CAST`, glyph: name.includes('ホーリー') ? '✧' : null, particles: 8, duration: 1120 });
+function effectModifier(prefix, value) {
+  return value ? `${prefix}-${safeToken(value)}` : '';
+}
+
+function effectDuration(descriptor) {
+  const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  // Keep the signature frame readable while suppressing the full travel and
+  // camera choreography. 160ms was effectively invisible on mobile capture.
+  return reducedMotion ? 360 : Math.min(1600, Math.max(620, descriptor.duration));
+}
+
+function battleEffectRenderProfile(actionOrDescriptor = {}, results = []) {
+  const descriptor = actionOrDescriptor.family && actionOrDescriptor.phaseTopology
+    ? actionOrDescriptor
+    : resolveBattleEffectDescriptor(actionOrDescriptor);
+  const action = actionOrDescriptor.family ? {} : actionOrDescriptor;
+  const family = safeToken(descriptor.family);
+  const motion = safeToken(descriptor.motion.kind);
+  const geometry = safeToken(descriptor.geometry.primary);
+  const impact = safeToken(descriptor.impact.topology);
+  const modifiers = [
+    effectModifier('entrance', descriptor.motion.entrance),
+    effectModifier('secondary', descriptor.geometry.secondary),
+    effectModifier('formation', descriptor.geometry.formation),
+    effectModifier('placement', descriptor.impact?.placement),
+    effectModifier('pulse', descriptor.pulsePattern.shape),
+    effectModifier('texture', descriptor.textureMode),
+    effectModifier('camera', descriptor.cameraCue),
+    effectModifier('reaction', descriptor.targetReaction),
+    effectModifier('phases', descriptor.phaseTopology.phases),
+    effectModifier('topology', descriptor.phaseTopology.topology),
+    effectModifier('trajectory', descriptor.trajectory.kind),
+    effectModifier('origin', descriptor.trajectory.origin),
+    effectModifier('turns', descriptor.trajectory.turns),
+    effectModifier('source', descriptor.sourceType),
+    effectModifier('school', String(descriptor.titleTag).split(':')[0]),
+    effectModifier('command', action.commandSourceId),
+  ].filter(Boolean);
+  return Object.freeze({ descriptor, family, motion, geometry, impact, modifiers: Object.freeze(modifiers) });
 }
 
 class BattleUI {
@@ -2966,6 +3462,10 @@ class BattleUI {
     this.battleManager = null;
     this.pendingCommandType = null; // 'attack' | 'magic' | 'item' | 'defend'
     this.pendingSpellOrItem = null;
+    this.effectQueue = [];
+    this.activeEffect = null;
+    this.effectTimer = null;
+    this.activeEffectDeadline = 0;
 
     this._bindStaticEvents();
   }
@@ -2975,7 +3475,7 @@ class BattleUI {
     this.messageWindow.reset();
     this.clearTelegraph();
     this.currentPhase = 1;
-    if (this.effectsEl) this.effectsEl.innerHTML = '';
+    this.clearBattleEffects();
     this.battleFieldEl?.classList.remove('impacting');
     this.closeActionWindows();
     this.renderCommandListIdle();
@@ -3000,11 +3500,15 @@ class BattleUI {
     eventBus.on('battle:actionResolved', ({ actor, action, results }) => {
       if (actor?.isEnemy) this.clearTelegraph();
       this.playActionPulse(actor, results, action);
+      const effectDescriptor = action?.id || action?.sourceId || action?.visualId || action?.name
+        ? resolveBattleEffectDescriptor(action)
+        : null;
       results.forEach((r) => {
         const el = document.querySelector(`[data-uid="${r.targetUid}"]`);
         if (el) {
           el.classList.add('flash');
           setTimeout(() => el.classList.remove('flash'), 440);
+          if (effectDescriptor) this.playTargetReaction(el, effectDescriptor, r);
         }
         this.showCombatResult(r, el);
       });
@@ -3275,11 +3779,16 @@ class BattleUI {
         ?? (itemStock === 0 ? '在庫がない。' : '');
       const stockLabel = itemStock == null ? '' : ` ×${Number.isFinite(itemStock) ? itemStock : '∞'}`;
       const disabled = (['spell', 'ability', 'crystal'].includes(kind) && actualMpCost && actor.mp < actualMpCost)
-        || Boolean(entry.disabledReason) || itemStock === 0 || itemUsable === false;
+        || itemStock === 0 || itemUsable === false;
       const li = this.createChoice(
         `${entry.name}${costLabel}${stockLabel}`,
         () => {
           this.closeSubmenu();
+          if (entry.disabledReason) {
+            this.messageWindow.show(entry.disabledReason);
+            this.playActionPulse(actor, [{ type: 'status', targetUid: actor.uid, statuses: ['unavailable'] }], entry);
+            return;
+          }
           this.pendingCommandType = kind;
           this.pendingSpellOrItem = entry;
           this.promptTarget(entry, kind, actor);
@@ -3361,6 +3870,20 @@ class BattleUI {
     const actorEl = actor ? document.querySelector(`[data-uid="${actor.uid}"]`) : null;
     actorEl?.classList.add('action-pulse');
     setTimeout(() => actorEl?.classList.remove('action-pulse'), 420);
+    if (actorEl && (action?.id || action?.sourceId || action?.visualId || action?.name)) {
+      const castDescriptor = getBattleEffectDescriptor(action.commandSourceId) ?? resolveBattleEffectDescriptor(action);
+      const castClass = `cast-motion-${safeToken(castDescriptor.castMotion)}`;
+      [...actorEl.classList].filter((name) => name.startsWith('cast-motion-')).forEach((name) => actorEl.classList.remove(name));
+      actorEl.classList.add('casting-effect', castClass);
+      const castDistance = 4 + castDescriptor.motion.oscillation * 2;
+      actorEl.style.setProperty('--cast-distance', `${castDistance}px`);
+      actorEl.style.setProperty('--cast-distance-negative', `${-castDistance}px`);
+      actorEl.style.setProperty('--cast-distance-half-negative', `${Math.round(castDistance * -0.6)}px`);
+      actorEl.style.setProperty('--cast-distance-half-positive', `${Math.round(castDistance * 0.6)}px`);
+      actorEl.style.setProperty('--cast-angle-negative', `${castDescriptor.motion.rotationDegrees * -0.15}deg`);
+      actorEl.style.setProperty('--cast-angle-positive', `${castDescriptor.motion.rotationDegrees * 0.12}deg`);
+      setTimeout(() => actorEl.classList.remove('casting-effect', castClass), 720);
+    }
 
     if (!this.battleFieldEl || results.length === 0) return;
     const element = action?.element ?? results.find((result) => result.element)?.element;
@@ -3377,7 +3900,9 @@ class BattleUI {
         this.effectsEl?.classList.remove(visualType);
         if (element) this.effectsEl?.classList.remove(`element-${safeToken(element)}`);
       }, 650);
-      this.playSpellCinematic(action, element, visualType);
+      if (action?.id || action?.sourceId || action?.visualId || action?.name) {
+        this.enqueueBattleEffect(actor, action, results, visualType);
+      }
     }
     this.battleFieldEl.classList.remove('impacting');
     // Restarting the class in a new frame keeps rapid multi-hit actions legible.
@@ -3387,56 +3912,209 @@ class BattleUI {
     });
   }
 
-  playSpellCinematic(action = {}, element, visualType) {
-    if (!this.effectsEl) return;
-    const profile = spellVisualProfile(action, visualType);
-    const isSummon = profile.kind === 'summon';
-    const isMagic = isSummon || action.sourceType === 'magic' || action.kind === 'magic-attack';
-    if (!isMagic) return;
-
-    this.effectsEl.querySelectorAll('.spell-cinematic').forEach((node) => node.remove());
-    const cinematic = document.createElement('div');
-    const normalizedElement = safeToken(element ?? 'arcane');
-    cinematic.className = `spell-cinematic ${isSummon ? 'summon-cinematic' : 'magic-cinematic'} visual-${profile.kind} element-${normalizedElement} ${visualType}`;
-    cinematic.dataset.spell = safeToken(action.sourceId ?? action.id ?? action.name);
-    cinematic.style.animationDuration = `${profile.duration}ms`;
-
-    const glyphs = ['✦', '◇', '⌁', '◈', '⬡', '✧'];
-    const glyphIndex = [...String(action.sourceId ?? action.name ?? '')].reduce((sum, char) => sum + char.charCodeAt(0), 0) % glyphs.length;
-    const particleCount = profile.particles;
-    const particles = Array.from({ length: particleCount }, (_, index) =>
-      `<i class="spell-particle" style="--i:${index};--angle:${Math.round((360 / particleCount) * index + (index % 2) * 11)}deg;--distance:${74 + (index % 4) * 20}px"></i>`
-    ).join('');
-
-    cinematic.innerHTML = `
-      <span class="spell-vignette"></span>
-      <span class="spell-title"><small>${profile.eyebrow}</small><strong>${action.name ?? '魔法'}</strong></span>
-      <span class="spell-seal"><i class="seal-ring ring-outer"></i><i class="seal-ring ring-inner"></i><b>${profile.glyph ?? glyphs[glyphIndex]}</b></span>
-      <span class="spell-beam"></span>
-      <span class="spell-impact-core"></span>
-      <span class="spell-particles">${particles}</span>
-      ${isSummon ? `<span class="summon-avatar"><i></i><b>${glyphs[glyphIndex]}</b></span>` : ''}
-      ${this.signatureSpellMarkup(profile.kind)}
-    `;
-    this.effectsEl.appendChild(cinematic);
-    const duration = profile.duration;
-    cinematic.addEventListener('animationend', (event) => {
-      if (event.target === cinematic) cinematic.remove();
-    }, { once: true });
-    setTimeout(() => cinematic.remove(), duration + 120);
+  playTargetReaction(targetEl, descriptor, result = {}) {
+    const semanticReaction = ['heal', 'mp-heal', 'buff'].includes(result.type)
+      ? 'lift'
+      : result.type === 'revive'
+        ? 'silhouette-flash'
+        : ['cleanse', 'dispel'].includes(result.type)
+          ? 'dissolve-edge'
+          : descriptor.targetReaction;
+    const reactionClass = `reaction-${safeToken(semanticReaction)}`;
+    [...targetEl.classList].filter((name) => name.startsWith('reaction-')).forEach((name) => targetEl.classList.remove(name));
+    targetEl.classList.remove('target-reaction');
+    requestAnimationFrame(() => {
+      targetEl.classList.add('target-reaction', reactionClass);
+      setTimeout(() => targetEl.classList.remove('target-reaction', reactionClass), 720);
+    });
   }
 
-  signatureSpellMarkup(kind) {
-    if (kind === 'missile') {
-      return `<span class="signature-spell signature-missile"><i class="missile-lock"><b>LOCK</b></i><i class="missile-trail"></i><i class="missile-body"></i><i class="missile-burst"></i></span>`;
+  enqueueBattleEffect(actor, action = {}, results = [], visualType = 'cast-impact') {
+    if (!this.effectsEl) return;
+    const descriptor = resolveBattleEffectDescriptor(action);
+    const duration = effectDuration(descriptor);
+    this.effectQueue.push({ actor, action, results, visualType, descriptor, duration });
+    const remainingMs = Math.max(0, this.activeEffectDeadline - Date.now());
+    const queuedMs = this.effectQueue.reduce((total, queued) => total + queued.duration + 180, 0);
+    this.battleManager?.deferNextTurnFor(remainingMs + queuedMs + 20);
+    this.runNextBattleEffect();
+  }
+
+  runNextBattleEffect() {
+    if (this.activeEffect || !this.effectsEl || this.effectQueue.length === 0) return;
+    const effectState = this.effectQueue.shift();
+    const { actor, action, results, visualType, descriptor, duration } = effectState;
+    const commandDescriptor = getBattleEffectDescriptor(action.commandSourceId);
+    const sequence = document.createElement('div');
+    const profile = battleEffectRenderProfile(action, results);
+    const { family, motion, geometry, impact } = profile;
+    const targetUnits = [...new Set(results.map((result) => result.targetUid).filter(Boolean))]
+      .map((uid) => this.battleManager?.units.find((unit) => unit.uid === uid))
+      .filter(Boolean);
+    const alliedTargets = actor ? targetUnits.filter((unit) => unit.isEnemy === actor.isEnemy) : [];
+    const hostileTargets = actor ? targetUnits.filter((unit) => unit.isEnemy !== actor.isEnemy) : targetUnits;
+    const friendlyTarget = Boolean(actor && targetUnits.length && alliedTargets.length === targetUnits.length);
+    const mixedTarget = alliedTargets.length > 0 && hostileTargets.length > 0;
+    const multiTarget = targetUnits.length > 1 || ['all_allies', 'all_enemies', 'all_units', 'party', 'enemy_group', 'enemy_and_party', 'enemy_group_and_ally'].includes(action.target);
+    const directionClass = friendlyTarget
+      ? `target-friendly-${actor?.isEnemy ? 'enemy' : 'player'}`
+      : actor?.isEnemy ? 'direction-enemy' : 'direction-player';
+    const modifiers = [
+      ...profile.modifiers,
+      directionClass,
+      friendlyTarget ? 'target-friendly' : 'target-hostile',
+      mixedTarget ? 'target-mixed' : '',
+      multiTarget ? 'target-multi' : 'target-single',
+      descriptor.summonMotif ? `motif-${safeToken(descriptor.summonMotif)}` : '',
+      descriptor.songPattern ? `song-${safeToken(descriptor.songPattern)}` : '',
+    ].filter(Boolean);
+    sequence.className = [
+      'effect-sequence', `effect-${safeToken(descriptor.actionId)}`, `family-${family}`, `motion-${motion}`, `geometry-${geometry}`,
+      `impact-${impact}`, visualType, ...modifiers,
+    ].join(' ');
+    sequence.dataset.effectId = descriptor.actionId;
+    sequence.dataset.visualId = String(action.visualId ?? action.sourceId ?? action.id ?? descriptor.actionId);
+    sequence.dataset.effectFamily = descriptor.family;
+    sequence.dataset.motion = descriptor.motion.kind;
+    sequence.dataset.geometry = descriptor.geometry.primary;
+    sequence.dataset.phaseTopology = descriptor.phaseTopology.topology;
+    sequence.style.setProperty('--fx-duration', `${duration}ms`);
+    sequence.style.setProperty('--fx-primary', descriptor.palette[1]);
+    sequence.style.setProperty('--fx-secondary', descriptor.palette[2]);
+    sequence.style.setProperty('--fx-highlight', descriptor.palette[0]);
+    sequence.style.setProperty('--fx-rotation', `${descriptor.motion.rotationDegrees}deg`);
+    sequence.style.setProperty('--fx-intensity', String(descriptor.pulsePattern.amplitude));
+    sequence.style.setProperty('--fx-beats', String(descriptor.pulsePattern.beats));
+    sequence.style.setProperty('--fx-layers', String(descriptor.geometry.layers));
+    sequence.style.setProperty('--fx-symmetry', String(descriptor.geometry.symmetry));
+    sequence.style.setProperty('--fx-arc-bias', String(descriptor.trajectory.arcBias));
+    sequence.style.setProperty('--fx-turns', String(descriptor.trajectory.turns));
+
+    if (friendlyTarget) {
+      const stageRect = this.effectsEl.getBoundingClientRect();
+      const pointFor = (unit) => {
+        const element = unit ? document.querySelector(`[data-uid="${unit.uid}"]`) : null;
+        const rect = element?.getBoundingClientRect();
+        return rect ? {
+          x: ((rect.left - stageRect.left + rect.width / 2) / Math.max(1, stageRect.width)) * 100,
+          y: ((rect.top - stageRect.top + rect.height / 2) / Math.max(1, stageRect.height)) * 100,
+        } : null;
+      };
+      const casterPoint = pointFor(actor) ?? { x: actor?.isEnemy ? 24 : 78, y: 42 };
+      const targetPoints = targetUnits.map(pointFor).filter(Boolean);
+      const targetPoint = targetPoints.length ? {
+        x: targetPoints.reduce((sum, point) => sum + point.x, 0) / targetPoints.length,
+        y: targetPoints.reduce((sum, point) => sum + point.y, 0) / targetPoints.length,
+      } : casterPoint;
+      sequence.style.setProperty('--fx-caster-x', `${casterPoint.x.toFixed(2)}%`);
+      sequence.style.setProperty('--fx-caster-y', `${casterPoint.y.toFixed(2)}%`);
+      sequence.style.setProperty('--fx-target-x', `${targetPoint.x.toFixed(2)}%`);
+      sequence.style.setProperty('--fx-target-y', `${targetPoint.y.toFixed(2)}%`);
     }
-    if (kind === 'flare') {
-      return `<span class="signature-spell signature-flare"><i class="flare-orbit orbit-a"></i><i class="flare-orbit orbit-b"></i><i class="flare-star"></i><i class="flare-collapse"></i><i class="flare-shockwave"></i></span>`;
+
+    const backdrop = document.createElement('span');
+    backdrop.className = 'fx-backdrop';
+    const title = document.createElement('span');
+    title.className = 'fx-title';
+    const titleText = document.createElement('b');
+    titleText.textContent = `${String(descriptor.titleTag).split(':')[0].toUpperCase()} // ${action.name ?? descriptor.actionId}`;
+    title.appendChild(titleText);
+    const sigil = document.createElement('span');
+    sigil.className = 'fx-caster-sigil';
+    let commandLayer = null;
+    if (commandDescriptor && commandDescriptor.actionId !== descriptor.actionId) {
+      commandLayer = document.createElement('span');
+      commandLayer.className = [
+        'fx-command-layer',
+        `family-${safeToken(commandDescriptor.family)}`,
+        `motion-${safeToken(commandDescriptor.motion.kind)}`,
+        `geometry-${safeToken(commandDescriptor.geometry.primary)}`,
+        `entrance-${safeToken(commandDescriptor.motion.entrance)}`,
+      ].join(' ');
+      commandLayer.dataset.commandEffectId = commandDescriptor.actionId;
+      const commandCore = document.createElement('i');
+      commandCore.className = 'fx-core';
+      commandCore.textContent = commandDescriptor.glyph.symbol;
+      commandLayer.appendChild(commandCore);
     }
-    if (kind === 'level-death') {
-      return `<span class="signature-spell signature-level-death"><i class="level-scan"></i><i class="death-pillar pillar-a"></i><i class="death-pillar pillar-b"></i><i class="death-pillar pillar-c"></i><i class="death-gate"><b>LV 5</b><em>JUDGMENT</em></i></span>`;
+    const path = document.createElement('span');
+    path.className = 'fx-path';
+    const core = document.createElement('span');
+    core.className = 'fx-core';
+    const orbit = document.createElement('span');
+    orbit.className = 'fx-orbit';
+    const hit = document.createElement('span');
+    hit.className = 'fx-impact';
+    let mixedImpact = null;
+    if (mixedTarget) {
+      mixedImpact = document.createElement('span');
+      mixedImpact.className = 'fx-impact fx-impact-echo';
+      mixedImpact.setAttribute('aria-hidden', 'true');
     }
-    return '';
+    const glyph = document.createElement('span');
+    glyph.className = 'fx-glyph';
+    const glyphText = document.createElement('b');
+    glyphText.textContent = descriptor.glyph.symbol;
+    glyph.appendChild(glyphText);
+    glyph.setAttribute('aria-hidden', 'true');
+    let summonEmblem = null;
+    if (descriptor.summonMotif) {
+      summonEmblem = document.createElement('span');
+      summonEmblem.className = `fx-summon-emblem motif-${safeToken(descriptor.summonMotif)}`;
+      summonEmblem.setAttribute('aria-hidden', 'true');
+    }
+    let songWave = null;
+    if (descriptor.songPattern) {
+      songWave = document.createElement('span');
+      songWave.className = `fx-song-wave song-${safeToken(descriptor.songPattern)}`;
+      songWave.setAttribute('aria-hidden', 'true');
+    }
+    const particles = document.createElement('span');
+    particles.className = 'fx-particles';
+    const reservedAnimatedNodes = Number(Boolean(commandLayer)) + Number(Boolean(summonEmblem)) + Number(Boolean(songWave)) + Number(Boolean(mixedImpact));
+    const particleCount = Math.max(8, Math.min(descriptor.mobileBudget.maxParticles - reservedAnimatedNodes, descriptor.particleCount));
+    for (let index = 0; index < particleCount; index += 1) {
+      const particle = document.createElement('i');
+      const angle = Math.round((360 / particleCount) * index + ((descriptor.seed >>> (index % 16)) & 15));
+      particle.style.setProperty('--particle-angle', `${angle}deg`);
+      particle.style.setProperty('--particle-distance', `${48 + ((descriptor.seed >>> (index % 19)) & 63)}px`);
+      particle.style.setProperty('--fx-delay', `${Math.round((index % Math.max(1, descriptor.pulsePattern.beats)) * descriptor.pulsePattern.spacingMs * -0.18)}ms`);
+      particles.appendChild(particle);
+    }
+    sequence.append(backdrop, title, sigil);
+    if (commandLayer) sequence.appendChild(commandLayer);
+    sequence.append(path, core, orbit, hit);
+    if (mixedImpact) sequence.appendChild(mixedImpact);
+    sequence.append(particles, glyph);
+    if (summonEmblem) sequence.appendChild(summonEmblem);
+    if (songWave) sequence.appendChild(songWave);
+    this.effectsEl.appendChild(sequence);
+    this.activeEffect = sequence;
+
+    this.activeEffectDeadline = Date.now() + duration + 180;
+    const finish = () => {
+      if (this.activeEffect !== sequence) return;
+      sequence.remove();
+      this.activeEffect = null;
+      this.activeEffectDeadline = 0;
+      clearTimeout(this.effectTimer);
+      this.effectTimer = null;
+      eventBus.emit('battle:effectComplete', { actor, action, descriptor });
+      this.runNextBattleEffect();
+    };
+    sequence.addEventListener('animationend', (event) => {
+      if (event.target === sequence) finish();
+    }, { once: true });
+    this.effectTimer = setTimeout(finish, duration + 160);
+  }
+
+  clearBattleEffects() {
+    clearTimeout(this.effectTimer);
+    this.effectTimer = null;
+    this.effectQueue = [];
+    this.activeEffect = null;
+    this.activeEffectDeadline = 0;
+    if (this.effectsEl) this.effectsEl.innerHTML = '';
   }
 
   showCombatResult(result, targetEl) {
@@ -4320,9 +4998,9 @@ function startBossBattle() {
     syncStateFromUnits(livingParty, partyUnits);
 
     if (result === 'victory') {
-      setTimeout(() => goToIntermissionOrWin(), 1200);
+      setTimeout(() => goToIntermissionOrWin(), 1800);
     } else {
-      setTimeout(() => GameState.set(States.GAMEOVER), 1200);
+      setTimeout(() => GameState.set(States.GAMEOVER), 1800);
     }
   };
   eventBus.on('battle:end', onEnd);
