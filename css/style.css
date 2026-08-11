@@ -54,10 +54,13 @@ ul {
 
 /* ---------- Title ---------- */
 #title-screen {
-  display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(180deg, #1a2440 0%, #060810 100%);
+}
+
+#title-screen.active-screen {
+  display: flex;
 }
 
 .title-box {
