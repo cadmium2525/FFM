@@ -68,14 +68,18 @@ body {
 .party-unit-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
   font-size: 10px;
 }
 
 .party-unit-row .sprite-slot {
-  width: 42px;
-  height: 42px;
+  width: clamp(48px, 6vw, 70px);
+  height: clamp(48px, 6vw, 70px);
   flex-shrink: 0;
+}
+
+.party-field .party-unit-row .unit-meta {
+  display: none;
 }
 
 .party-unit-row .unit-meta {
@@ -153,22 +157,22 @@ body {
   flex-direction: column;
   align-items: center;
   position: relative;
-  margin-bottom: 18px;
+  margin-bottom: 22px;
 }
 
 /* ===== CTB list entries ===== */
 .ctb-entry {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 8px;
-  padding: 2px 4px;
+  gap: 10px;
+  font-size: 10px;
+  padding: 2px 5px;
   border-radius: 3px;
 }
 
 .ctb-entry .ctb-icon {
-  width: 22px;
-  height: 22px;
+  width: clamp(28px, 3.2vw, 42px);
+  height: clamp(28px, 3.2vw, 42px);
   border-radius: 4px;
   border: 2px solid #fff;
   flex-shrink: 0;
@@ -196,16 +200,45 @@ body {
 /* ===== party status panel ===== */
 .status-row {
   display: grid;
-  grid-template-columns: 60px 1fr 1fr;
+  grid-template-columns: minmax(78px, 0.38fr) 1fr 1fr;
   align-items: center;
-  gap: 8px;
-  font-size: 10px;
-  margin-bottom: 8px;
+  gap: 12px;
+  font-size: 12px;
+  margin-bottom: 10px;
 }
 
 .status-row .p-name { color: #ffe9a8; }
 .status-row .p-nums { display: flex; flex-direction: column; gap: 3px; }
-.status-row .p-nums span { font-size: 9px; }
+.status-row .p-nums span { font-size: 10px; }
+
+@media (max-width: 720px) {
+  .party-unit-row .sprite-slot {
+    width: 46px;
+    height: 46px;
+  }
+
+  .ctb-entry {
+    gap: 5px;
+    font-size: 7px;
+    padding: 1px 2px;
+  }
+
+  .ctb-entry .ctb-icon {
+    width: 25px;
+    height: 25px;
+  }
+
+  .status-row {
+    grid-template-columns: 58px 1fr 1fr;
+    gap: 6px;
+    font-size: 8px;
+    margin-bottom: 7px;
+  }
+
+  .status-row .p-nums span {
+    font-size: 7px;
+  }
+}
 
 /* ===== intermission cards ===== */
 .intermission-card {

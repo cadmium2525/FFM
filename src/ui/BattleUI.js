@@ -82,7 +82,7 @@ export class BattleUI {
     const sprite = document.createElement('div');
     sprite.className = `sprite-placeholder boss${boss.isAlive() ? '' : ' dead'}`;
     sprite.dataset.uid = boss.uid;
-    const scale = 70 * (boss.size ?? 1);
+    const scale = Math.min(220, 185 * (boss.size ?? 1));
     sprite.style.width = `${scale}px`;
     sprite.style.height = `${scale}px`;
 
@@ -180,7 +180,7 @@ export class BattleUI {
       const row = document.createElement('div');
       row.className = 'status-row';
       row.innerHTML = `
-        <div class="p-name">P${idx + 1} ${unit.name}</div>
+        <div class="p-name">${unit.name}</div>
         <div class="p-nums">
           <span>HP ${unit.hp}/${unit.maxHp}</span>
           <div class="stat-bar-track"><div class="stat-bar-fill hp ${hpBarClass(unit)}" style="width:${Math.max(0, unit.hpRatio() * 100)}%"></div></div>
@@ -200,7 +200,7 @@ export class BattleUI {
   }
 
   renderCommandListForActor(actor) {
-    this.commandHeadingEl.textContent = `コマンド ${actor.name}`;
+    this.commandHeadingEl.textContent = actor.name;
     this.commandListEl.innerHTML = '';
     basicCommands.forEach((cmd) => {
       const li = document.createElement('li');
