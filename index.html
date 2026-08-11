@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FF Boss Rush - CTB Edition</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/ff5-ui.css">
+</head>
+<body>
+  <div id="game-root">
+
+    <!-- ============ TITLE SCREEN ============ -->
+    <section id="title-screen" class="screen active-screen">
+      <div class="title-box ff5-window">
+        <h1 class="game-title">FF Boss Rush</h1>
+        <h2 class="game-subtitle">— CTB Edition —</h2>
+        <button id="start-button" class="ff5-button">はじめる</button>
+      </div>
+    </section>
+
+    <!-- ============ BATTLE SCREEN ============ -->
+    <section id="battle-screen" class="screen">
+      <div class="battle-layout">
+
+        <!-- Field: enemies (left) + party (right) -->
+        <div class="battle-field ff5-window">
+          <div id="enemy-field" class="enemy-field"></div>
+          <div id="party-field" class="party-field"></div>
+        </div>
+
+        <!-- CTB order panel -->
+        <div id="ctb-panel" class="ctb-panel ff5-window">
+          <div class="ctb-panel-title">CTB</div>
+          <div id="ctb-list" class="ctb-list"></div>
+        </div>
+
+        <!-- Bottom bar: enemy info / command / party status -->
+        <div class="bottom-bar">
+          <div id="enemy-info-window" class="ff5-window bottom-box">
+            <div class="box-heading">敵情報</div>
+            <div id="enemy-info-content"></div>
+          </div>
+
+          <div id="command-window" class="ff5-window bottom-box">
+            <div class="box-heading" id="command-heading">コマンド</div>
+            <ul id="command-list" class="command-list"></ul>
+          </div>
+
+          <div id="party-status-window" class="ff5-window bottom-box wide">
+            <div id="party-status-content"></div>
+          </div>
+        </div>
+
+        <!-- Message window overlay -->
+        <div id="message-window" class="ff5-window message-window hidden">
+          <div id="message-text"></div>
+        </div>
+
+        <!-- Target selection overlay -->
+        <div id="target-window" class="ff5-window target-window hidden">
+          <div class="box-heading">たいしょう選択</div>
+          <ul id="target-list" class="command-list"></ul>
+        </div>
+
+        <!-- Sub-menu overlay (magic/ability/item lists) -->
+        <div id="submenu-window" class="ff5-window submenu-window hidden">
+          <div class="box-heading" id="submenu-heading">まほう</div>
+          <ul id="submenu-list" class="command-list"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ INTERMISSION SCREEN ============ -->
+    <section id="intermission-screen" class="screen">
+      <div class="intermission-layout">
+        <div class="ff5-window intermission-header">
+          <div class="box-heading">パーティ編成 － インターミッション</div>
+          <div id="next-boss-label"></div>
+        </div>
+        <div id="intermission-party" class="intermission-party"></div>
+        <button id="ready-button" class="ff5-button">じゅんび かんりょう</button>
+      </div>
+    </section>
+
+    <!-- ============ RESULT SCREENS ============ -->
+    <section id="victory-screen" class="screen">
+      <div class="ff5-window title-box">
+        <h2 class="game-subtitle">全ボス撃破！</h2>
+        <p>おめでとうございます！</p>
+        <button id="restart-button-win" class="ff5-button">タイトルへ</button>
+      </div>
+    </section>
+
+    <section id="gameover-screen" class="screen">
+      <div class="ff5-window title-box">
+        <h2 class="game-subtitle">GAME OVER</h2>
+        <button id="restart-button-lose" class="ff5-button">タイトルへ</button>
+      </div>
+    </section>
+
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
