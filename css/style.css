@@ -2013,3 +2013,370 @@ body {
     background: linear-gradient(140deg, rgba(22, 58, 139, .97), rgba(3, 12, 45, .99));
   }
 }
+
+/* Signature magic: semantics, silhouette and timing differ—not only hue. */
+.signature-spell {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.visual-missile {
+  --fx-bright: #d9fbff;
+  --fx-mid: #39d9ff;
+  --fx-deep: #063b72;
+}
+
+.visual-missile .spell-seal,
+.visual-missile .spell-beam,
+.visual-missile .spell-impact-core,
+.visual-missile .spell-particles {
+  display: none;
+}
+
+.missile-lock {
+  position: absolute;
+  left: 27%;
+  top: 32%;
+  width: min(34vw, 170px);
+  aspect-ratio: 1;
+  border: 2px solid #8eeaff;
+  border-radius: 50%;
+  box-shadow: inset 0 0 18px rgba(48, 213, 255, .28), 0 0 16px rgba(48, 213, 255, .62);
+  transform: translate(-50%, -50%) scale(1.5) rotate(-35deg);
+  opacity: 0;
+  animation: missile-lock 1.08s cubic-bezier(.16,.75,.23,1) both;
+}
+
+.missile-lock::before,
+.missile-lock::after {
+  position: absolute;
+  left: 50%;
+  top: -15%;
+  width: 2px;
+  height: 130%;
+  content: '';
+  background: linear-gradient(transparent, #bdf8ff 20% 80%, transparent);
+  box-shadow: 0 0 8px #42ddff;
+}
+
+.missile-lock::after {
+  transform: rotate(90deg);
+}
+
+.missile-lock b {
+  position: absolute;
+  left: 50%;
+  bottom: -24px;
+  color: #bdf8ff;
+  font: 800 10px/1 monospace;
+  letter-spacing: .25em;
+  text-shadow: 0 0 8px #30d8ff;
+  transform: translateX(-50%);
+}
+
+.missile-trail {
+  position: absolute;
+  left: 26%;
+  top: 32%;
+  width: 52%;
+  height: 5px;
+  background: linear-gradient(90deg, rgba(255,166,72,.12), #ffb259 30%, #efffff 73%, transparent);
+  box-shadow: 0 0 8px #46dfff, 0 0 18px rgba(255, 144, 52, .62);
+  transform: scaleX(0);
+  transform-origin: right;
+  opacity: 0;
+  animation: missile-trail 1.02s ease-out .08s both;
+}
+
+.missile-body {
+  position: absolute;
+  left: 76%;
+  top: calc(32% - 8px);
+  width: min(18vw, 84px);
+  height: 18px;
+  border: 1px solid white;
+  background: linear-gradient(180deg, #f7ffff, #6de7ff 45%, #176cb3 52%, #e9fdff);
+  box-shadow: 0 0 9px #6debff, -18px 0 22px #ff9846;
+  clip-path: polygon(0 20%, 72% 20%, 100% 50%, 72% 80%, 0 80%, 16% 50%);
+  opacity: 0;
+  animation: missile-flight .78s cubic-bezier(.35,.02,.72,.55) .18s both;
+}
+
+.missile-burst {
+  position: absolute;
+  left: 27%;
+  top: 32%;
+  width: min(42vw, 210px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(from 8deg, transparent 0 10deg, #c8fbff 11deg 13deg, transparent 14deg 28deg),
+    radial-gradient(circle, white, #47dcff 9%, #ff8d39 18%, transparent 58%);
+  filter: drop-shadow(0 0 10px #45e3ff);
+  transform: translate(-50%, -50%) scale(.04);
+  opacity: 0;
+  animation: missile-burst .52s cubic-bezier(.1,.78,.18,1) .68s both;
+}
+
+.visual-flare {
+  --fx-bright: #fff9de;
+  --fx-mid: #ff723d;
+  --fx-deep: #6d0739;
+}
+
+.visual-flare .spell-seal,
+.visual-flare .spell-beam,
+.visual-flare .spell-impact-core,
+.visual-flare .spell-particles {
+  display: none;
+}
+
+.signature-flare {
+  background: radial-gradient(circle at 38% 33%, rgba(255, 81, 42, .25), transparent 38%);
+}
+
+.flare-orbit {
+  position: absolute;
+  left: 38%;
+  top: 33%;
+  width: min(58vw, 300px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 235, 190, .8);
+  border-radius: 50%;
+  box-shadow: inset 0 0 16px rgba(255, 85, 40, .3), 0 0 12px rgba(255, 114, 61, .62);
+  transform: translate(-50%, -50%) scale(.1) rotateX(64deg) rotateZ(-28deg);
+  opacity: 0;
+  animation: flare-orbit-a 1.45s cubic-bezier(.16,.76,.22,1) both;
+}
+
+.flare-orbit::before,
+.flare-orbit::after {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  aspect-ratio: 1;
+  content: '';
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 0 12px #fff, 0 0 24px #ff5b32;
+}
+
+.flare-orbit::before { left: -6px; }
+.flare-orbit::after { right: -6px; }
+
+.flare-orbit.orbit-b {
+  width: min(44vw, 230px);
+  animation-name: flare-orbit-b;
+}
+
+.flare-star,
+.flare-collapse,
+.flare-shockwave {
+  position: absolute;
+  left: 38%;
+  top: 33%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+
+.flare-star {
+  width: min(17vw, 90px);
+  background: radial-gradient(circle at 38% 32%, white 0 8%, #fff1ab 18%, #ff7c38 48%, #9a0737 78%);
+  box-shadow: inset -12px -14px 20px #6e052e, 0 0 15px white, 0 0 50px #ff4d32;
+  transform: translate(-50%, -50%) scale(.04);
+  opacity: 0;
+  animation: flare-star-form 1.38s cubic-bezier(.16,.76,.2,1) both;
+}
+
+.flare-collapse {
+  width: min(10vw, 48px);
+  background: white;
+  box-shadow: 0 0 18px white, 0 0 55px #ffb23e, 0 0 95px #ff183c;
+  transform: translate(-50%, -50%) scale(4);
+  opacity: 0;
+  animation: flare-collapse 1.45s ease-in both;
+}
+
+.flare-shockwave {
+  width: min(76vw, 390px);
+  border: 5px double rgba(255, 240, 197, .88);
+  box-shadow: inset 0 0 45px rgba(255, 49, 35, .68), 0 0 36px #ff5237;
+  transform: translate(-50%, -50%) scale(.03);
+  opacity: 0;
+  animation: flare-shockwave .62s cubic-bezier(.08,.72,.14,1) .86s both;
+}
+
+.visual-level-death {
+  --fx-bright: #ffb3c7;
+  --fx-mid: #e31b5d;
+  --fx-deep: #170018;
+}
+
+.visual-level-death .spell-seal,
+.visual-level-death .spell-beam,
+.visual-level-death .spell-impact-core {
+  display: none;
+}
+
+.visual-level-death .spell-particle {
+  width: 6px;
+  height: 30px;
+  border-color: #ff769e;
+  background: linear-gradient(180deg, #ffdae4, #d20b50 60%, transparent);
+  clip-path: polygon(50% 0, 100% 42%, 50% 100%, 0 42%);
+}
+
+.signature-level-death {
+  background:
+    linear-gradient(180deg, rgba(10,0,18,.08), rgba(12,0,18,.82)),
+    repeating-linear-gradient(90deg, transparent 0 12%, rgba(255, 32, 92, .035) 12.3% 12.7%, transparent 13% 25%);
+}
+
+.level-scan {
+  position: absolute;
+  left: 5%;
+  top: 16%;
+  width: 86%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #ff759c 18% 82%, transparent);
+  box-shadow: 0 0 12px #ff185c, 0 0 25px #d30055;
+  opacity: 0;
+  animation: level-scan 1.42s cubic-bezier(.2,.64,.24,1) both;
+}
+
+.death-pillar {
+  position: absolute;
+  left: 18%;
+  bottom: 45%;
+  width: 5px;
+  height: 35%;
+  background: linear-gradient(180deg, transparent, #ff96b2 48%, white);
+  box-shadow: 0 0 14px #f3145a, 0 0 28px #85002d;
+  opacity: 0;
+  transform: scaleY(0);
+  transform-origin: bottom;
+  animation: death-pillar-rise .72s ease-out .52s both;
+}
+
+.death-pillar.pillar-b { left: 38%; animation-delay: .6s; }
+.death-pillar.pillar-c { left: 58%; animation-delay: .68s; }
+
+.death-gate {
+  position: absolute;
+  left: 38%;
+  top: 34%;
+  display: grid;
+  width: min(48vw, 250px);
+  aspect-ratio: 1;
+  place-content: center;
+  border: 3px double #ff779f;
+  background:
+    repeating-conic-gradient(from 18deg, rgba(255, 45, 102, .34) 0 2deg, transparent 3deg 28deg),
+    radial-gradient(circle, rgba(255, 55, 112, .22), rgba(6,0,15,.92) 58%);
+  box-shadow: inset 0 0 28px #9a003e, 0 0 18px #ff1b61;
+  clip-path: polygon(50% 0, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%);
+  color: white;
+  text-align: center;
+  transform: translate(-50%, -50%) scale(.08) rotate(-30deg);
+  opacity: 0;
+  animation: death-gate-open 1.46s cubic-bezier(.15,.72,.21,1) both;
+}
+
+.death-gate b {
+  color: #ffe8ef;
+  font: 800 clamp(30px, 11vw, 58px)/1 Georgia, serif;
+  letter-spacing: .06em;
+  text-shadow: 0 0 8px white, 0 0 20px #ff1d65;
+}
+
+.death-gate em {
+  margin-top: 6px;
+  color: #ff8eae;
+  font: normal 800 8px/1 monospace;
+  letter-spacing: .28em;
+}
+
+@keyframes missile-lock {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(1.5) rotate(-35deg); }
+  20%, 70% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); }
+  84% { opacity: 1; transform: translate(-50%, -50%) scale(.72) rotate(5deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1) rotate(12deg); }
+}
+
+@keyframes missile-trail {
+  0%, 16% { opacity: 0; transform: scaleX(0); }
+  30%, 72% { opacity: 1; transform: scaleX(1); }
+  100% { opacity: 0; transform: scaleX(.15); }
+}
+
+@keyframes missile-flight {
+  0% { opacity: 0; transform: translateX(0) scale(.6); }
+  14%, 74% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50vw) scale(1.18); }
+}
+
+@keyframes missile-burst {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.04) rotate(-15deg); }
+  34% { opacity: 1; transform: translate(-50%, -50%) scale(.28) rotate(0); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.2) rotate(20deg); }
+}
+
+@keyframes flare-orbit-a {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.1) rotateX(64deg) rotateZ(-28deg); }
+  24%, 68% { opacity: .9; transform: translate(-50%, -50%) scale(1) rotateX(64deg) rotateZ(70deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(.12) rotateX(64deg) rotateZ(160deg); }
+}
+
+@keyframes flare-orbit-b {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.1) rotateY(68deg) rotateZ(32deg); }
+  28%, 70% { opacity: .82; transform: translate(-50%, -50%) scale(1) rotateY(68deg) rotateZ(-80deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(.1) rotateY(68deg) rotateZ(-170deg); }
+}
+
+@keyframes flare-star-form {
+  0%, 12% { opacity: 0; transform: translate(-50%, -50%) scale(.04); }
+  30%, 62% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  78% { opacity: 1; transform: translate(-50%, -50%) scale(.42); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(3.2); }
+}
+
+@keyframes flare-collapse {
+  0%, 56% { opacity: 0; transform: translate(-50%, -50%) scale(4); }
+  72%, 82% { opacity: 1; transform: translate(-50%, -50%) scale(.18); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(5); }
+}
+
+@keyframes flare-shockwave {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.03); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.32); }
+}
+
+@keyframes level-scan {
+  0% { opacity: 0; transform: translateY(0); }
+  16%, 68% { opacity: .9; }
+  82% { opacity: 1; transform: translateY(38vh); }
+  100% { opacity: 0; transform: translateY(44vh); }
+}
+
+@keyframes death-pillar-rise {
+  0% { opacity: 0; transform: scale(.3, 0); }
+  38%, 78% { opacity: .9; transform: scale(1, 1); }
+  100% { opacity: 0; transform: scale(2, 1.2); }
+}
+
+@keyframes death-gate-open {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.08) rotate(-30deg); }
+  30%, 70% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); }
+  82% { opacity: 1; transform: translate(-50%, -50%) scale(.82) rotate(4deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.45) rotate(18deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signature-spell > :not(.death-gate):not(.missile-lock):not(.flare-star) {
+    display: none;
+  }
+}

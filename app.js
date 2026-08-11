@@ -2742,6 +2742,22 @@ function abilityCommandName(abilityId) {
   return selectableAbilities.find((ability) => ability.id === abilityId)?.nameJa ?? 'アビリティ';
 }
 
+function spellVisualProfile(action = {}, visualType = 'cast-impact') {
+  const id = String(action.sourceId ?? action.id ?? '').toLowerCase();
+  const name = String(action.name ?? '魔法');
+  if (id === 'magic_missile') return Object.freeze({ kind: 'missile', eyebrow: 'BLUE TECH // TARGET LOCK', glyph: '⌖', particles: 6, duration: 1180 });
+  if (id === 'magic_flare' || id === 'magic_level_3_flare') return Object.freeze({ kind: 'flare', eyebrow: 'BLACK MAGIC // STELLAR CORE', glyph: '✹', particles: 10, duration: 1540 });
+  if (id === 'magic_level_5_death') return Object.freeze({ kind: 'level-death', eyebrow: 'BLUE TECH // LEVEL JUDGMENT', glyph: 'Ⅴ', particles: 5, duration: 1580 });
+  if (/death|doom|roulette/.test(id)) return Object.freeze({ kind: 'death', eyebrow: 'ARCANA // SOUL SEAL', glyph: '†', particles: 7, duration: 1420 });
+  if (/meteor|comet/.test(id)) return Object.freeze({ kind: 'meteor', eyebrow: 'TIME MAGIC // ORBITAL FALL', glyph: '☄', particles: 10, duration: 1440 });
+  if (/gravity|graviga/.test(id)) return Object.freeze({ kind: 'gravity', eyebrow: 'TIME MAGIC // GRAVITY WELL', glyph: '◎', particles: 8, duration: 1320 });
+  if (/drain|osmose|vampire/.test(id)) return Object.freeze({ kind: 'drain', eyebrow: 'ARCANA // LIFE SIPHON', glyph: '◇', particles: 8, duration: 1240 });
+  if (action.school === 'summon') return Object.freeze({ kind: 'summon', eyebrow: 'SUMMON // SOUL GATE', glyph: null, particles: 12, duration: 1750 });
+  if (visualType === 'cast-heal') return Object.freeze({ kind: 'healing', eyebrow: 'WHITE MAGIC // RESTORE', glyph: '✦', particles: 8, duration: 1180 });
+  if (visualType === 'cast-arcane') return Object.freeze({ kind: 'status', eyebrow: 'ARCANA // ALTER STATE', glyph: '◈', particles: 8, duration: 1180 });
+  return Object.freeze({ kind: 'elemental', eyebrow: `${action.school === 'blue' ? 'BLUE TECH' : 'ARCANA'} // CAST`, glyph: name.includes('ホーリー') ? '✧' : null, particles: 8, duration: 1120 });
+}
+
 class BattleUI {
   constructor() {
     this.enemyFieldEl = document.getElementById('enemy-field');
@@ -3204,38 +3220,54 @@ class BattleUI {
 
   playSpellCinematic(action = {}, element, visualType) {
     if (!this.effectsEl) return;
-    const isSummon = action.school === 'summon';
+    const profile = spellVisualProfile(action, visualType);
+    const isSummon = profile.kind === 'summon';
     const isMagic = isSummon || action.sourceType === 'magic' || action.kind === 'magic-attack';
     if (!isMagic) return;
 
     this.effectsEl.querySelectorAll('.spell-cinematic').forEach((node) => node.remove());
     const cinematic = document.createElement('div');
     const normalizedElement = safeToken(element ?? 'arcane');
-    cinematic.className = `spell-cinematic ${isSummon ? 'summon-cinematic' : 'magic-cinematic'} element-${normalizedElement} ${visualType}`;
+    cinematic.className = `spell-cinematic ${isSummon ? 'summon-cinematic' : 'magic-cinematic'} visual-${profile.kind} element-${normalizedElement} ${visualType}`;
     cinematic.dataset.spell = safeToken(action.sourceId ?? action.id ?? action.name);
+    cinematic.style.animationDuration = `${profile.duration}ms`;
 
     const glyphs = ['✦', '◇', '⌁', '◈', '⬡', '✧'];
     const glyphIndex = [...String(action.sourceId ?? action.name ?? '')].reduce((sum, char) => sum + char.charCodeAt(0), 0) % glyphs.length;
-    const particleCount = isSummon ? 12 : 8;
+    const particleCount = profile.particles;
     const particles = Array.from({ length: particleCount }, (_, index) =>
       `<i class="spell-particle" style="--i:${index};--angle:${Math.round((360 / particleCount) * index + (index % 2) * 11)}deg;--distance:${74 + (index % 4) * 20}px"></i>`
     ).join('');
 
     cinematic.innerHTML = `
       <span class="spell-vignette"></span>
-      <span class="spell-title"><small>${isSummon ? 'SUMMON // SOUL GATE' : 'ARCANA // CAST'}</small><strong>${action.name ?? '魔法'}</strong></span>
-      <span class="spell-seal"><i class="seal-ring ring-outer"></i><i class="seal-ring ring-inner"></i><b>${glyphs[glyphIndex]}</b></span>
+      <span class="spell-title"><small>${profile.eyebrow}</small><strong>${action.name ?? '魔法'}</strong></span>
+      <span class="spell-seal"><i class="seal-ring ring-outer"></i><i class="seal-ring ring-inner"></i><b>${profile.glyph ?? glyphs[glyphIndex]}</b></span>
       <span class="spell-beam"></span>
       <span class="spell-impact-core"></span>
       <span class="spell-particles">${particles}</span>
       ${isSummon ? `<span class="summon-avatar"><i></i><b>${glyphs[glyphIndex]}</b></span>` : ''}
+      ${this.signatureSpellMarkup(profile.kind)}
     `;
     this.effectsEl.appendChild(cinematic);
-    const duration = isSummon ? 1750 : 1120;
+    const duration = profile.duration;
     cinematic.addEventListener('animationend', (event) => {
       if (event.target === cinematic) cinematic.remove();
     }, { once: true });
     setTimeout(() => cinematic.remove(), duration + 120);
+  }
+
+  signatureSpellMarkup(kind) {
+    if (kind === 'missile') {
+      return `<span class="signature-spell signature-missile"><i class="missile-lock"><b>LOCK</b></i><i class="missile-trail"></i><i class="missile-body"></i><i class="missile-burst"></i></span>`;
+    }
+    if (kind === 'flare') {
+      return `<span class="signature-spell signature-flare"><i class="flare-orbit orbit-a"></i><i class="flare-orbit orbit-b"></i><i class="flare-star"></i><i class="flare-collapse"></i><i class="flare-shockwave"></i></span>`;
+    }
+    if (kind === 'level-death') {
+      return `<span class="signature-spell signature-level-death"><i class="level-scan"></i><i class="death-pillar pillar-a"></i><i class="death-pillar pillar-b"></i><i class="death-pillar pillar-c"></i><i class="death-gate"><b>LV 5</b><em>JUDGMENT</em></i></span>`;
+    }
+    return '';
   }
 
   showCombatResult(result, targetEl) {
