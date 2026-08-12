@@ -258,12 +258,22 @@ export class BattleUI {
       sprite.dataset.unitId = unitToken;
       sprite.style.width = '100%';
       sprite.style.height = '100%';
-      const blob = document.createElement('div');
-      blob.className = 'blob';
-      blob.style.width = '100%';
-      blob.style.height = '100%';
-      blob.innerHTML = `<span class="soul-flare"></span><span class="soul-core"></span><span class="soul-rune">${unitRunes[unitToken] ?? idx + 1}</span>`;
-      sprite.appendChild(blob);
+      if (unit.spriteUrl) {
+        sprite.classList.add('has-sprite-image');
+        const img = document.createElement('img');
+        img.className = 'sprite-image';
+        img.src = unit.spriteUrl;
+        img.alt = unit.name;
+        img.draggable = false;
+        sprite.appendChild(img);
+      } else {
+        const blob = document.createElement('div');
+        blob.className = 'blob';
+        blob.style.width = '100%';
+        blob.style.height = '100%';
+        blob.innerHTML = `<span class="soul-flare"></span><span class="soul-core"></span><span class="soul-rune">${unitRunes[unitToken] ?? idx + 1}</span>`;
+        sprite.appendChild(blob);
+      }
       spriteSlot.appendChild(sprite);
       row.appendChild(spriteSlot);
 

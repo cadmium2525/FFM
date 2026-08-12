@@ -37,7 +37,7 @@
 
 const SOURCE_NOTE = 'Compiled from public FFV boss-encounter reference material (SNES/GBA baseline); not copied guide prose.';
 
-const slug = (value) => value
+const bossTechSlug = (value) => value
   .toLowerCase()
   .replaceAll('&', ' and ')
   .replace(/[^a-z0-9]+/g, '_')
@@ -561,7 +561,7 @@ export const ff5BossTechniques = Object.freeze(
     statusWeakness, // free-text note for non-elemental "weaknesses" (e.g. petrify-vulnerable, float-denial pattern)
     techniques: Object.freeze(techniques.map((technique) => Object.freeze({
       ...technique,
-      id: `bosstech_${id}_${slug(technique.nameEn)}`,
+      id: `bosstech_${id}_${bossTechSlug(technique.nameEn)}`,
     }))),
     implemented: false,
     runtimeReady: false, // no battleCatalog adapter yet -- see database/README.md for the wiring contract to follow when this is picked up

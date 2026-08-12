@@ -17,6 +17,7 @@ import {
 } from './database/ff5Database.js';
 import { FirebaseAccountService } from './services/FirebaseAccountService.js';
 import { bossData } from './data/bossData.js';
+import { ff5BossTechniques } from './database/ff5BossTechniques.js';
 import {
   battleReadyAbilities,
   battleReadyEquipment,
@@ -386,26 +387,77 @@ function renderOptions(message = '') {
   document.getElementById('account-sign-out')?.addEventListener('click', () => runAccountAction('sign-out'));
 }
 
+const adminTargetNamesJa = Object.freeze({
+  one_enemy: '味方単体（ボスから見て）', all_enemies: '味方全体（ボスから見て）',
+  self: '自分', all_allies: '仲間全体', one_ally: '仲間単体',
+});
+
+const adminStatusNamesJa = Object.freeze({
+  ko: '戦闘不能', poison: '毒', blind: '暗闇', silence: '沈黙', toad: 'カエル', mini: '小人',
+  petrify: '石化', confuse: '混乱', paralyze: '麻痺', sleep: '睡眠', old: '老化', berserk: '狂戦士',
+  zombie: 'ゾンビ', stop: '停止', slow: 'スロウ', haste: 'ヘイスト', regen: 'リジェネ', protect: 'プロテス',
+  shell: 'シェル', reflect: 'リフレク', float: 'レビテト', doom: '死の宣告', sap: 'スリップ',
+});
+
+const adminElementNamesJa = Object.freeze({
+  fire: '炎', ice: '氷', lightning: '雷', water: '水', wind: '風', earth: '地', holy: '聖', poison: '毒',
+});
+
+// Flatten the boss reference catalog into one row per technique so the admin
+// search box can match on boss name, technique name, or effect text at once.
+const bossTechniqueRecords = ff5BossTechniques.flatMap((boss) =>
+  boss.techniques.map((technique) => ({
+    id: technique.id,
+    nameJa: technique.nameJa ?? technique.nameEn,
+    nameEn: technique.nameEn,
+    bossId: boss.id,
+    bossNameJa: boss.nameJa ?? boss.nameEn,
+    bossNameEn: boss.nameEn,
+    bossNameConfidence: boss.nameConfidence,
+    bossLocation: boss.location,
+    bossWorld: boss.world,
+    element: technique.element,
+    target: technique.target,
+    power: technique.power,
+    statuses: technique.statuses,
+    note: technique.note,
+    implemented: technique.implemented,
+  }))
+);
+
 const adminCatalogs = {
   equipment: { label: `装備 (${battleReadyEquipment.length})`, records: battleReadyEquipment },
   magic: { label: `魔法 (${battleReadyMagic.length})`, records: battleReadyMagic },
   abilities: { label: `アビリティ・歌 (${battleReadyAbilities.length + battleReadySongs.length})`, records: [...battleReadyAbilities, ...battleReadySongs] },
   items: { label: `アイテム (${battleReadyItems.length})`, records: battleReadyItems },
   crystals: { label: `クリスタルのかけら (${battleReadyShards.length})`, records: battleReadyShards },
+  bossTechniques: { label: `ボス技一覧 (${bossTechniqueRecords.length})`, records: bossTechniqueRecords },
   battle: { label: 'バトル仕様', records: [ff5BattleRules] },
 };
 
 function adminRecordName(record) {
+  if (record.bossNameEn) return `${record.nameJa}（${record.bossNameJa}）`;
   return record.nameJa ?? record.nameEn ?? record.id;
 }
 
 function adminRecordDetail(record) {
+  if (record.bossNameEn) {
+    const element = record.element ? (adminElementNamesJa[record.element] ?? record.element) : '無属性';
+    const target = adminTargetNamesJa[record.target] ?? record.target;
+    const statuses = record.statuses.length
+      ? record.statuses.map((status) => adminStatusNamesJa[status] ?? status).join('・')
+      : 'なし';
+    const confidence = { high: '確定', medium: 'ほぼ確定', low: '要確認' }[record.bossNameConfidence] ?? record.bossNameConfidence;
+    const location = record.bossLocation ? ` / 出現: ${record.bossLocation}` : '';
+    return `属性: ${element} / 対象: ${target} / 威力: ${record.power} / 付与状態: ${statuses} / ボス名の確度: ${confidence}${location} / ${record.note}`;
+  }
   const operations = record.battle?.operations?.map((operation) => operation.op).join(' → ');
   if (record.slot) return `${equipmentDetailText(record)} / 戦闘処理: ${operations}`;
   if (record.effect) return `効果: ${record.effect} / 戦闘処理: ${operations}`;
   if (record.techniqueNameJa) return `記憶技: ${record.techniqueNameJa} / ${record.lore} / 戦闘処理: ${operations}`;
   return JSON.stringify(record);
 }
+
 
 function renderAdminCatalog(selectedCatalog = 'equipment') {
   if (!firebaseAccount?.isAdmin) {
@@ -504,6 +556,7 @@ function buildPartyUnits(state) {
         id: p.id,
         name: p.name,
         role: p.role,
+        spriteUrl: p.spriteUrl,
         isEnemy: false,
         maxHp: p.maxHp,
         hp: p.hp,

@@ -18,6 +18,37 @@ The validator also requires every magic, item, ability, song, equipment item, cr
 shard and shop record to have a battle/runtime adapter. The current catalog contains
 413 validated runtime-ready records; battle magic menus are generated directly from it.
 
+## Boss technique reference & admin viewer
+
+[`src/database/ff5BossTechniques.js`](src/database/ff5BossTechniques.js) collects the
+named attacks of 52 original FFV bosses (322 techniques) as design/implementation
+reference material. It's intentionally separate from `ff5Database.js` and has its own
+checker:
+
+```sh
+node scripts/validate-boss-techniques.mjs
+```
+
+管理者モードのメニューから「ボス技一覧」を選ぶと、この322件を1件ずつ検索・閲覧できます
+（技名・ボス名・属性・対象範囲・威力ランク・付与状態異常・出典の確度・出現場所などを表示）。
+管理者モードへのアクセス方法は下の「Firebase account setup」を参照してください。
+
+## Character sprites
+
+`src/data/partyData.js` の各パーティメンバーに任意で `spriteUrl` を指定すると、
+`BattleUI.js` / `IntermissionUI.js` がCSS描画のプレースホルダの代わりに実画像
+（`<img>`、`image-rendering: pixelated`）を表示します。未指定のメンバーは従来通り
+プレースホルダのままです。画像は `assets/images/characters/` にWebP形式で配置します。
+
+## Rebuilding the bundle
+
+`app.js` と `index.html` 内のインラインスクリプトは `src/` からの生成物です。
+`src/` 以下を変更したら必ず再生成してください。
+
+```sh
+node scripts/build-bundle.mjs
+```
+
 ## Firebase account setup
 
 アカウントUI、Firestore同期、管理者モードは実装済みですが、接続先となる

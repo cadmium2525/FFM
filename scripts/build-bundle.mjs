@@ -14,6 +14,7 @@ const sourceFiles = [
   'src/data/abilityData.js',
   'src/data/partyData.js',
   'src/data/bossData.js',
+  'src/database/ff5BossTechniques.js',
   'src/battle/BossActionProfiles.js',
   'src/ui/MessageWindow.js',
   'src/battle/BattleManager.js',

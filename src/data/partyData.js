@@ -30,7 +30,7 @@ export const partyData = [
   },
   {
     id: 'p2',
-    name: 'レナ',
+    name: 'タバサ',
     role: '後衛',
     maxHp: 950,
     maxMp: 450,
@@ -41,6 +41,7 @@ export const partyData = [
     weakness: null,
     equippedAbilitySet: '白魔法',
     weapon: 'ロッド',
+    spriteUrl: 'assets/images/characters/tabasa.webp',
     equipment: {
       weapon: 'equipment_weapon_staff',
       shield: null,

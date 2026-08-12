@@ -14,6 +14,7 @@ export class Unit {
     this.name = config.name;
     this.isEnemy = !!config.isEnemy;
     this.role = config.role || null;
+    this.spriteUrl = config.spriteUrl ?? null;
 
     this.maxHp = config.maxHp;
     this.hp = config.hp ?? config.maxHp;
@@ -38,8 +39,7 @@ export class Unit {
     this.baseMagicDef = config.baseMagicDef ?? this.magicDef;
     this.baseMagic = config.baseMagic ?? this.magic;
     this.baseAgility = config.baseAgility ?? this.agility;
-    this.equipmentEffects = config.equipmentEffects ?? {};
-    this.mpCostMultiplier = this.equipmentEffects.mpCostMultiplier ?? 1;
+    this.equipmentEffects = config.equipmentEffects ?? {};    this.mpCostMultiplier = this.equipmentEffects.mpCostMultiplier ?? 1;
     this.physicalDamageMultiplier = this.equipmentEffects.physicalDamageMultiplier ?? 1;
     this.imageHits = this.equipmentEffects.initialImageHits ?? 0;
     this.nextAttackMultiplier = 1;
