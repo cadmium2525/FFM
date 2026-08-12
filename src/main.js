@@ -408,11 +408,9 @@ const adminElementNamesJa = Object.freeze({
 const bossTechniqueRecords = ff5BossTechniques.flatMap((boss) =>
   boss.techniques.map((technique) => ({
     id: technique.id,
-    nameJa: technique.nameJa ?? technique.nameEn,
-    nameEn: technique.nameEn,
+    nameJa: technique.nameJa,
     bossId: boss.id,
-    bossNameJa: boss.nameJa ?? boss.nameEn,
-    bossNameEn: boss.nameEn,
+    bossNameJa: boss.nameJa,
     bossNameConfidence: boss.nameConfidence,
     bossLocation: boss.location,
     bossWorld: boss.world,
@@ -436,20 +434,21 @@ const adminCatalogs = {
 };
 
 function adminRecordName(record) {
-  if (record.bossNameEn) return `${record.nameJa}（${record.bossNameJa}）`;
-  return record.nameJa ?? record.nameEn ?? record.id;
+  if (record.bossNameJa) return `${record.nameJa}（${record.bossNameJa}）`;
+  return record.nameJa ?? record.id;
 }
 
 function adminRecordDetail(record) {
-  if (record.bossNameEn) {
+  if (record.bossNameJa) {
     const element = record.element ? (adminElementNamesJa[record.element] ?? record.element) : '無属性';
     const target = adminTargetNamesJa[record.target] ?? record.target;
     const statuses = record.statuses.length
       ? record.statuses.map((status) => adminStatusNamesJa[status] ?? status).join('・')
       : 'なし';
-    const confidence = { high: '確定', medium: 'ほぼ確定', low: '要確認' }[record.bossNameConfidence] ?? record.bossNameConfidence;
+    const worldText = record.bossWorld === 'ex' ? 'EXステージ' : `第${record.bossWorld}世界`;
+    const confidence = { high: '確定', medium: 'ほぼ確定' }[record.bossNameConfidence] ?? record.bossNameConfidence;
     const location = record.bossLocation ? ` / 出現: ${record.bossLocation}` : '';
-    return `属性: ${element} / 対象: ${target} / 威力: ${record.power} / 付与状態: ${statuses} / ボス名の確度: ${confidence}${location} / ${record.note}`;
+    return `属性: ${element} / 対象: ${target} / 威力: ${record.power} / 付与状態: ${statuses} / 登場: ${worldText}${location} / 技名の確度: ${confidence} / ${record.note}`;
   }
   const operations = record.battle?.operations?.map((operation) => operation.op).join(' → ');
   if (record.slot) return `${equipmentDetailText(record)} / 戦闘処理: ${operations}`;
@@ -472,7 +471,7 @@ function renderAdminCatalog(selectedCatalog = 'equipment') {
   const records = catalog.records
     .map((record) => {
       const json = JSON.stringify(record);
-      return `<article class="admin-record" data-search="${escapeHtml(`${adminRecordName(record)} ${record.nameEn ?? ''} ${record.id} ${json}`.toLocaleLowerCase('ja-JP'))}">
+      return `<article class="admin-record" data-search="${escapeHtml(`${adminRecordName(record)} ${record.id} ${json}`.toLocaleLowerCase('ja-JP'))}">
         <strong>${escapeHtml(adminRecordName(record))}</strong>
         <small>ID: ${escapeHtml(record.id)}</small>
         <small class="admin-record-detail">${escapeHtml(adminRecordDetail(record))}</small>

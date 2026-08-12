@@ -73,34 +73,41 @@ the remaining special procs/statuses, and shard techniques are still future subs
 ## Boss technique reference (`ff5BossTechniques.js`)
 
 `ff5BossTechniques.js` is a **separate, standalone** reference catalog of the named
-attacks/techniques used by 52 FFV story and optional bosses (322 techniques total),
+attacks/techniques used by 64 FFV story and optional bosses (289 techniques total, World
+1–3 plus the GBA/mobile-only EX-stage superbosses), collected entirely from Japanese-
+language sources so every name is in Japanese (no English fallback) — this was rebuilt
+after an earlier English/Japanese-mixed version proved unusable for in-game display. It's
 collected so a boss encounter can be built by pulling straight from this list instead of
 re-researching movesets from scratch. It deliberately does **not** join `ff5Database.js` /
 `battleCatalog.js` or `scripts/validate-database.mjs`'s record-count assertions — it has its
 own lightweight checker at `scripts/validate-boss-techniques.mjs` (ID uniqueness, required
-fields, `implemented:false`/`runtimeReady:false` flags).
+fields, a Latin-letter guard on every `nameJa`, `implemented:false`/`runtimeReady:false`
+flags).
 
 Shape per boss record:
 
 ```js
 {
   id: 'bossref_bahamut_boss',
-  nameEn: 'Bahamut', nameJa: 'バハムート', nameConfidence: 'high',
-  location: 'North Mountain (World 3)', world: 3, referenceHp: 40000,
-  weaknessElement: null, statusWeakness: null,
+  nameJa: 'バハムート', nameConfidence: 'high',
+  location: '北の山', world: 3, referenceHp: 40000,
+  weaknessElement: null, statusWeakness: 'stop',
   techniques: [
-    { id: 'bosstech_bahamut_boss_mega_flare', nameEn: 'Mega Flare', nameJa: null,
+    { id: 'bosstech_bahamut_boss_01', nameJa: 'メガフレア',
       element: null, target: 'all_enemies', power: 'extreme', statuses: [],
-      note: '瀕死になると使う切り札級の全体無属性大ダメージ。', implemented: false },
+      note: '戦闘開始直後とHPが1万を切った後に使う切り札級の全体無属性大ダメージ。リフレクで反射可能。',
+      implemented: false },
     // ...
   ],
   implemented: false, runtimeReady: false,
 }
 ```
 
-- `nameConfidence` flags how solid each boss's naming is (`high`/`medium`/`low`) — low means
-  the record uses an SNES-era fan romanization rather than the official Pixel Remaster
-  script, and should be double-checked before shipping in player-facing UI.
+- `nameConfidence` flags how solid each boss's naming is (`high`/`medium`) — `high` means the
+  name was confirmed on a Pixel Remaster–specific boss page; `medium` means it comes from a
+  GBA-baseline moveset summary (very likely correct, but not individually re-confirmed), or
+  the boss is an EX-stage superboss that never shipped in Pixel Remaster at all (`world:
+  'ex'`).
 - `target` reuses the exact same vocabulary as `battleCatalog.js`'s `targetDescriptors`
   (`one_enemy`, `all_enemies`, `self`, `all_allies`, `one_ally`), but from the **boss's own
   point of view** as the acting unit — so `one_enemy` means "one party member," matching how
@@ -109,9 +116,12 @@ Shape per boss record:
   cross-boss comparable) derived from the original release's damage ranges, meant as a
   starting point for tuning `BossActionProfiles.js`-style power multipliers, not a final
   balance number.
-- `referenceHp` is the original SNES-release baseline, for relative scaling reference only;
-  FFM's own boss stats in `src/data/bossData.js` are original values and are not meant to
-  match it 1:1.
+- `referenceHp` is an original-release baseline (mostly GBA), for relative scaling reference
+  only; FFM's own boss stats in `src/data/bossData.js` are original values and are not meant
+  to match it 1:1.
+- Technique `id`s are per-boss sequential (`bosstech_<bossId>_01`, `_02`, ...) rather than
+  slugified from the name, since `nameJa` is Japanese text that doesn't romanize cleanly into
+  an ASCII slug.
 
 To wire a technique into an actual encounter: pick entries from
 `ff5BossTechniques[...].techniques`, translate them into `BossActionProfiles.js`'s

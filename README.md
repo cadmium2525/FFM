@@ -21,17 +21,21 @@ shard and shop record to have a battle/runtime adapter. The current catalog cont
 ## Boss technique reference & admin viewer
 
 [`src/database/ff5BossTechniques.js`](src/database/ff5BossTechniques.js) collects the
-named attacks of 52 original FFV bosses (322 techniques) as design/implementation
-reference material. It's intentionally separate from `ff5Database.js` and has its own
-checker:
+named attacks of 64 original FFV bosses (289 techniques, World 1–3 plus the GBA/mobile
+EX-stage superbosses) as design/implementation reference material, sourced entirely from
+Japanese-language strategy references so technique names, boss names, and effect text are
+consistently in Japanese (no English fallback). It's intentionally separate from
+`ff5Database.js` and has its own checker, which also asserts no Latin-letter names slipped
+into `nameJa`:
 
 ```sh
 node scripts/validate-boss-techniques.mjs
 ```
 
-管理者モードのメニューから「ボス技一覧」を選ぶと、この322件を1件ずつ検索・閲覧できます
-（技名・ボス名・属性・対象範囲・威力ランク・付与状態異常・出典の確度・出現場所などを表示）。
-管理者モードへのアクセス方法は下の「Firebase account setup」を参照してください。
+管理者モードのメニューから「ボス技一覧」を選ぶと、この289件を1件ずつ検索・閲覧できます
+（技名・ボス名・属性・対象範囲・威力ランク・付与状態異常・技名の確度・登場世界・出現場所などを
+すべて日本語で表示）。管理者モードへのアクセス方法は下の「Firebase account setup」を参照して
+ください。
 
 ## Character sprites
 
