@@ -2,6 +2,7 @@ import { equipmentBySlot, selectableAbilities, crystalShards } from '../database
 import { calculateEquipmentBonuses, equipmentDetailText, findEquipment } from '../battle/EquipmentSystem.js';
 import { isAbilityImplemented } from '../data/abilityData.js';
 import { elementNames } from '../data/bossData.js';
+import { saveUnitLoadout } from '../core/Loadout.js';
 
 const slotLabels = {
   weapon: '武器',
@@ -20,184 +21,230 @@ const jobLabels = {
   dancer: '踊り子', dragoon: '竜騎士', chemist: '薬師', mime: 'ものまね士',
 };
 
+/**
+ * Party formation screen shown between bosses. One character occupies the
+ * whole screen at a time (bigger text, easier to read on mobile); use the
+ * prev/next arrow buttons to page between party members. Equipment/ability/
+ * crystal-shard choices are persisted to localStorage via Loadout.js as soon
+ * as they change, so the player doesn't have to re-pick them on every run.
+ */
 export class IntermissionUI {
   constructor() {
     this.containerEl = document.getElementById('intermission-party');
     this.nextBossLabelEl = document.getElementById('next-boss-label');
+    this.prevButton = document.getElementById('intermission-prev');
+    this.nextButton = document.getElementById('intermission-next');
+    this.indicatorEl = document.getElementById('intermission-indicator');
+    this.partyUnits = [];
+    this.currentIndex = 0;
+
+    this.prevButton?.addEventListener('click', () => this.step(-1));
+    this.nextButton?.addEventListener('click', () => this.step(1));
   }
 
   clear() {
     this.containerEl.replaceChildren();
     this.nextBossLabelEl.textContent = '';
+    if (this.indicatorEl) this.indicatorEl.textContent = '';
+    this.partyUnits = [];
+  }
+
+  step(direction) {
+    if (this.partyUnits.length < 2) return;
+    this.currentIndex = (this.currentIndex + direction + this.partyUnits.length) % this.partyUnits.length;
+    this.renderCurrentCard();
   }
 
   render(partyUnits, nextBoss) {
+    this.partyUnits = partyUnits;
+    this.currentIndex = 0;
     this.nextBossLabelEl.textContent = nextBoss
       ? `つぎのボス: ${nextBoss.name} （弱点: ${nextBoss.weakness ? (elementNames[nextBoss.weakness] ?? nextBoss.weakness) : '不明'}）`
       : '';
 
+    const showNav = partyUnits.length > 1;
+    this.prevButton?.classList.toggle('hidden', !showNav);
+    this.nextButton?.classList.toggle('hidden', !showNav);
+
+    this.renderCurrentCard();
+  }
+
+  renderCurrentCard() {
+    const unit = this.partyUnits[this.currentIndex];
     this.containerEl.innerHTML = '';
-    partyUnits.forEach((unit) => {
-      const card = document.createElement('div');
-      card.className = 'ff5-window intermission-card';
+    if (!unit) return;
 
-      const spriteSlot = document.createElement('div');
-      spriteSlot.className = 'sprite-slot';
-      spriteSlot.style.width = '48px';
-      spriteSlot.style.height = '48px';
-      const sprite = document.createElement('div');
-      sprite.className = 'sprite-placeholder player';
-      sprite.style.width = '100%';
-      sprite.style.height = '100%';
-      if (unit.spriteUrl) {
-        sprite.classList.add('has-sprite-image');
-        const img = document.createElement('img');
-        img.className = 'sprite-image';
-        img.src = unit.spriteUrl;
-        img.alt = unit.name;
-        img.draggable = false;
-        sprite.appendChild(img);
-      } else {
-        const blob = document.createElement('div');
-        blob.className = 'blob';
-        blob.style.width = '100%';
-        blob.style.height = '100%';
-        sprite.appendChild(blob);
-      }
-      spriteSlot.appendChild(sprite);
-      card.appendChild(spriteSlot);
+    if (this.indicatorEl) {
+      this.indicatorEl.textContent = `${this.currentIndex + 1} / ${this.partyUnits.length}　${unit.name}`;
+    }
 
-      const info = document.createElement('div');
-      info.style.flex = '1';
+    const card = document.createElement('div');
+    card.className = 'ff5-window intermission-card';
 
-      const nameEl = document.createElement('div');
-      nameEl.className = 'card-name';
-      nameEl.textContent = unit.name;
-      info.appendChild(nameEl);
+    const spriteSlot = document.createElement('div');
+    spriteSlot.className = 'sprite-slot';
+    const sprite = document.createElement('div');
+    sprite.className = 'sprite-placeholder player';
+    if (unit.spriteUrl) {
+      sprite.classList.add('has-sprite-image');
+      const img = document.createElement('img');
+      img.className = 'sprite-image';
+      img.src = unit.spriteUrl;
+      img.alt = unit.name;
+      img.draggable = false;
+      sprite.appendChild(img);
+    } else {
+      const blob = document.createElement('div');
+      blob.className = 'blob';
+      sprite.appendChild(blob);
+    }
+    spriteSlot.appendChild(sprite);
+    card.appendChild(spriteSlot);
 
-      const statsEl = document.createElement('div');
-      statsEl.className = 'card-stats';
-      statsEl.innerHTML = `HP ${unit.hp}/${unit.maxHp}　MP ${unit.mp}/${unit.maxMp}<br>ATK ${unit.atk}　MAG ${unit.magic}　AGI ${unit.agility}`;
-      info.appendChild(statsEl);
+    const info = document.createElement('div');
+    info.className = 'intermission-card-info';
 
-      const selects = document.createElement('div');
-      selects.className = 'formation-selects';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'card-name';
+    nameEl.textContent = unit.name;
+    info.appendChild(nameEl);
 
-      const detail = document.createElement('div');
-      detail.className = 'formation-detail';
-      detail.setAttribute('role', 'status');
+    const statsEl = document.createElement('div');
+    statsEl.className = 'card-stats';
+    statsEl.innerHTML = `HP ${unit.hp}/${unit.maxHp}　MP ${unit.mp}/${unit.maxMp}<br>ATK ${unit.atk}　MAG ${unit.magic}　AGI ${unit.agility}`;
+    info.appendChild(statsEl);
 
-      const updateDetails = () => {
-        const bonuses = calculateEquipmentBonuses(unit.equipment);
-        const ability = selectableAbilities.find((entry) => entry.id === unit.abilityId);
-        const equipmentLines = Object.entries(slotLabels).map(([slot, label]) => {
-          const item = findEquipment(unit.equipment?.[slot]);
-          return `${label}: ${item?.nameJa ?? 'なし'} — ${equipmentDetailText(item)}`;
-        });
-        const abilityLine = ability
-          ? `アビリティ: ${ability.nameJa} — ${ability.effect}［${isAbilityImplemented(ability.id) ? '戦闘反映' : '準備中'}］`
-          : 'アビリティ: なし';
-        detail.textContent = [
-          `戦闘能力: 攻撃 ${unit.baseAtk + bonuses.attack} / 防御 ${unit.baseDef + bonuses.defense} / 魔防 ${unit.baseMagicDef + bonuses.magicDefense} / 魔力 ${unit.baseMagic + bonuses.magic} / 素早さ ${unit.baseAgility + bonuses.agility} / 回避 ${bonuses.evasion}%`,
-          ...equipmentLines,
-          abilityLine,
-        ].join('\n');
-      };
+    const selects = document.createElement('div');
+    selects.className = 'formation-selects';
 
-      Object.entries(slotLabels).forEach(([slot, labelText]) => {
-        const label = document.createElement('label');
-        label.className = 'formation-field';
-        const caption = document.createElement('span');
-        caption.textContent = labelText;
-        const select = document.createElement('select');
-        select.setAttribute('aria-label', `${unit.name}の${labelText}`);
+    const detail = document.createElement('div');
+    detail.className = 'formation-detail';
+    detail.setAttribute('role', 'status');
 
-        const none = document.createElement('option');
-        none.value = '';
-        none.textContent = 'なし';
-        select.appendChild(none);
-
-        equipmentBySlot[slot].forEach((item) => {
-          const option = document.createElement('option');
-          option.value = item.id;
-          const stat = slot === 'weapon'
-            ? `攻${item.attack} 命中${item.accuracy ?? '-'}%`
-            : `防${item.defense} 魔防${item.magicDefense} 回避${item.evasion}%`;
-          option.textContent = `${item.nameJa}　${stat}${item.special ? ' ★' : ''}`;
-          option.selected = unit.equipment?.[slot] === item.id;
-          select.appendChild(option);
-        });
-
-        select.addEventListener('change', () => {
-          unit.equipment = { ...unit.equipment, [slot]: select.value || null };
-          if (slot === 'weapon') unit.weaponId = select.value || null;
-          updateDetails();
-        });
-        label.append(caption, select);
-        selects.appendChild(label);
+    const persistLoadout = () => {
+      saveUnitLoadout(unit.id, {
+        equipment: unit.equipment,
+        abilityId: unit.abilityId,
+        crystalShardId: unit.crystalShardId,
       });
+    };
 
-      const abilityLabel = document.createElement('label');
-      abilityLabel.className = 'formation-field';
-      const abilityCaption = document.createElement('span');
-      abilityCaption.textContent = 'アビリティ';
-      const abilitySelect = document.createElement('select');
-      abilitySelect.setAttribute('aria-label', `${unit.name}のアビリティ`);
-      const abilitiesByJob = Object.groupBy
-        ? Object.groupBy(selectableAbilities, (ability) => ability.job)
-        : selectableAbilities.reduce((groups, ability) => {
-            (groups[ability.job] ??= []).push(ability);
-            return groups;
-          }, {});
-      Object.entries(abilitiesByJob).forEach(([job, abilities]) => {
-        const group = document.createElement('optgroup');
-        group.label = jobLabels[job] ?? job;
-        abilities.forEach((ability) => {
-          const option = document.createElement('option');
-          option.value = ability.id;
-          option.textContent = ability.nameJa;
-          option.selected = unit.abilityId === ability.id;
-          option.disabled = !isAbilityImplemented(ability.id);
-          if (option.disabled) option.textContent += '（準備中）';
-          group.appendChild(option);
-        });
-        abilitySelect.appendChild(group);
+    const updateDetails = () => {
+      const bonuses = calculateEquipmentBonuses(unit.equipment);
+      const ability = selectableAbilities.find((entry) => entry.id === unit.abilityId);
+      const equipmentLines = Object.entries(slotLabels).map(([slot, label]) => {
+        const item = findEquipment(unit.equipment?.[slot]);
+        return `${label}: ${item?.nameJa ?? 'なし'} — ${equipmentDetailText(item)}`;
       });
-      abilitySelect.addEventListener('change', () => {
-        unit.abilityId = abilitySelect.value;
-        updateDetails();
-      });
-      abilityLabel.append(abilityCaption, abilitySelect);
-      selects.appendChild(abilityLabel);
+      const abilityLine = ability
+        ? `アビリティ: ${ability.nameJa} — ${ability.effect}［${isAbilityImplemented(ability.id) ? '戦闘反映' : '準備中'}］`
+        : 'アビリティ: なし';
+      detail.textContent = [
+        `戦闘能力: 攻撃 ${unit.baseAtk + bonuses.attack} / 防御 ${unit.baseDef + bonuses.defense} / 魔防 ${unit.baseMagicDef + bonuses.magicDefense} / 魔力 ${unit.baseMagic + bonuses.magic} / 素早さ ${unit.baseAgility + bonuses.agility} / 回避 ${bonuses.evasion}%`,
+        ...equipmentLines,
+        abilityLine,
+      ].join('\n');
+    };
 
-      const shardLabel = document.createElement('label');
-      shardLabel.className = 'formation-field';
-      const shardCaption = document.createElement('span');
-      shardCaption.textContent = 'クリスタルのかけら';
-      const shardSelect = document.createElement('select');
-      shardSelect.setAttribute('aria-label', `${unit.name}のクリスタルのかけら`);
-      crystalShards.forEach((shard) => {
+    Object.entries(slotLabels).forEach(([slot, labelText]) => {
+      const label = document.createElement('label');
+      label.className = 'formation-field';
+      const caption = document.createElement('span');
+      caption.textContent = labelText;
+      const select = document.createElement('select');
+      select.setAttribute('aria-label', `${unit.name}の${labelText}`);
+
+      const none = document.createElement('option');
+      none.value = '';
+      none.textContent = 'なし';
+      select.appendChild(none);
+
+      equipmentBySlot[slot].forEach((item) => {
         const option = document.createElement('option');
-        option.value = shard.id;
-        option.textContent = `${shard.nameJa}（${shard.techniqueNameJa}）`;
-        option.selected = unit.crystalShardId === shard.id;
-        shardSelect.appendChild(option);
+        option.value = item.id;
+        const stat = slot === 'weapon'
+          ? `攻${item.attack} 命中${item.accuracy ?? '-'}%`
+          : `防${item.defense} 魔防${item.magicDefense} 回避${item.evasion}%`;
+        option.textContent = `${item.nameJa}　${stat}${item.special ? ' ★' : ''}`;
+        option.selected = unit.equipment?.[slot] === item.id;
+        select.appendChild(option);
       });
-      shardSelect.addEventListener('change', () => { unit.crystalShardId = shardSelect.value; });
-      shardLabel.append(shardCaption, shardSelect);
-      selects.appendChild(shardLabel);
 
-      info.appendChild(selects);
-
-      updateDetails();
-      info.appendChild(detail);
-
-      const note = document.createElement('small');
-      note.className = 'formation-note';
-      note.textContent = '★は追加効果あり。装備の能力値・属性と「戦闘反映」表示のアビリティは次のバトルから有効です。';
-      info.appendChild(note);
-      card.appendChild(info);
-      this.containerEl.appendChild(card);
+      select.addEventListener('change', () => {
+        unit.equipment = { ...unit.equipment, [slot]: select.value || null };
+        if (slot === 'weapon') unit.weaponId = select.value || null;
+        updateDetails();
+        persistLoadout();
+      });
+      label.append(caption, select);
+      selects.appendChild(label);
     });
+
+    const abilityLabel = document.createElement('label');
+    abilityLabel.className = 'formation-field';
+    const abilityCaption = document.createElement('span');
+    abilityCaption.textContent = 'アビリティ';
+    const abilitySelect = document.createElement('select');
+    abilitySelect.setAttribute('aria-label', `${unit.name}のアビリティ`);
+    const abilitiesByJob = Object.groupBy
+      ? Object.groupBy(selectableAbilities, (ability) => ability.job)
+      : selectableAbilities.reduce((groups, ability) => {
+          (groups[ability.job] ??= []).push(ability);
+          return groups;
+        }, {});
+    Object.entries(abilitiesByJob).forEach(([job, abilities]) => {
+      const group = document.createElement('optgroup');
+      group.label = jobLabels[job] ?? job;
+      abilities.forEach((ability) => {
+        const option = document.createElement('option');
+        option.value = ability.id;
+        option.textContent = ability.nameJa;
+        option.selected = unit.abilityId === ability.id;
+        option.disabled = !isAbilityImplemented(ability.id);
+        if (option.disabled) option.textContent += '（準備中）';
+        group.appendChild(option);
+      });
+      abilitySelect.appendChild(group);
+    });
+    abilitySelect.addEventListener('change', () => {
+      unit.abilityId = abilitySelect.value;
+      updateDetails();
+      persistLoadout();
+    });
+    abilityLabel.append(abilityCaption, abilitySelect);
+    selects.appendChild(abilityLabel);
+
+    const shardLabel = document.createElement('label');
+    shardLabel.className = 'formation-field';
+    const shardCaption = document.createElement('span');
+    shardCaption.textContent = 'クリスタルのかけら';
+    const shardSelect = document.createElement('select');
+    shardSelect.setAttribute('aria-label', `${unit.name}のクリスタルのかけら`);
+    crystalShards.forEach((shard) => {
+      const option = document.createElement('option');
+      option.value = shard.id;
+      option.textContent = `${shard.nameJa}（${shard.techniqueNameJa}）`;
+      option.selected = unit.crystalShardId === shard.id;
+      shardSelect.appendChild(option);
+    });
+    shardSelect.addEventListener('change', () => {
+      unit.crystalShardId = shardSelect.value;
+      persistLoadout();
+    });
+    shardLabel.append(shardCaption, shardSelect);
+    selects.appendChild(shardLabel);
+
+    info.appendChild(selects);
+
+    updateDetails();
+    info.appendChild(detail);
+
+    const note = document.createElement('small');
+    note.className = 'formation-note';
+    note.textContent = '★は追加効果あり。装備の能力値・属性と「戦闘反映」表示のアビリティは次のバトルから有効です。設定は端末に保存され、次回以降も自動的に反映されます。';
+    info.appendChild(note);
+
+    card.appendChild(info);
+    this.containerEl.appendChild(card);
   }
 }

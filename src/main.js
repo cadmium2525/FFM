@@ -17,6 +17,7 @@ import {
 } from './database/ff5Database.js';
 import { FirebaseAccountService } from './services/FirebaseAccountService.js';
 import { MESSAGE_SPEED_PRESETS, getMessageSpeed, setMessageSpeed } from './core/Settings.js';
+import { getUnitLoadout } from './core/Loadout.js';
 import { bossData } from './data/bossData.js';
 import { ff5BossTechniques } from './database/ff5BossTechniques.js';
 import {
@@ -140,9 +141,7 @@ function accountStatusText() {
   if (accountSnapshot.status === 'connecting' || accountSnapshot.status === 'idle') return 'Firebaseへ接続しています…';
   if (accountSnapshot.status === 'error') return 'Firebaseへの接続に失敗しました。設定値と許可ドメインを確認してください。';
   if (accountSnapshot.isSignedIn) {
-    return accountSnapshot.isAdmin
-      ? `ログイン中：${profile.name}（管理者）`
-      : `ログイン中：${profile.name}（クラウド保存有効）`;
+    return `ログイン中：${profile.name}`;
   }
   return '未ログイン：新規登録またはログインしてください。';
 }
@@ -298,24 +297,28 @@ function renderOptions(message = '') {
       ${message ? `<p class="menu-notice">${escapeHtml(message)}</p>` : ''}
       <section class="account-card">
         <h4>ユーザーアカウント</h4>
-        <p id="account-status" class="account-status">${escapeHtml(accountStatusText())}</p>
+        ${signedIn
+          ? `<div class="account-actions account-status-row">
+               <p id="account-status" class="account-status">${escapeHtml(accountStatusText())}</p>
+               <button id="account-sign-out" class="panel-button" type="button">ログアウト</button>
+             </div>`
+          : `<p id="account-status" class="account-status">${escapeHtml(accountStatusText())}</p>`}
         <label>プレイヤー名
           <input id="option-player-name" maxlength="12" autocomplete="nickname" value="${escapeHtml(profile.name)}">
         </label>
-        <label>ログインID
-          <input id="option-login-id" minlength="4" maxlength="24" pattern="[A-Za-z0-9_-]{4,24}" autocomplete="username" value="${escapeHtml(profile.loginId)}" placeholder="半角英数字・_・-（4～24文字）" ${signedIn ? 'readonly' : ''}>
-        </label>
-        <label>パスワード
-          <input id="option-password" type="password" minlength="6" maxlength="64" autocomplete="current-password" placeholder="6文字以上">
-        </label>
-        <div class="account-actions">
-          ${signedIn
-            ? `<button id="account-password-change" class="panel-button" type="button">パスワード変更</button>
-               <button id="account-sign-out" class="panel-button" type="button">ログアウト</button>`
-            : `<button id="account-register" class="panel-button" type="button" ${accountDisabled ? 'disabled' : ''}>新規登録</button>
-               <button id="account-sign-in" class="panel-button" type="button" ${accountDisabled ? 'disabled' : ''}>ログイン</button>`}
-        </div>
-        <small>プレイヤー名は表示名、ログインIDは認証専用です。パスワードはFirebase Authenticationが管理し、ゲームデータや端末には保存しません。</small>
+        ${signedIn
+          ? ''
+          : `<label>ログインID
+               <input id="option-login-id" minlength="4" maxlength="24" pattern="[A-Za-z0-9_-]{4,24}" autocomplete="username" value="${escapeHtml(profile.loginId)}" placeholder="半角英数字・_・-（4～24文字）">
+             </label>
+             <label>パスワード
+               <input id="option-password" type="password" minlength="6" maxlength="64" autocomplete="current-password" placeholder="6文字以上">
+             </label>
+             <div class="account-actions">
+               <button id="account-register" class="panel-button" type="button" ${accountDisabled ? 'disabled' : ''}>新規登録</button>
+               <button id="account-sign-in" class="panel-button" type="button" ${accountDisabled ? 'disabled' : ''}>ログイン</button>
+             </div>
+             <small>プレイヤー名は表示名、ログインIDは認証専用です。</small>`}
       </section>
       <label>音量 <output id="volume-output">${profile.volume}</output>
         <input id="option-volume" type="range" min="0" max="100" value="${profile.volume}">
@@ -356,9 +359,9 @@ function renderOptions(message = '') {
   });
 
   const runAccountAction = async (action) => {
-    const name = document.getElementById('option-player-name').value.trim();
-    const loginId = document.getElementById('option-login-id').value.trim();
-    const password = document.getElementById('option-password').value;
+    const name = document.getElementById('option-player-name')?.value.trim() ?? '';
+    const loginId = document.getElementById('option-login-id')?.value.trim() ?? '';
+    const password = document.getElementById('option-password')?.value ?? '';
     try {
       if (action === 'register') {
         profile.name = name || 'PLAYER';
@@ -534,18 +537,24 @@ document.getElementById('menu-panel-back').addEventListener('click', closeMenuPa
 let livingParty = null;
 
 function freshPartyState() {
-  return partyData.map((p) => ({
-    ...p,
-    equipment: { ...p.equipment },
-    hp: p.maxHp,
-    mp: p.maxMp,
-    baseAtk: p.atk,
-    baseDef: p.def,
-    baseMagicDef: p.magicDef ?? Math.round(p.def * 0.5),
-    baseMagic: p.magic,
-    baseAgility: p.agility,
-    weaponId: p.equipment?.weapon ?? null,
-  }));
+  return partyData.map((p) => {
+    const saved = getUnitLoadout(p.id);
+    const equipment = { ...p.equipment, ...(saved?.equipment ?? {}) };
+    return {
+      ...p,
+      equipment,
+      abilityId: saved?.abilityId ?? p.abilityId,
+      crystalShardId: saved?.crystalShardId ?? p.crystalShardId,
+      hp: p.maxHp,
+      mp: p.maxMp,
+      baseAtk: p.atk,
+      baseDef: p.def,
+      baseMagicDef: p.magicDef ?? Math.round(p.def * 0.5),
+      baseMagic: p.magic,
+      baseAgility: p.agility,
+      weaponId: equipment?.weapon ?? null,
+    };
+  });
 }
 
 function legacyAbilitySetFor(abilityId, fallback = 'たたかう型') {

@@ -4,6 +4,7 @@ const sourceFiles = [
   'src/core/EventBus.js',
   'src/core/GameState.js',
   'src/core/Settings.js',
+  'src/core/Loadout.js',
   'src/battle/StatusEngine.js',
   'src/battle/Unit.js',
   'src/battle/ActionResolver.js',
