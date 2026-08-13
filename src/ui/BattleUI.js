@@ -208,16 +208,26 @@ export class BattleUI {
     blob.className = 'blob';
     blob.style.width = '100%';
     blob.style.height = '100%';
-    blob.innerHTML = `
-      <span class="crystal-aura"></span>
-      <span class="crystal-orbit orbit-one"></span>
-      <span class="crystal-orbit orbit-two"></span>
-      <span class="crystal-core"><i></i><b>${unitRunes[bossToken] ?? '◆'}</b></span>
-      <span class="crystal-fragment fragment-one"></span>
-      <span class="crystal-fragment fragment-two"></span>
-      <span class="crystal-fragment fragment-three"></span>
-    `;
-    sprite.appendChild(blob);
+    if (boss.spriteUrl) {
+      sprite.classList.add('has-sprite-image');
+      const img = document.createElement('img');
+      img.className = 'sprite-image';
+      img.src = boss.spriteUrl;
+      img.alt = boss.name;
+      img.draggable = false;
+      sprite.appendChild(img);
+    } else {
+      blob.innerHTML = `
+        <span class="crystal-aura"></span>
+        <span class="crystal-orbit orbit-one"></span>
+        <span class="crystal-orbit orbit-two"></span>
+        <span class="crystal-core"><i></i><b>${unitRunes[bossToken] ?? '◆'}</b></span>
+        <span class="crystal-fragment fragment-one"></span>
+        <span class="crystal-fragment fragment-two"></span>
+        <span class="crystal-fragment fragment-three"></span>
+      `;
+      sprite.appendChild(blob);
+    }
 
     const label = document.createElement('div');
     label.className = 'label';

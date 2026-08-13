@@ -115,6 +115,23 @@ export class BattleManager {
     if (!actor) return;
     this.currentActor = actor;
 
+    // Stop freezes a unit's own CTB gauge (effectiveAgility -> 0), so its own
+    // turn never comes around again on its own — meaning the normal
+    // "decrement duration when it's your turn" tick would never fire and
+    // Stop would never wear off. FF5's Stop instead runs down over the
+    // course of *other* units' turns, so tick it here, once per turn taken
+    // by anyone else, independently of the frozen unit's own (frozen) CTB.
+    this.units.forEach((unit) => {
+      if (unit === actor || !unit.isAlive() || !unit.statuses.has('stop')) return;
+      const remaining = (unit.statusDurations.get('stop') ?? 1) - 1;
+      if (remaining <= 0) {
+        unit.removeStatus('stop');
+        this.log(`${unit.name} の ${statusLabels(['stop'])} が切れた。`);
+      } else {
+        unit.statusDurations.set('stop', remaining);
+      }
+    });
+
     const tickResults = actor.processTurnStatuses();
     tickResults.forEach((result) => {
       if (result.type === 'status-damage') this.log(`${actor.name} は ${statusLabels([result.status])}で ${result.amount} ダメージ！`);

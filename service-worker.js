@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ff-crystal-rush-pwa-v17';
+const CACHE_NAME = 'ff-crystal-rush-pwa-v18';
 const APP_SHELL = [
   './',
   './index.html',
@@ -11,7 +11,7 @@ const APP_SHELL = [
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
   './assets/icons/icon-maskable-512.png',
-  './assets/backgrounds/crystal-sanctum.jpg',
+  './assets/backgrounds/crystal-sanctum.webp',
   './assets/ui/soul-crystal-sigil.svg',
 ];
 

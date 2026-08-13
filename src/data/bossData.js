@@ -6,6 +6,7 @@ export const bossData = [
   {
     id: 'omega',
     name: 'オメガ',
+    spriteUrl: 'assets/images/bosses/omega.webp',
     // ---- FF5原作「オメガ」の完全再現 ----
     // 出典: src/database/ff5BossTechniques.js の 'bossref_omega_boss'
     // （ステータス・属性耐性・状態異常耐性は FF5ピクセルリマスター版の
@@ -18,9 +19,12 @@ export const bossData = [
     magic: 199,
     magicDef: 150,
     evasion: 95,
-    // 原作は素早さステータス非公開。「攻撃頻度がとても高い」という原作の
-    // 評判を再現するため、CTBエンジン上の暫定値として高めに設定している。
-    agility: 46,
+    // 原作は素早さステータス非公開だが、「オメガの攻撃頻度はとても高く、
+    // あっという間に戦闘不能にされる恐れがある」（神ゲー攻略等の攻略情報）
+    // という原作の評判を再現するため、CTBエンジン上の暫定値として、
+    // パーティ平均（素早さ22〜32）のおよそ2倍前後の頻度で行動できるよう
+    // 高めに設定している。
+    agility: 76,
     weakness: 'thunder', // 雷のみ弱点。それ以外の属性はすべて吸収する
     resist: null,
     equipmentEffects: {

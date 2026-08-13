@@ -2296,6 +2296,7 @@ const bossData = [
   {
     id: 'omega',
     name: 'オメガ',
+    spriteUrl: 'assets/images/bosses/omega.webp',
     // ---- FF5原作「オメガ」の完全再現 ----
     // 出典: src/database/ff5BossTechniques.js の 'bossref_omega_boss'
     // （ステータス・属性耐性・状態異常耐性は FF5ピクセルリマスター版の
@@ -2308,9 +2309,12 @@ const bossData = [
     magic: 199,
     magicDef: 150,
     evasion: 95,
-    // 原作は素早さステータス非公開。「攻撃頻度がとても高い」という原作の
-    // 評判を再現するため、CTBエンジン上の暫定値として高めに設定している。
-    agility: 46,
+    // 原作は素早さステータス非公開だが、「オメガの攻撃頻度はとても高く、
+    // あっという間に戦闘不能にされる恐れがある」（神ゲー攻略等の攻略情報）
+    // という原作の評判を再現するため、CTBエンジン上の暫定値として、
+    // パーティ平均（素早さ22〜32）のおよそ2倍前後の頻度で行動できるよう
+    // 高めに設定している。
+    agility: 82,
     weakness: 'thunder', // 雷のみ弱点。それ以外の属性はすべて吸収する
     resist: null,
     equipmentEffects: {
@@ -3254,6 +3258,23 @@ class BattleManager {
     const actor = this.ctb.advanceToNextActor();
     if (!actor) return;
     this.currentActor = actor;
+
+    // Stop freezes a unit's own CTB gauge (effectiveAgility -> 0), so its own
+    // turn never comes around again on its own — meaning the normal
+    // "decrement duration when it's your turn" tick would never fire and
+    // Stop would never wear off. FF5's Stop instead runs down over the
+    // course of *other* units' turns, so tick it here, once per turn taken
+    // by anyone else, independently of the frozen unit's own (frozen) CTB.
+    this.units.forEach((unit) => {
+      if (unit === actor || !unit.isAlive() || !unit.statuses.has('stop')) return;
+      const remaining = (unit.statusDurations.get('stop') ?? 1) - 1;
+      if (remaining <= 0) {
+        unit.removeStatus('stop');
+        this.log(`${unit.name} の ${statusLabels(['stop'])} が切れた。`);
+      } else {
+        unit.statusDurations.set('stop', remaining);
+      }
+    });
 
     const tickResults = actor.processTurnStatuses();
     tickResults.forEach((result) => {
@@ -4237,16 +4258,26 @@ class BattleUI {
     blob.className = 'blob';
     blob.style.width = '100%';
     blob.style.height = '100%';
-    blob.innerHTML = `
-      <span class="crystal-aura"></span>
-      <span class="crystal-orbit orbit-one"></span>
-      <span class="crystal-orbit orbit-two"></span>
-      <span class="crystal-core"><i></i><b>${unitRunes[bossToken] ?? '◆'}</b></span>
-      <span class="crystal-fragment fragment-one"></span>
-      <span class="crystal-fragment fragment-two"></span>
-      <span class="crystal-fragment fragment-three"></span>
-    `;
-    sprite.appendChild(blob);
+    if (boss.spriteUrl) {
+      sprite.classList.add('has-sprite-image');
+      const img = document.createElement('img');
+      img.className = 'sprite-image';
+      img.src = boss.spriteUrl;
+      img.alt = boss.name;
+      img.draggable = false;
+      sprite.appendChild(img);
+    } else {
+      blob.innerHTML = `
+        <span class="crystal-aura"></span>
+        <span class="crystal-orbit orbit-one"></span>
+        <span class="crystal-orbit orbit-two"></span>
+        <span class="crystal-core"><i></i><b>${unitRunes[bossToken] ?? '◆'}</b></span>
+        <span class="crystal-fragment fragment-one"></span>
+        <span class="crystal-fragment fragment-two"></span>
+        <span class="crystal-fragment fragment-three"></span>
+      `;
+      sprite.appendChild(blob);
+    }
 
     const label = document.createElement('div');
     label.className = 'label';

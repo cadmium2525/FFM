@@ -667,6 +667,14 @@ body {
   width: 100%;
 }
 
+.account-status-row {
+  align-items: center;
+}
+
+.account-status-row .account-status {
+  margin: 0;
+}
+
 .admin-menu-action {
   border-color: #ffe58f;
   box-shadow: inset 0 0 0 2px #6d5617;
@@ -1530,7 +1538,7 @@ body {
   isolation: isolate;
   background:
     linear-gradient(180deg, rgba(2, 7, 24, .08) 0%, rgba(2, 6, 19, .2) 46%, rgba(2, 5, 17, .82) 100%),
-    url('../assets/backgrounds/crystal-sanctum.jpg') center 45% / cover no-repeat;
+    url('../assets/backgrounds/crystal-sanctum.webp') center 45% / cover no-repeat;
 }
 
 .battle-atmosphere,
