@@ -122,9 +122,9 @@ export class Unit {
     return canUseMagic(this);
   }
 
-  addStatus(status, { duration, chance = 1, force = false, random = Math.random } = {}) {
+  addStatus(status, { duration, chance = 1, force = false, guaranteed = false, random = Math.random } = {}) {
     if (!status || (!force && this.statusImmunities.has(status))) return false;
-    if (!force && random() > Math.max(0.05, chance * (1 - this.statusResistance))) return false;
+    if (!force && !guaranteed && random() > Math.max(0.05, chance * (1 - this.statusResistance))) return false;
     if (status === 'ko') {
       this.hp = 0;
       this.statuses.add('ko');

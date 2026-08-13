@@ -530,9 +530,9 @@ class Unit {
     return canUseMagic(this);
   }
 
-  addStatus(status, { duration, chance = 1, force = false, random = Math.random } = {}) {
+  addStatus(status, { duration, chance = 1, force = false, guaranteed = false, random = Math.random } = {}) {
     if (!status || (!force && this.statusImmunities.has(status))) return false;
-    if (!force && random() > Math.max(0.05, chance * (1 - this.statusResistance))) return false;
+    if (!force && !guaranteed && random() > Math.max(0.05, chance * (1 - this.statusResistance))) return false;
     if (status === 'ko') {
       this.hp = 0;
       this.statuses.add('ko');
@@ -890,9 +890,15 @@ function resolveAction({ actor, action, targets, battleUnits = targets }) {
       targets.forEach((target) => {
         const appliedStatuses = [];
         const resistedStatuses = [];
+        // Some effects are delivered through an element/category the target
+        // is explicitly weak to (e.g. Omega and 音波/sound-based Sing
+        // techniques such as Romeo's Ballad). A weakness to the delivery
+        // element guarantees the status lands, bypassing normal chance and
+        // status resistance, just like FF5's own accuracy formula.
+        const guaranteedByWeakness = action.element && equipmentElementState(target, action.element) === 'weak';
         (action.statuses ?? []).forEach((status) => {
           if (action.toggle && target.statuses.has(status)) target.removeStatus(status);
-          else if (target.addStatus?.(status, { duration: action.duration, chance: action.statusChance ?? action.chance ?? 0.85 })) appliedStatuses.push(status);
+          else if (target.addStatus?.(status, { duration: action.duration, chance: guaranteedByWeakness ? 1 : (action.statusChance ?? action.chance ?? 0.85), guaranteed: guaranteedByWeakness })) appliedStatuses.push(status);
           else resistedStatuses.push(status);
         });
         if (action.imageHits) target.imageHits = Math.max(target.imageHits, action.imageHits);
@@ -2291,8 +2297,8 @@ function getAbilityActions(abilityId) {
     // stat-up buffs that persist while the dancer keeps singing.
     const instantSongEffects = Object.freeze({
       song_mighty_march: { actionKind: 'status', statuses: ['regen'] },
-      song_romeo_s_ballad: { actionKind: 'status', statuses: ['stop'], statusChance: 0.62 },
-      song_alluring_air: { actionKind: 'status', statuses: ['confuse'], statusChance: 0.62 },
+      song_romeo_s_ballad: { actionKind: 'status', statuses: ['stop'], statusChance: 0.62, element: 'sound' },
+      song_alluring_air: { actionKind: 'status', statuses: ['confuse'], statusChance: 0.62, element: 'sound' },
       song_requiem: { actionKind: 'magic-attack', element: 'holy', power: 2.2 },
     });
     return ff5Songs.map((song, index) => {
@@ -2479,6 +2485,9 @@ const bossData = [
     equipmentEffects: {
       // 雷以外の全属性を吸収（原作の属性耐性表: 炎/冷気/毒/聖/大地/風/水 = 吸）
       absorbs: ['fire', 'ice', 'poison', 'holy', 'earth', 'wind', 'water'],
+      // 音波（うたう／おどるコマンド）カテゴリも弱点。あいのうた（ストップ）
+      // ゆうわくのうた（こんらん）等は必中となる（原作の音波弱点を再現）。
+      weaknesses: ['sound'],
     },
     // 原作の状態異常耐性表: 毒/暗闇/沈黙/老化/こびと/カエル/石化/即死/
     // バーサク/混乱/睡眠/マヒ = すべて無効。スロウ・ストップのみ有効。

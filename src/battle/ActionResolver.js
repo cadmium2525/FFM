@@ -325,9 +325,15 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
       targets.forEach((target) => {
         const appliedStatuses = [];
         const resistedStatuses = [];
+        // Some effects are delivered through an element/category the target
+        // is explicitly weak to (e.g. Omega and 音波/sound-based Sing
+        // techniques such as Romeo's Ballad). A weakness to the delivery
+        // element guarantees the status lands, bypassing normal chance and
+        // status resistance, just like FF5's own accuracy formula.
+        const guaranteedByWeakness = action.element && equipmentElementState(target, action.element) === 'weak';
         (action.statuses ?? []).forEach((status) => {
           if (action.toggle && target.statuses.has(status)) target.removeStatus(status);
-          else if (target.addStatus?.(status, { duration: action.duration, chance: action.statusChance ?? action.chance ?? 0.85 })) appliedStatuses.push(status);
+          else if (target.addStatus?.(status, { duration: action.duration, chance: guaranteedByWeakness ? 1 : (action.statusChance ?? action.chance ?? 0.85), guaranteed: guaranteedByWeakness })) appliedStatuses.push(status);
           else resistedStatuses.push(status);
         });
         if (action.imageHits) target.imageHits = Math.max(target.imageHits, action.imageHits);

@@ -129,8 +129,8 @@ export function getAbilityActions(abilityId) {
     // stat-up buffs that persist while the dancer keeps singing.
     const instantSongEffects = Object.freeze({
       song_mighty_march: { actionKind: 'status', statuses: ['regen'] },
-      song_romeo_s_ballad: { actionKind: 'status', statuses: ['stop'], statusChance: 0.62 },
-      song_alluring_air: { actionKind: 'status', statuses: ['confuse'], statusChance: 0.62 },
+      song_romeo_s_ballad: { actionKind: 'status', statuses: ['stop'], statusChance: 0.62, element: 'sound' },
+      song_alluring_air: { actionKind: 'status', statuses: ['confuse'], statusChance: 0.62, element: 'sound' },
       song_requiem: { actionKind: 'magic-attack', element: 'holy', power: 2.2 },
     });
     return ff5Songs.map((song, index) => {
