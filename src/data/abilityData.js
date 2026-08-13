@@ -125,23 +125,35 @@ export function getAbilityActions(abilityId) {
   }
   if (abilityId === 'ability_call') return magicSets['召喚魔法'].map((spell) => ({ ...spell, id: `call-${spell.id}`, visualId: `ability_call_${spell.sourceId}`, commandSourceId: 'ability_call', mpCost: 0 }));
   if (abilityId === 'ability_sing') {
-    return ff5Songs.map((song, index) => ({
-      id: song.id,
-      sourceId: song.id,
-      sourceType: 'song',
-      commandSourceId: 'ability_sing',
-      visualId: song.id,
-      name: song.nameJa,
-      actionKind: song.id === 'song_requiem' ? 'magic-attack' : song.id === 'song_mighty_march' ? 'status' : 'stat-modify',
-      element: song.id === 'song_requiem' ? 'holy' : null,
-      power: song.id === 'song_requiem' ? 2.2 : undefined,
-      statuses: song.id === 'song_mighty_march' ? ['regen'] : [],
-      stat: song.id.includes('mana') ? 'magic' : song.id.includes('sinewy') ? 'atk' : 'agility',
-      multiplier: 1.18 + index * 0.01,
-      ctbCost: song.mode === 'continuous' ? 1.15 : 1,
-      target: song.target,
-      effect: song.effect,
-    }));
+    // Instant songs each apply a specific status; continuous songs are
+    // stat-up buffs that persist while the dancer keeps singing.
+    const instantSongEffects = Object.freeze({
+      song_mighty_march: { actionKind: 'status', statuses: ['regen'] },
+      song_romeo_s_ballad: { actionKind: 'status', statuses: ['stop'], statusChance: 0.62 },
+      song_alluring_air: { actionKind: 'status', statuses: ['confuse'], statusChance: 0.62 },
+      song_requiem: { actionKind: 'magic-attack', element: 'holy', power: 2.2 },
+    });
+    return ff5Songs.map((song, index) => {
+      const instant = instantSongEffects[song.id];
+      return {
+        id: song.id,
+        sourceId: song.id,
+        sourceType: 'song',
+        commandSourceId: 'ability_sing',
+        visualId: song.id,
+        name: song.nameJa,
+        actionKind: instant?.actionKind ?? 'stat-modify',
+        element: instant?.element ?? null,
+        power: instant?.power,
+        statuses: instant?.statuses ?? [],
+        statusChance: instant?.statusChance,
+        stat: song.id.includes('mana') ? 'magic' : song.id.includes('sinewy') ? 'atk' : 'agility',
+        multiplier: 1.18 + index * 0.01,
+        ctbCost: song.mode === 'continuous' ? 1.15 : 1,
+        target: song.target,
+        effect: song.effect,
+      };
+    });
   }
   return (directAbilityActions[abilityId] ?? []).map((action) => ({
     ...action,

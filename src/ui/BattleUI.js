@@ -5,6 +5,7 @@ import { selectableAbilities } from '../database/ff5Database.js';
 import { crystalShardAction } from '../database/battleCatalog.js';
 import { getBattleEffectDescriptor, resolveBattleEffectDescriptor } from './BattleEffectRegistry.js';
 import { MessageWindow } from './MessageWindow.js';
+import { STATUS_LABELS_JA } from '../battle/StatusEngine.js';
 
 function hpBarClass(unit) {
   const ratio = unit.hpRatio();
@@ -13,12 +14,7 @@ function hpBarClass(unit) {
   return '';
 }
 
-const statusNamesJa = Object.freeze({
-  ko: '戦闘不能', poison: '毒', blind: '暗闇', silence: '沈黙', toad: 'カエル', mini: '小人',
-  petrify: '石化', confuse: '混乱', paralyze: '麻痺', sleep: '睡眠', old: '老化', berserk: '狂戦士',
-  zombie: 'ゾンビ', stop: '停止', slow: 'スロウ', haste: 'ヘイスト', regen: 'リジェネ', protect: 'プロテス',
-  shell: 'シェル', reflect: 'リフレク', float: 'レビテト', doom: '死の宣告', sap: 'スリップ',
-});
+const statusNamesJa = STATUS_LABELS_JA;
 
 const targetNamesJa = Object.freeze({
   self: '自分', 'single-enemy': '敵単体', one_enemy: '敵単体', enemy_group: '敵全体', all_enemies: '敵全体', one_or_all_enemies: '敵単体/全体',
@@ -792,15 +788,15 @@ export class BattleUI {
     if (result.element) effect.classList.add(`element-${safeToken(result.element)}`);
 
     if (['damage', 'mp-damage'].includes(result.type)) {
-      const outcome = result.nullified ? 'NULL' : result.resisted ? 'RESIST' : result.weak ? 'WEAK' : 'HIT';
+      const outcome = result.nullified ? '無効' : result.resisted ? '耐性' : result.weak ? '弱点' : '';
       effect.textContent = `${outcome} −${result.amount ?? 0}`;
     }
     else if (['heal', 'mp-heal', 'revive', 'absorb'].includes(result.type)) effect.textContent = `+${result.amount ?? 0}`;
-    else if (result.type === 'miss') effect.textContent = 'MISS';
-    else if (result.type === 'blocked' || result.type === 'defend') effect.textContent = 'GUARD';
-    else if (result.type === 'status') effect.textContent = statusNamesJa[result.statuses?.[0]] ?? result.statuses?.[0] ?? 'STATUS';
-    else if (result.type === 'status-resist') effect.textContent = `RESIST ${statusNamesJa[result.statuses?.[0]] ?? result.statuses?.[0] ?? ''}`;
-    else effect.textContent = result.label ?? 'EFFECT';
+    else if (result.type === 'miss') effect.textContent = 'ミス';
+    else if (result.type === 'blocked' || result.type === 'defend') effect.textContent = 'ガード';
+    else if (result.type === 'status') effect.textContent = statusNamesJa[result.statuses?.[0]] ?? result.statuses?.[0] ?? '状態異常';
+    else if (result.type === 'status-resist') effect.textContent = `耐性 ${statusNamesJa[result.statuses?.[0]] ?? result.statuses?.[0] ?? ''}`;
+    else effect.textContent = result.label ?? '効果';
 
     effect.style.left = `${targetRect.left - stageRect.left + targetRect.width / 2}px`;
     effect.style.top = `${targetRect.top - stageRect.top + targetRect.height * 0.22}px`;

@@ -1,6 +1,5 @@
-const HOLD_MS = 900;
-const FAST_HOLD_MS = 580;
-const BETWEEN_MESSAGES_MS = 55;
+import { getMessageSpeedTiming } from '../core/Settings.js';
+
 const MAX_QUEUE_LENGTH = 6;
 
 export class MessageWindow {
@@ -32,6 +31,10 @@ export class MessageWindow {
     // Force a fresh transition when several combat messages arrive together.
     requestAnimationFrame(() => this.windowEl.classList.add('message-enter'));
     clearTimeout(this.hideTimer);
+    // Read the current speed setting on every message so a mid-battle
+    // change in Options takes effect immediately, without needing to
+    // reset or recreate the message window.
+    const { holdMs: HOLD_MS, fastHoldMs: FAST_HOLD_MS, betweenMs: BETWEEN_MESSAGES_MS } = getMessageSpeedTiming();
     const holdMs = this.queue.length ? FAST_HOLD_MS : HOLD_MS;
     this.hideTimer = setTimeout(() => {
       this.windowEl.classList.remove('message-enter');

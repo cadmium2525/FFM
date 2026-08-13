@@ -16,6 +16,7 @@ import {
   ff5Songs,
 } from './database/ff5Database.js';
 import { FirebaseAccountService } from './services/FirebaseAccountService.js';
+import { MESSAGE_SPEED_PRESETS, getMessageSpeed, setMessageSpeed } from './core/Settings.js';
 import { bossData } from './data/bossData.js';
 import { ff5BossTechniques } from './database/ff5BossTechniques.js';
 import {
@@ -322,12 +323,21 @@ function renderOptions(message = '') {
       <label>ウィンドウの色 <output id="hue-output">${profile.windowHue}</output>
         <input id="option-hue" type="range" min="0" max="359" value="${profile.windowHue}">
       </label>
+      <label>メッセージの表示速度
+        <select id="option-message-speed">
+          ${Object.entries(MESSAGE_SPEED_PRESETS)
+            .map(([key, preset]) => `<option value="${key}" ${key === getMessageSpeed() ? 'selected' : ''}>${escapeHtml(preset.label)}</option>`)
+            .join('')}
+        </select>
+      </label>
+      <small>戦闘メッセージウインドウが自動で閉じるまでの速さを調整します。じっくり読みたい場合は「おそい」を選んでください。</small>
       <button class="panel-button primary" type="submit">設定を保存</button>
     </form>`
   );
 
   const hueInput = document.getElementById('option-hue');
   const volumeInput = document.getElementById('option-volume');
+  const messageSpeedInput = document.getElementById('option-message-speed');
   hueInput.addEventListener('input', () => {
     document.getElementById('hue-output').textContent = hueInput.value;
     document.documentElement.style.setProperty('--window-hue', hueInput.value);
@@ -340,6 +350,7 @@ function renderOptions(message = '') {
     profile.name = document.getElementById('option-player-name').value.trim() || 'PLAYER';
     profile.volume = Number(volumeInput.value);
     profile.windowHue = Number(hueInput.value);
+    setMessageSpeed(messageSpeedInput.value);
     saveProfile();
     renderOptions('設定を保存しました。');
   });

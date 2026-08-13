@@ -2,7 +2,7 @@ import { CTBEngine } from './CTBEngine.js';
 import { resolveAction } from './ActionResolver.js';
 import { attackAction, defendAction, itemActions, magicSets } from '../data/abilityData.js';
 import { eventBus } from '../core/EventBus.js';
-import { isIncapacitated } from './StatusEngine.js';
+import { isIncapacitated, statusLabels } from './StatusEngine.js';
 import { bossActionsFor, bossPhaseIndex, counterPoolFor } from './BossActionProfiles.js';
 
 const ENEMY_TURN_DELAY_MS = 900;
@@ -117,10 +117,10 @@ export class BattleManager {
 
     const tickResults = actor.processTurnStatuses();
     tickResults.forEach((result) => {
-      if (result.type === 'status-damage') this.log(`${actor.name} は ${result.status}で ${result.amount} ダメージ！`);
+      if (result.type === 'status-damage') this.log(`${actor.name} は ${statusLabels([result.status])}で ${result.amount} ダメージ！`);
       if (result.type === 'status-heal' && result.amount > 0) this.log(`${actor.name} の HPが ${result.amount} 回復した。`);
       if (result.type === 'doom') this.log(`${actor.name} は死の宣告に倒れた！`);
-      if (result.type === 'status-expired' && result.status !== 'doom') this.log(`${actor.name} の ${result.status} が切れた。`);
+      if (result.type === 'status-expired' && result.status !== 'doom') this.log(`${actor.name} の ${statusLabels([result.status])} が切れた。`);
     });
     if (tickResults.length) eventBus.emit('battle:actionResolved', { actor, results: tickResults });
     if (this.checkBattleEnd()) return;
@@ -237,6 +237,10 @@ export class BattleManager {
     const pool = counterPoolFor(this.boss);
     const counterConfig = this.boss.counterOnHit;
     if (!pool.length || !counterConfig || !this.boss.isAlive()) return;
+    // Faithful to the source game: a boss frozen by Stop (or otherwise
+    // incapacitated — paralyzed, asleep, petrified) cannot act at all,
+    // including its automatic counterattack.
+    if (isIncapacitated(this.boss)) return;
     if (Math.random() > (counterConfig.chance ?? 1)) return;
 
     const times = counterConfig.times ?? 1;
@@ -253,8 +257,8 @@ export class BattleManager {
       results.forEach((r) => {
         const affected = this.units.find((unit) => unit.uid === r.targetUid);
         if (r.type === 'damage') this.log(`${affected?.name ?? '???'} に ${r.amount} の ダメージ！`, 'counter');
-        else if (r.type === 'status') this.log(`${affected?.name ?? '???'} に ${r.statuses.join('・')}！`, 'counter');
-        else if (r.type === 'status-resist') this.log(`${affected?.name ?? '???'} は ${r.statuses.join('・')} を防いだ！`, 'counter');
+        else if (r.type === 'status') this.log(`${affected?.name ?? '???'} に ${statusLabels(r.statuses) || '特殊効果'}！`, 'counter');
+        else if (r.type === 'status-resist') this.log(`${affected?.name ?? '???'} は ${statusLabels(r.statuses)} を防いだ！`, 'counter');
         else if (r.type === 'removed') this.log(`${affected?.name ?? '???'} は戦場から消え去った！`, 'counter');
       });
       this.emitActionResolved(this.boss, results, actionStartSequence, counterAction);
@@ -412,9 +416,9 @@ export class BattleManager {
       } else if (r.type === 'scan') {
         this.log(`${affectedUnit.name} HP ${r.hp}/${r.maxHp}　弱点 ${r.weakness ?? 'なし'}`);
       } else if (r.type === 'status') {
-        this.log(`${affectedUnit.name} に ${r.statuses.join('・') || '特殊効果'}。`);
+        this.log(`${affectedUnit.name} に ${statusLabels(r.statuses) || '特殊効果'}。`);
       } else if (r.type === 'status-resist') {
-        this.log(`${affectedUnit.name} は ${r.statuses.join('・')} を防いだ！`);
+        this.log(`${affectedUnit.name} は ${statusLabels(r.statuses)} を防いだ！`);
       } else if (r.type === 'cleanse') {
         this.log(`${affectedUnit.name} の状態異常を治療した。`);
       } else if (r.type === 'dispel') {

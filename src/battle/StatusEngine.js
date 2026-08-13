@@ -15,6 +15,29 @@ export const CURABLE_STATUSES = Object.freeze([
   'paralyze', 'sleep', 'old', 'berserk', 'zombie', 'stop', 'slow', 'doom', 'sap',
 ]);
 
+/**
+ * Canonical Japanese display names for every status id used in battle.
+ * Used anywhere a status id would otherwise leak into a message as its raw
+ * (English) internal identifier, e.g. "タバサに paralyze！" instead of
+ * "タバサに 麻痺！".
+ */
+export const STATUS_LABELS_JA = Object.freeze({
+  ko: '戦闘不能', poison: '毒', blind: '暗闇', silence: '沈黙', toad: 'カエル', mini: '小人',
+  petrify: '石化', confuse: '混乱', paralyze: '麻痺', sleep: '睡眠', old: '老化', berserk: '狂戦士',
+  zombie: 'ゾンビ', stop: '停止', slow: 'スロウ', haste: 'ヘイスト', regen: 'リジェネ', protect: 'プロテス',
+  shell: 'シェル', reflect: 'リフレク', float: 'レビテト', image: 'ブリンク', barrier: '物理障壁',
+  doom: '死の宣告', sap: 'スリップ', time_focus: 'とき集中',
+});
+
+/** Translates a status id (or list of ids) to its Japanese display name. */
+export function statusLabel(status) {
+  return STATUS_LABELS_JA[status] ?? status;
+}
+
+export function statusLabels(statuses) {
+  return (statuses ?? []).map(statusLabel).join('・');
+}
+
 export const DEFAULT_STATUS_DURATIONS = Object.freeze({
   sleep: 3,
   paralyze: 2,

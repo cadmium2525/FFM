@@ -238,6 +238,60 @@ class GameStateManager {
 
 const GameState = new GameStateManager();
 
+// ---- src/core/Settings.js ----
+const SETTINGS_STORAGE_KEY = 'ff-crystal-rush-settings-v1';
+
+/**
+ * Message window pacing presets. `holdMs` is how long a single message stays
+ * on screen before advancing (or closing), `fastHoldMs` is the shortened
+ * hold used when more messages are already queued up, and `betweenMs` is the
+ * gap between one message closing and the next appearing.
+ */
+const MESSAGE_SPEED_PRESETS = Object.freeze({
+  slow: { label: 'おそい', holdMs: 1700, fastHoldMs: 1100, betweenMs: 140 },
+  normal: { label: 'ふつう', holdMs: 900, fastHoldMs: 580, betweenMs: 55 },
+  fast: { label: 'はやい', holdMs: 520, fastHoldMs: 320, betweenMs: 25 },
+});
+
+const DEFAULT_SETTINGS = Object.freeze({
+  messageSpeed: 'normal',
+});
+
+function load() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || 'null');
+    if (!saved || !MESSAGE_SPEED_PRESETS[saved.messageSpeed]) return { ...DEFAULT_SETTINGS };
+    return { ...DEFAULT_SETTINGS, ...saved };
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+const state = load();
+
+function save() {
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Settings simply won't persist across sessions if storage is unavailable.
+  }
+}
+
+function getMessageSpeed() {
+  return state.messageSpeed;
+}
+
+function getMessageSpeedTiming() {
+  return MESSAGE_SPEED_PRESETS[state.messageSpeed] ?? MESSAGE_SPEED_PRESETS.normal;
+}
+
+function setMessageSpeed(speed) {
+  if (!MESSAGE_SPEED_PRESETS[speed]) return;
+  state.messageSpeed = speed;
+  save();
+  eventBus.emit('settings:changed', { key: 'messageSpeed', value: speed });
+}
+
 // ---- src/battle/StatusEngine.js ----
 /**
  * Lightweight status rules shared by CTB and the action resolver.
@@ -255,6 +309,29 @@ const CURABLE_STATUSES = Object.freeze([
   'poison', 'blind', 'silence', 'toad', 'mini', 'petrify', 'confuse',
   'paralyze', 'sleep', 'old', 'berserk', 'zombie', 'stop', 'slow', 'doom', 'sap',
 ]);
+
+/**
+ * Canonical Japanese display names for every status id used in battle.
+ * Used anywhere a status id would otherwise leak into a message as its raw
+ * (English) internal identifier, e.g. "タバサに paralyze！" instead of
+ * "タバサに 麻痺！".
+ */
+const STATUS_LABELS_JA = Object.freeze({
+  ko: '戦闘不能', poison: '毒', blind: '暗闇', silence: '沈黙', toad: 'カエル', mini: '小人',
+  petrify: '石化', confuse: '混乱', paralyze: '麻痺', sleep: '睡眠', old: '老化', berserk: '狂戦士',
+  zombie: 'ゾンビ', stop: '停止', slow: 'スロウ', haste: 'ヘイスト', regen: 'リジェネ', protect: 'プロテス',
+  shell: 'シェル', reflect: 'リフレク', float: 'レビテト', image: 'ブリンク', barrier: '物理障壁',
+  doom: '死の宣告', sap: 'スリップ', time_focus: 'とき集中',
+});
+
+/** Translates a status id (or list of ids) to its Japanese display name. */
+function statusLabel(status) {
+  return STATUS_LABELS_JA[status] ?? status;
+}
+
+function statusLabels(statuses) {
+  return (statuses ?? []).map(statusLabel).join('・');
+}
 
 const DEFAULT_STATUS_DURATIONS = Object.freeze({
   sleep: 3,
@@ -2210,23 +2287,35 @@ function getAbilityActions(abilityId) {
   }
   if (abilityId === 'ability_call') return magicSets['召喚魔法'].map((spell) => ({ ...spell, id: `call-${spell.id}`, visualId: `ability_call_${spell.sourceId}`, commandSourceId: 'ability_call', mpCost: 0 }));
   if (abilityId === 'ability_sing') {
-    return ff5Songs.map((song, index) => ({
-      id: song.id,
-      sourceId: song.id,
-      sourceType: 'song',
-      commandSourceId: 'ability_sing',
-      visualId: song.id,
-      name: song.nameJa,
-      actionKind: song.id === 'song_requiem' ? 'magic-attack' : song.id === 'song_mighty_march' ? 'status' : 'stat-modify',
-      element: song.id === 'song_requiem' ? 'holy' : null,
-      power: song.id === 'song_requiem' ? 2.2 : undefined,
-      statuses: song.id === 'song_mighty_march' ? ['regen'] : [],
-      stat: song.id.includes('mana') ? 'magic' : song.id.includes('sinewy') ? 'atk' : 'agility',
-      multiplier: 1.18 + index * 0.01,
-      ctbCost: song.mode === 'continuous' ? 1.15 : 1,
-      target: song.target,
-      effect: song.effect,
-    }));
+    // Instant songs each apply a specific status; continuous songs are
+    // stat-up buffs that persist while the dancer keeps singing.
+    const instantSongEffects = Object.freeze({
+      song_mighty_march: { actionKind: 'status', statuses: ['regen'] },
+      song_romeo_s_ballad: { actionKind: 'status', statuses: ['stop'], statusChance: 0.62 },
+      song_alluring_air: { actionKind: 'status', statuses: ['confuse'], statusChance: 0.62 },
+      song_requiem: { actionKind: 'magic-attack', element: 'holy', power: 2.2 },
+    });
+    return ff5Songs.map((song, index) => {
+      const instant = instantSongEffects[song.id];
+      return {
+        id: song.id,
+        sourceId: song.id,
+        sourceType: 'song',
+        commandSourceId: 'ability_sing',
+        visualId: song.id,
+        name: song.nameJa,
+        actionKind: instant?.actionKind ?? 'stat-modify',
+        element: instant?.element ?? null,
+        power: instant?.power,
+        statuses: instant?.statuses ?? [],
+        statusChance: instant?.statusChance,
+        stat: song.id.includes('mana') ? 'magic' : song.id.includes('sinewy') ? 'atk' : 'agility',
+        multiplier: 1.18 + index * 0.01,
+        ctbCost: song.mode === 'continuous' ? 1.15 : 1,
+        target: song.target,
+        effect: song.effect,
+      };
+    });
   }
   return (directAbilityActions[abilityId] ?? []).map((action) => ({
     ...action,
@@ -3153,9 +3242,6 @@ function counterPoolFor(unit) {
 }
 
 // ---- src/ui/MessageWindow.js ----
-const HOLD_MS = 900;
-const FAST_HOLD_MS = 580;
-const BETWEEN_MESSAGES_MS = 55;
 const MAX_QUEUE_LENGTH = 6;
 
 class MessageWindow {
@@ -3187,6 +3273,10 @@ class MessageWindow {
     // Force a fresh transition when several combat messages arrive together.
     requestAnimationFrame(() => this.windowEl.classList.add('message-enter'));
     clearTimeout(this.hideTimer);
+    // Read the current speed setting on every message so a mid-battle
+    // change in Options takes effect immediately, without needing to
+    // reset or recreate the message window.
+    const { holdMs: HOLD_MS, fastHoldMs: FAST_HOLD_MS, betweenMs: BETWEEN_MESSAGES_MS } = getMessageSpeedTiming();
     const holdMs = this.queue.length ? FAST_HOLD_MS : HOLD_MS;
     this.hideTimer = setTimeout(() => {
       this.windowEl.classList.remove('message-enter');
@@ -3327,10 +3417,10 @@ class BattleManager {
 
     const tickResults = actor.processTurnStatuses();
     tickResults.forEach((result) => {
-      if (result.type === 'status-damage') this.log(`${actor.name} は ${result.status}で ${result.amount} ダメージ！`);
+      if (result.type === 'status-damage') this.log(`${actor.name} は ${statusLabels([result.status])}で ${result.amount} ダメージ！`);
       if (result.type === 'status-heal' && result.amount > 0) this.log(`${actor.name} の HPが ${result.amount} 回復した。`);
       if (result.type === 'doom') this.log(`${actor.name} は死の宣告に倒れた！`);
-      if (result.type === 'status-expired' && result.status !== 'doom') this.log(`${actor.name} の ${result.status} が切れた。`);
+      if (result.type === 'status-expired' && result.status !== 'doom') this.log(`${actor.name} の ${statusLabels([result.status])} が切れた。`);
     });
     if (tickResults.length) eventBus.emit('battle:actionResolved', { actor, results: tickResults });
     if (this.checkBattleEnd()) return;
@@ -3447,6 +3537,10 @@ class BattleManager {
     const pool = counterPoolFor(this.boss);
     const counterConfig = this.boss.counterOnHit;
     if (!pool.length || !counterConfig || !this.boss.isAlive()) return;
+    // Faithful to the source game: a boss frozen by Stop (or otherwise
+    // incapacitated — paralyzed, asleep, petrified) cannot act at all,
+    // including its automatic counterattack.
+    if (isIncapacitated(this.boss)) return;
     if (Math.random() > (counterConfig.chance ?? 1)) return;
 
     const times = counterConfig.times ?? 1;
@@ -3463,8 +3557,8 @@ class BattleManager {
       results.forEach((r) => {
         const affected = this.units.find((unit) => unit.uid === r.targetUid);
         if (r.type === 'damage') this.log(`${affected?.name ?? '???'} に ${r.amount} の ダメージ！`, 'counter');
-        else if (r.type === 'status') this.log(`${affected?.name ?? '???'} に ${r.statuses.join('・')}！`, 'counter');
-        else if (r.type === 'status-resist') this.log(`${affected?.name ?? '???'} は ${r.statuses.join('・')} を防いだ！`, 'counter');
+        else if (r.type === 'status') this.log(`${affected?.name ?? '???'} に ${statusLabels(r.statuses) || '特殊効果'}！`, 'counter');
+        else if (r.type === 'status-resist') this.log(`${affected?.name ?? '???'} は ${statusLabels(r.statuses)} を防いだ！`, 'counter');
         else if (r.type === 'removed') this.log(`${affected?.name ?? '???'} は戦場から消え去った！`, 'counter');
       });
       this.emitActionResolved(this.boss, results, actionStartSequence, counterAction);
@@ -3622,9 +3716,9 @@ class BattleManager {
       } else if (r.type === 'scan') {
         this.log(`${affectedUnit.name} HP ${r.hp}/${r.maxHp}　弱点 ${r.weakness ?? 'なし'}`);
       } else if (r.type === 'status') {
-        this.log(`${affectedUnit.name} に ${r.statuses.join('・') || '特殊効果'}。`);
+        this.log(`${affectedUnit.name} に ${statusLabels(r.statuses) || '特殊効果'}。`);
       } else if (r.type === 'status-resist') {
-        this.log(`${affectedUnit.name} は ${r.statuses.join('・')} を防いだ！`);
+        this.log(`${affectedUnit.name} は ${statusLabels(r.statuses)} を防いだ！`);
       } else if (r.type === 'cleanse') {
         this.log(`${affectedUnit.name} の状態異常を治療した。`);
       } else if (r.type === 'dispel') {
@@ -4109,12 +4203,7 @@ function hpBarClass(unit) {
   return '';
 }
 
-const statusNamesJa = Object.freeze({
-  ko: '戦闘不能', poison: '毒', blind: '暗闇', silence: '沈黙', toad: 'カエル', mini: '小人',
-  petrify: '石化', confuse: '混乱', paralyze: '麻痺', sleep: '睡眠', old: '老化', berserk: '狂戦士',
-  zombie: 'ゾンビ', stop: '停止', slow: 'スロウ', haste: 'ヘイスト', regen: 'リジェネ', protect: 'プロテス',
-  shell: 'シェル', reflect: 'リフレク', float: 'レビテト', doom: '死の宣告', sap: 'スリップ',
-});
+const statusNamesJa = STATUS_LABELS_JA;
 
 const targetNamesJa = Object.freeze({
   self: '自分', 'single-enemy': '敵単体', one_enemy: '敵単体', enemy_group: '敵全体', all_enemies: '敵全体', one_or_all_enemies: '敵単体/全体',
@@ -4888,15 +4977,15 @@ class BattleUI {
     if (result.element) effect.classList.add(`element-${safeToken(result.element)}`);
 
     if (['damage', 'mp-damage'].includes(result.type)) {
-      const outcome = result.nullified ? 'NULL' : result.resisted ? 'RESIST' : result.weak ? 'WEAK' : 'HIT';
+      const outcome = result.nullified ? '無効' : result.resisted ? '耐性' : result.weak ? '弱点' : '';
       effect.textContent = `${outcome} −${result.amount ?? 0}`;
     }
     else if (['heal', 'mp-heal', 'revive', 'absorb'].includes(result.type)) effect.textContent = `+${result.amount ?? 0}`;
-    else if (result.type === 'miss') effect.textContent = 'MISS';
-    else if (result.type === 'blocked' || result.type === 'defend') effect.textContent = 'GUARD';
-    else if (result.type === 'status') effect.textContent = statusNamesJa[result.statuses?.[0]] ?? result.statuses?.[0] ?? 'STATUS';
-    else if (result.type === 'status-resist') effect.textContent = `RESIST ${statusNamesJa[result.statuses?.[0]] ?? result.statuses?.[0] ?? ''}`;
-    else effect.textContent = result.label ?? 'EFFECT';
+    else if (result.type === 'miss') effect.textContent = 'ミス';
+    else if (result.type === 'blocked' || result.type === 'defend') effect.textContent = 'ガード';
+    else if (result.type === 'status') effect.textContent = statusNamesJa[result.statuses?.[0]] ?? result.statuses?.[0] ?? '状態異常';
+    else if (result.type === 'status-resist') effect.textContent = `耐性 ${statusNamesJa[result.statuses?.[0]] ?? result.statuses?.[0] ?? ''}`;
+    else effect.textContent = result.label ?? '効果';
 
     effect.style.left = `${targetRect.left - stageRect.left + targetRect.width / 2}px`;
     effect.style.top = `${targetRect.top - stageRect.top + targetRect.height * 0.22}px`;
@@ -5440,12 +5529,21 @@ function renderOptions(message = '') {
       <label>ウィンドウの色 <output id="hue-output">${profile.windowHue}</output>
         <input id="option-hue" type="range" min="0" max="359" value="${profile.windowHue}">
       </label>
+      <label>メッセージの表示速度
+        <select id="option-message-speed">
+          ${Object.entries(MESSAGE_SPEED_PRESETS)
+            .map(([key, preset]) => `<option value="${key}" ${key === getMessageSpeed() ? 'selected' : ''}>${escapeHtml(preset.label)}</option>`)
+            .join('')}
+        </select>
+      </label>
+      <small>戦闘メッセージウインドウが自動で閉じるまでの速さを調整します。じっくり読みたい場合は「おそい」を選んでください。</small>
       <button class="panel-button primary" type="submit">設定を保存</button>
     </form>`
   );
 
   const hueInput = document.getElementById('option-hue');
   const volumeInput = document.getElementById('option-volume');
+  const messageSpeedInput = document.getElementById('option-message-speed');
   hueInput.addEventListener('input', () => {
     document.getElementById('hue-output').textContent = hueInput.value;
     document.documentElement.style.setProperty('--window-hue', hueInput.value);
@@ -5458,6 +5556,7 @@ function renderOptions(message = '') {
     profile.name = document.getElementById('option-player-name').value.trim() || 'PLAYER';
     profile.volume = Number(volumeInput.value);
     profile.windowHue = Number(hueInput.value);
+    setMessageSpeed(messageSpeedInput.value);
     saveProfile();
     renderOptions('設定を保存しました。');
   });
