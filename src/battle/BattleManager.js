@@ -3,7 +3,7 @@ import { resolveAction } from './ActionResolver.js';
 import { attackAction, defendAction, itemActions, magicSets } from '../data/abilityData.js';
 import { eventBus } from '../core/EventBus.js';
 import { isIncapacitated } from './StatusEngine.js';
-import { bossActionsFor, bossPhaseIndex } from './BossActionProfiles.js';
+import { bossActionsFor, bossPhaseIndex, counterPoolFor } from './BossActionProfiles.js';
 
 const ENEMY_TURN_DELAY_MS = 900;
 const AUTO_ADVANCE_DELAY_MS = 550;
@@ -229,6 +229,40 @@ export class BattleManager {
   }
 
   /**
+   * Some bosses (e.g. Omega) always retaliate with a burst of counter-moves
+   * immediately after taking damage, independent of the CTB turn order.
+   * Faithful to the source game's "反撃行動: 2つ選んで行動" pattern.
+   */
+  resolveCounterAttacks(originalActor) {
+    const pool = counterPoolFor(this.boss);
+    const counterConfig = this.boss.counterOnHit;
+    if (!pool.length || !counterConfig || !this.boss.isAlive()) return;
+    if (Math.random() > (counterConfig.chance ?? 1)) return;
+
+    const times = counterConfig.times ?? 1;
+    for (let i = 0; i < times; i += 1) {
+      const aliveParty = this.party.filter((unit) => unit.isAlive() && !unit.removedFromBattle);
+      if (!aliveParty.length || !this.boss.isAlive()) break;
+      const counterAction = pool[Math.floor(Math.random() * pool.length)];
+      const focusTarget = aliveParty.includes(originalActor) ? originalActor : aliveParty[Math.floor(Math.random() * aliveParty.length)];
+      const counterTargets = counterAction.target === 'all_enemies' ? aliveParty : [focusTarget];
+
+      this.log(`${this.boss.name} の反撃！ ${counterAction.name}！`, 'counter');
+      const actionStartSequence = this.logSequence;
+      const results = resolveAction({ actor: this.boss, action: counterAction, targets: counterTargets, battleUnits: this.units });
+      results.forEach((r) => {
+        const affected = this.units.find((unit) => unit.uid === r.targetUid);
+        if (r.type === 'damage') this.log(`${affected?.name ?? '???'} に ${r.amount} の ダメージ！`, 'counter');
+        else if (r.type === 'status') this.log(`${affected?.name ?? '???'} に ${r.statuses.join('・')}！`, 'counter');
+        else if (r.type === 'status-resist') this.log(`${affected?.name ?? '???'} は ${r.statuses.join('・')} を防いだ！`, 'counter');
+        else if (r.type === 'removed') this.log(`${affected?.name ?? '???'} は戦場から消え去った！`, 'counter');
+      });
+      this.emitActionResolved(this.boss, results, actionStartSequence, counterAction);
+    }
+    this.broadcastState();
+  }
+
+  /**
    * Called by the UI once the player has picked a command (+ target).
    * `choice` shape: { kind, name, ctbCost, element, power, mpCost, healAmount }
    */
@@ -406,6 +440,10 @@ export class BattleManager {
       pendingBossAction.name = `${pendingBossAction.name}（体勢崩し）`;
       this.log(`${this.boss.name} の構えが崩れ、大技の威力が低下した！`, 'counter');
       eventBus.emit('battle:counter', { actor, boss: this.boss, action: pendingBossAction });
+    }
+
+    if (this.boss.isAlive() && results.some((result) => result.targetUid === this.boss.uid && result.type === 'damage' && result.amount > 0)) {
+      this.resolveCounterAttacks(actor);
     }
 
     const nextPhase = bossPhaseIndex(this.boss);

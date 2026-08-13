@@ -77,6 +77,8 @@ function operationToAction(operation, actor) {
     case 'damage.caster_hp': return { ...common, kind: 'fixed-damage', fixedDamage: actor.hp, sacrificeCaster: operation.sacrificeCaster };
     case 'damage.missing_hp': return { ...common, kind: 'fixed-damage', fixedDamage: actor.maxHp - actor.hp };
     case 'damage.hp_ratio': return { ...common, kind: 'ratio-damage', ratio: operation.ratio, heavyImmune: operation.heavyImmune };
+    case 'damage.max_hp_ratio': return { ...common, kind: 'max-hp-ratio-damage', ratio: operation.ratio, heavyImmune: operation.heavyImmune };
+    case 'damage.to_critical': return { ...common, kind: 'critical-damage', heavyImmune: operation.heavyImmune };
     case 'damage.mp_ratio': return { ...common, kind: 'mp-ratio-damage', ratio: operation.ratio };
     case 'drain.hp': return { ...common, kind: 'magic-attack', power: operation.power, drain: true };
     case 'drain.mp': return { ...common, kind: 'mp-drain', power: operation.power };
@@ -249,6 +251,26 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
       targets.forEach((target) => {
         if (action.heavyImmune && target.heavy) results.push({ type: 'blocked', targetUid: target.uid, hits: 1 });
         else results.push({ type: 'damage', targetUid: target.uid, amount: target.applyDamage(Math.floor(target.hp * (action.ratio ?? 0.5))) });
+      });
+      break;
+    }
+    case 'max-hp-ratio-damage': {
+      // Percentage-of-MAX-HP damage (e.g. Omega's Wave Cannon: 1/2 of target's max HP,
+      // regardless of current HP) -- distinct from 'ratio-damage', which uses current HP.
+      targets.forEach((target) => {
+        if (action.heavyImmune && target.heavy) results.push({ type: 'blocked', targetUid: target.uid, hits: 1 });
+        else results.push({ type: 'damage', targetUid: target.uid, amount: target.applyDamage(Math.floor(target.maxHp * (action.ratio ?? 0.5))) });
+      });
+      break;
+    }
+    case 'critical-damage': {
+      // Brings each target down to 1 HP ("瀕死状態にする" / near-death), e.g. Maelstrom.
+      // Never finishes a target off outright, matching the source move's described effect.
+      targets.forEach((target) => {
+        if (action.heavyImmune && target.heavy) { results.push({ type: 'blocked', targetUid: target.uid, hits: 1 }); return; }
+        if (!target.isAlive()) return;
+        const amount = target.applyDamage(Math.max(0, target.hp - 1));
+        results.push({ type: 'damage', targetUid: target.uid, amount });
       });
       break;
     }

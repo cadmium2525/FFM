@@ -215,7 +215,7 @@ function renderCourseSelect() {
       <button id="course-beginner" class="course-card">
         <span class="course-rank">COURSE 01</span>
         <strong>クリスタル探索・初級</strong>
-        <small>3連戦 / 推奨Lv 1 / 初回報酬 300 GIL</small>
+        <small>3連戦 / 1戦目「オメガ」実装検証 / 初回報酬 300 GIL</small>
         <span class="course-start-label">編成へ進む</span>
       </button>
     </div>`
@@ -598,14 +598,22 @@ function buildBossUnit(bossConfig) {
     name: bossConfig.name,
     isEnemy: true,
     maxHp: bossConfig.maxHp,
+    maxMp: bossConfig.maxMp,
     atk: bossConfig.atk,
     def: bossConfig.def,
+    magicDef: bossConfig.magicDef,
+    evasion: bossConfig.evasion,
     magic: bossConfig.magic,
     agility: bossConfig.agility,
     weakness: bossConfig.weakness,
     resist: bossConfig.resist,
     size: bossConfig.size,
     ai: bossConfig.ai,
+    equipmentEffects: bossConfig.equipmentEffects,
+    statusImmunities: bossConfig.statusImmunities,
+    statusResistance: bossConfig.statusResistance,
+    counterOnHit: bossConfig.counterOnHit,
+    creatureTypes: bossConfig.creatureTypes,
   });
 }
 

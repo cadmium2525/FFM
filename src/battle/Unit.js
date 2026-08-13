@@ -67,6 +67,7 @@ export class Unit {
     this.size = config.size ?? 1.0;
     this.ai = config.ai ?? null;
     this.aiActions = config.aiActions ?? [];
+    this.counterOnHit = config.counterOnHit ?? null; // { chance, times } -- see BattleManager.resolveCounterAttacks
     this.creatureTypes = new Set(config.creatureTypes ?? (config.isEnemy ? ['boss'] : ['human']));
     this.row = config.row ?? 'front';
     this.heavy = config.heavy ?? this.creatureTypes.has('boss');

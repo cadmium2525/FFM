@@ -1,6 +1,7 @@
 import { equipmentBySlot, selectableAbilities, crystalShards } from '../database/ff5Database.js';
 import { calculateEquipmentBonuses, equipmentDetailText, findEquipment } from '../battle/EquipmentSystem.js';
 import { isAbilityImplemented } from '../data/abilityData.js';
+import { elementNames } from '../data/bossData.js';
 
 const slotLabels = {
   weapon: '武器',
@@ -32,7 +33,7 @@ export class IntermissionUI {
 
   render(partyUnits, nextBoss) {
     this.nextBossLabelEl.textContent = nextBoss
-      ? `つぎのボス: ${nextBoss.name} （弱点: ${nextBoss.weakness ?? '不明'}）`
+      ? `つぎのボス: ${nextBoss.name} （弱点: ${nextBoss.weakness ? (elementNames[nextBoss.weakness] ?? nextBoss.weakness) : '不明'}）`
       : '';
 
     this.containerEl.innerHTML = '';

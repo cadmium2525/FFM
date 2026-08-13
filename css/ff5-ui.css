@@ -967,6 +967,22 @@ body {
   border-style: dashed;
 }
 
+#battle-screen .boss.unit-omega .crystal-core {
+  inset: 8% 15% 4%;
+  background: linear-gradient(140deg, #ffffff, #d9e4f2 22%, #93a4bd 48%, #4d5a72 74%, #1b212e);
+  clip-path: polygon(50% 2%, 90% 25%, 90% 75%, 50% 98%, 10% 75%, 10% 25%);
+}
+
+#battle-screen .boss.unit-omega .crystal-orbit {
+  border-color: rgba(255, 235, 120, .7);
+  border-radius: 8%;
+  border-style: dotted;
+}
+
+#battle-screen .boss.unit-omega .crystal-orbit.orbit-one {
+  transform: rotate(45deg) scale(1.12);
+}
+
 #battle-screen .player.unit-p1 .soul-core {
   background: linear-gradient(145deg, #fff1b6, #ff8a42 42%, #a9233f 77%);
   clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
@@ -1000,6 +1016,7 @@ body {
 #battle-screen .ctb-entry.unit-boss1 .ctb-icon { background: linear-gradient(145deg, #e7ad58, #543225); }
 #battle-screen .ctb-entry.unit-boss2 .ctb-icon { background: linear-gradient(145deg, #a6f5ff, #3b5bb4); }
 #battle-screen .ctb-entry.unit-boss3 .ctb-icon { background: linear-gradient(145deg, #e19aff, #3e175e); }
+#battle-screen .ctb-entry.unit-omega .ctb-icon { background: linear-gradient(145deg, #eef3fb, #57657d); }
 
 .enemy-intel-phase {
   grid-column: 2;

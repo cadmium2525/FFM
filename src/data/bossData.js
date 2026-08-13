@@ -4,17 +4,41 @@
  */
 export const bossData = [
   {
-    id: 'boss1',
-    name: 'ロックタイタン',
-    maxHp: 3200,
-    atk: 55,
-    def: 25,
-    magic: 10,
-    agility: 18,
-    weakness: 'water',
-    resist: 'earth',
-    size: 1.0,
-    ai: 'aggressive', // always attacks the highest-ATK looking target
+    id: 'omega',
+    name: 'オメガ',
+    // ---- FF5原作「オメガ」の完全再現 ----
+    // 出典: src/database/ff5BossTechniques.js の 'bossref_omega_boss'
+    // （ステータス・属性耐性・状態異常耐性は FF5ピクセルリマスター版の
+    //   ボス個別攻略ページに準拠。LV119 / MP60700 / ATK115 / DEF190 /
+    //   回避95 / 魔力199 / 魔法防御150）。
+    maxHp: 55530,
+    maxMp: 60700,
+    atk: 115,
+    def: 190,
+    magic: 199,
+    magicDef: 150,
+    evasion: 95,
+    // 原作は素早さステータス非公開。「攻撃頻度がとても高い」という原作の
+    // 評判を再現するため、CTBエンジン上の暫定値として高めに設定している。
+    agility: 46,
+    weakness: 'thunder', // 雷のみ弱点。それ以外の属性はすべて吸収する
+    resist: null,
+    equipmentEffects: {
+      // 雷以外の全属性を吸収（原作の属性耐性表: 炎/冷気/毒/聖/大地/風/水 = 吸）
+      absorbs: ['fire', 'ice', 'poison', 'holy', 'earth', 'wind', 'water'],
+    },
+    // 原作の状態異常耐性表: 毒/暗闇/沈黙/老化/こびと/カエル/石化/即死/
+    // バーサク/混乱/睡眠/マヒ = すべて無効。スロウ・ストップのみ有効。
+    statusImmunities: [
+      'poison', 'blind', 'silence', 'old', 'mini', 'toad', 'petrify', 'ko', 'doom',
+      'berserk', 'confuse', 'sleep', 'paralyze',
+    ],
+    // 原作の反撃仕様: ダメージを受けると必ず2つの反撃技で報復してくる
+    // （サークル/マスタードボム/ロケットパンチから選択）。
+    // BossActionProfiles.js の counterPool と BattleManager.resolveCounterAttacks で再現。
+    counterOnHit: { chance: 1, times: 2 },
+    size: 1.4,
+    ai: 'random',
   },
   {
     id: 'boss2',
@@ -51,4 +75,6 @@ export const elementNames = {
   thunder: 'いかずち',
   wind: 'かぜ',
   earth: 'つち',
+  holy: 'せいれい',
+  poison: 'どく',
 };

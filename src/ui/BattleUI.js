@@ -27,7 +27,7 @@ const targetNamesJa = Object.freeze({
   battle: '戦場',
 });
 
-const unitRunes = Object.freeze({ p1: '✦', p2: '◈', p3: '⬢', p4: '⌁', boss1: '◆', boss2: '◇', boss3: '✧' });
+const unitRunes = Object.freeze({ p1: '✦', p2: '◈', p3: '⬢', p4: '⌁', omega: '⊗', boss1: '◆', boss2: '◇', boss3: '✧' });
 
 function safeToken(value, fallback = 'unknown') {
   const token = String(value ?? fallback).toLowerCase().replace(/[^a-z0-9_-]/g, '');

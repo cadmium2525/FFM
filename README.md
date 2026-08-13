@@ -37,6 +37,42 @@ node scripts/validate-boss-techniques.mjs
 すべて日本語で表示）。管理者モードへのアクセス方法は下の「Firebase account setup」を参照して
 ください。
 
+## Full boss reproduction reference: Omega (`src/data/bossData.js` / `BossActionProfiles.js`)
+
+Course 01's first fight (`bossData[0]`, id `omega`) is a from-scratch faithful reproduction
+of FFV's optional superboss **オメガ**, built directly from the
+`ff5BossTechniques.js` reference catalog (`bossref_omega_boss`) plus the same
+Pixel Remaster boss page used to source that catalog entry. It exists as a worked example so
+future boss implementations have a concrete pattern to follow. Reproduced faithfully:
+
+- **Stats**: LV119 baseline — HP 55530, MP 60700, ATK 115, DEF 190, Evasion 95, MAG 199,
+  MDEF 150 (agility isn't published in the source material, so it's an estimated value tuned
+  for Omega's "very high attack frequency" reputation — see the comment in `bossData.js`).
+- **Elemental profile**: absorbs everything except thunder (fire/ice/poison/holy/earth/wind/
+  water all heal it), thunder is its only weakness — via `equipmentEffects.absorbs` on the
+  boss's `Unit`, reusing the same absorb/weak/resist pipeline player equipment uses.
+- **Status immunities**: immune to poison/blind/silence/old/mini/toad/petrify/instant-death/
+  doom/berserk/confuse/sleep/paralyze; vulnerable to slow and stop, exactly matching the
+  source's status-resistance table.
+- **Move pool**: all 8 of Omega's "normal action" moves (Atomic Ray, Flame Thrower,
+  Targeting, Delta Attack, Rainbow Wind, Wave Cannon, Blaster, Maelstrom) plus representative
+  "2-action" combos, implemented in `BossActionProfiles.js` using the existing
+  `operations`-array pipeline (`damage.magic`, `status.apply`, etc.) plus two new operation
+  kinds added to `ActionResolver.js` for moves the engine didn't have primitives for yet:
+  `damage.max_hp_ratio` (Wave Cannon's "50% of max HP, not current HP") and
+  `damage.to_critical` (Maelstrom's "brings the whole party to 1 HP").
+- **Counterattacks**: Omega always retaliates with 2 moves (Circle / Mustard Bomb / Rocket
+  Punch) the instant it takes damage — a new mechanic (`Unit.counterOnHit` +
+  `BattleManager.resolveCounterAttacks()`), since nothing like it existed before. It fires
+  outside the normal CTB turn order, same as the source game.
+
+Known simplifications (documented in code comments where they occur): "Targeting" telegraphs
+a follow-up instead of precisely locking the next move's target; only a handful of the 15
+possible "2-action" combinations are modeled as discrete moves rather than all of them; and
+combo moves currently share one target scope for all their operations rather than letting
+each sub-effect pick independently (matters for Quake-style attacks that should skip
+floating targets). None of these affect the moves' names, elements, stats, or immunities.
+
 ## Character sprites
 
 `src/data/partyData.js` の各パーティメンバーに任意で `spriteUrl` を指定すると、
