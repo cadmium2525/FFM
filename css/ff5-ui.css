@@ -283,19 +283,67 @@ body {
   align-items: center;
   gap: 14px;
   width: 100%;
-  padding: 20px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 22px;
   overflow-y: auto;
 }
 
+.intermission-portrait {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  width: 100%;
+}
+
 .intermission-card .sprite-slot {
-  width: 96px;
-  height: 96px;
+  width: clamp(88px, 22vw, 140px);
+  height: clamp(88px, 22vw, 140px);
   flex: 0 0 auto;
+  background: radial-gradient(circle, rgba(90, 140, 255, 0.28), rgba(10, 16, 40, 0) 70%);
+  border: 2px solid rgba(214, 229, 255, 0.55);
+  border-radius: 50%;
+  box-shadow: 0 0 14px rgba(90, 150, 255, 0.35), inset 0 0 12px rgba(0, 6, 30, 0.4);
+}
+
+.intermission-card .sprite-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.intermission-card .sprite-placeholder.player .blob {
+  position: relative;
+  overflow: visible;
+  background: none;
+  border-radius: 0;
+}
+
+.intermission-card .sprite-placeholder .soul-flare,
+.intermission-card .sprite-placeholder .soul-core,
+.intermission-card .sprite-placeholder .soul-rune {
+  position: absolute;
+}
+
+.intermission-card .sprite-placeholder .soul-rune {
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+}
+
+.intermission-headline {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .intermission-card > .intermission-card-info {
   min-width: 0;
   width: 100%;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .intermission-card .formation-selects {
@@ -311,7 +359,7 @@ body {
   flex-direction: column;
   gap: 4px;
   color: #dce8ff;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .formation-field:nth-last-child(1) {
@@ -322,45 +370,73 @@ body {
   width: 100%;
   min-width: 0;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
   background: var(--ff5-blue-bottom);
   color: #fff;
   border: 2px solid #fff;
-  padding: 7px;
+  padding: 8px;
 }
 
 .formation-note {
   display: block;
   margin-top: 10px;
   color: #9fb9ed;
-  font-size: 9px;
-  line-height: 1.6;
-}
-
-.formation-detail {
-  margin-top: 10px;
-  padding: 11px;
-  white-space: pre-line;
-  color: #eaf2ff;
-  background: rgba(0, 12, 55, 0.48);
-  border: 1px solid rgba(214, 229, 255, 0.5);
   font-size: 10px;
   line-height: 1.7;
 }
 
+.formation-detail {
+  margin-top: 14px;
+  padding: 18px;
+  white-space: pre-line;
+  color: #eaf2ff;
+  background: rgba(0, 12, 55, 0.48);
+  border: 1px solid rgba(214, 229, 255, 0.5);
+  font-size: 15px;
+  line-height: 2.1;
+  flex: 1 1 auto;
+  min-height: 220px;
+}
+
 .intermission-card .card-name {
-  font-size: 18px;
+  font-size: 22px;
   color: #ffe9a8;
   text-align: center;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .intermission-card .card-stats {
-  font-size: 12px;
+  font-size: 14px;
   color: #cfe0ff;
   text-align: center;
-  line-height: 1.8;
+  line-height: 1.9;
 }
+
+.intermission-card .sprite-placeholder.player.unit-p1 .soul-core {
+  background: linear-gradient(145deg, #fff1b6, #ff8a42 42%, #a9233f 77%);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+.intermission-card .sprite-placeholder.player.unit-p2 .soul-core {
+  background: linear-gradient(150deg, #f4ffff, #6ceaff 38%, #3878dc 74%);
+  clip-path: polygon(50% 0, 88% 48%, 72% 88%, 50% 100%, 27% 88%, 12% 48%);
+  border-radius: 46% 46% 50% 50%;
+}
+
+.intermission-card .sprite-placeholder.player.unit-p3 .soul-core {
+  background: linear-gradient(145deg, #efffc6, #72dc66 42%, #236d50 78%);
+  clip-path: polygon(25% 6%, 75% 6%, 100% 50%, 75% 94%, 25% 94%, 0 50%);
+}
+
+.intermission-card .sprite-placeholder.player.unit-p4 .soul-core {
+  background: linear-gradient(145deg, #fff2ff, #d47aff 38%, #5f45d2 72%);
+  clip-path: polygon(50% 0, 67% 33%, 100% 50%, 67% 67%, 50% 100%, 33% 67%, 0 50%, 33% 33%);
+}
+
+.intermission-card .sprite-placeholder.player.unit-p1 .soul-flare { background: radial-gradient(circle, rgba(255,219,139,.65), rgba(255,89,55,.2) 38%, transparent 68%); }
+.intermission-card .sprite-placeholder.player.unit-p2 .soul-flare { background: radial-gradient(circle, rgba(201,252,255,.7), rgba(54,174,255,.2) 38%, transparent 68%); }
+.intermission-card .sprite-placeholder.player.unit-p3 .soul-flare { background: radial-gradient(circle, rgba(226,255,189,.66), rgba(65,208,128,.2) 38%, transparent 68%); }
+.intermission-card .sprite-placeholder.player.unit-p4 .soul-flare { background: radial-gradient(circle, rgba(251,218,255,.7), rgba(146,76,255,.21) 38%, transparent 68%); }
 
 /* ========================================================================== */
 /* Soul Arena units, timeline and combat HUD                                  */

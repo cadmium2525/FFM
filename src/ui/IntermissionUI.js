@@ -81,10 +81,15 @@ export class IntermissionUI {
     const card = document.createElement('div');
     card.className = 'ff5-window intermission-card';
 
+    const portrait = document.createElement('div');
+    portrait.className = 'intermission-portrait';
+
     const spriteSlot = document.createElement('div');
     spriteSlot.className = 'sprite-slot';
     const sprite = document.createElement('div');
-    sprite.className = 'sprite-placeholder player';
+    sprite.className = `sprite-placeholder player unit-${unit.id ?? ''}`;
+    sprite.style.width = '100%';
+    sprite.style.height = '100%';
     if (unit.spriteUrl) {
       sprite.classList.add('has-sprite-image');
       const img = document.createElement('img');
@@ -96,23 +101,32 @@ export class IntermissionUI {
     } else {
       const blob = document.createElement('div');
       blob.className = 'blob';
+      blob.style.width = '100%';
+      blob.style.height = '100%';
+      blob.innerHTML = `<span class="soul-flare"></span><span class="soul-core"></span><span class="soul-rune">${unit.name ? unit.name.charAt(0) : ''}</span>`;
       sprite.appendChild(blob);
     }
     spriteSlot.appendChild(sprite);
-    card.appendChild(spriteSlot);
+    portrait.appendChild(spriteSlot);
 
-    const info = document.createElement('div');
-    info.className = 'intermission-card-info';
+    const headline = document.createElement('div');
+    headline.className = 'intermission-headline';
 
     const nameEl = document.createElement('div');
     nameEl.className = 'card-name';
     nameEl.textContent = unit.name;
-    info.appendChild(nameEl);
+    headline.appendChild(nameEl);
 
     const statsEl = document.createElement('div');
     statsEl.className = 'card-stats';
     statsEl.innerHTML = `HP ${unit.hp}/${unit.maxHp}　MP ${unit.mp}/${unit.maxMp}<br>ATK ${unit.atk}　MAG ${unit.magic}　AGI ${unit.agility}`;
-    info.appendChild(statsEl);
+    headline.appendChild(statsEl);
+
+    portrait.appendChild(headline);
+    card.appendChild(portrait);
+
+    const info = document.createElement('div');
+    info.className = 'intermission-card-info';
 
     const selects = document.createElement('div');
     selects.className = 'formation-selects';
