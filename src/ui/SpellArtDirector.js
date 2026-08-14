@@ -1,0 +1,150 @@
+/**
+ * Hand-authored art direction for every spell in the battle database.
+ * A blueprint controls an additional lightweight pixel-art layer; it is not
+ * used for battle logic.  The combinations are semantic (flames rise, gravity
+ * implodes, time rewinds) instead of hashes derived from record order.
+ */
+const art = (motif, motion, layers, rotation, spread, scale, impact, variant) => Object.freeze({ motif, motion, layers, rotation, spread, scale, impact, variant });
+
+export const SPELL_ART_BLUEPRINTS = Object.freeze({
+  magic_cure: art('life-rune', 'rise', 4, 18, 56, 0.84, 'soft-ring', 1),
+  magic_libra: art('scan-grid', 'sweep', 5, 0, 68, 0.92, 'reticle', 2),
+  magic_poisona: art('cleanse-drop', 'expand', 4, -16, 52, 0.78, 'dissolve', 3),
+  magic_silence: art('seal-glyph', 'snap', 5, 45, 48, 0.82, 'mute-ring', 4),
+  magic_protect: art('barrier', 'assemble', 6, 30, 64, 0.96, 'hex-lock', 5),
+  magic_mini: art('status-glyph', 'implode', 5, -25, 74, 0.72, 'shrink-star', 6),
+  magic_cura: art('life-rune', 'orbit', 6, 36, 72, 1.02, 'double-ring', 7),
+  magic_raise: art('soul-wing', 'rise', 7, 0, 66, 1.08, 'halo-return', 8),
+  magic_confuse: art('status-glyph', 'spiral', 6, 72, 58, 0.88, 'broken-orbit', 9),
+  magic_blink: art('afterimage', 'split', 6, 20, 76, 1.04, 'mirror-pop', 10),
+  magic_shell: art('barrier', 'orbit', 7, 60, 70, 1.08, 'prism-lock', 11),
+  magic_esuna: art('cleanse-drop', 'rain', 7, -35, 82, 1.12, 'prism-dissolve', 12),
+  magic_curaga: art('life-rune', 'bloom', 8, 54, 92, 1.24, 'radiant-bloom', 13),
+  magic_reflect: art('mirror', 'assemble', 7, 90, 78, 1.12, 'mirror-lock', 14),
+  magic_berserk: art('status-glyph', 'pulse', 6, 12, 74, 1.08, 'rage-burst', 15),
+  magic_arise: art('soul-wing', 'ascend', 8, 22, 96, 1.32, 'sun-halo', 16),
+  magic_holy: art('holy-cross', 'descend', 8, 0, 104, 1.42, 'pillar', 17),
+  magic_dispel: art('seal-glyph', 'unweave', 7, -50, 88, 1.14, 'shatter-ring', 18),
+
+  magic_fire: art('flame', 'rise', 4, -18, 52, 0.82, 'ember-pop', 19),
+  magic_blizzard: art('ice-shard', 'rain', 5, 12, 58, 0.86, 'frost-crack', 20),
+  magic_thunder: art('lightning', 'descend', 4, -8, 50, 0.88, 'arc-pop', 21),
+  magic_poison: art('venom-orb', 'seep', 5, 30, 60, 0.86, 'toxic-ring', 22),
+  magic_sleep: art('moon-mist', 'drift', 5, -24, 70, 0.9, 'drowse-wave', 23),
+  magic_toad: art('status-glyph', 'hop', 5, 40, 62, 0.84, 'ripple-pop', 24),
+  magic_fira: art('flame', 'coil', 6, 25, 70, 1.04, 'fire-ring', 25),
+  magic_blizzara: art('ice-shard', 'erupt', 6, -30, 76, 1.08, 'ice-crown', 26),
+  magic_thundara: art('lightning', 'branch', 6, 18, 72, 1.08, 'forked-arc', 27),
+  magic_drain: art('siphon', 'return', 6, -45, 76, 1.02, 'bloodless-pulse', 28),
+  magic_break: art('stone', 'crystallize', 7, 15, 68, 1.1, 'stone-lock', 29),
+  magic_bio: art('venom-orb', 'helix', 7, 56, 82, 1.12, 'bio-splash', 30),
+  magic_firaga: art('flame', 'maelstrom', 8, 42, 98, 1.34, 'inferno-bloom', 31),
+  magic_blizzaga: art('ice-shard', 'avalanche', 8, -62, 102, 1.36, 'glacier-break', 32),
+  magic_thundaga: art('lightning', 'storm', 8, 70, 96, 1.38, 'thunder-cage', 33),
+  magic_flare: art('star-core', 'collapse', 8, 135, 108, 1.48, 'white-nova', 34),
+  magic_death: art('death-sigil', 'descend', 7, 180, 84, 1.2, 'soul-cut', 35),
+  magic_osmose: art('siphon', 'double-return', 7, -90, 86, 1.08, 'mana-pulse', 36),
+
+  magic_speed: art('clock', 'focus', 4, 20, 48, 0.8, 'time-lock', 37),
+  magic_slow: art('clock', 'drag', 5, -30, 58, 0.88, 'slow-ring', 38),
+  magic_regen: art('life-rune', 'heartbeat', 5, 45, 60, 0.92, 'green-pulse', 39),
+  magic_mute: art('seal-glyph', 'field-expand', 6, 0, 110, 1.2, 'silent-field', 40),
+  magic_haste: art('clock', 'accelerate', 6, 65, 68, 1.02, 'speed-lines', 41),
+  magic_float: art('wind-ring', 'lift', 6, -18, 74, 1.06, 'air-cushion', 42),
+  magic_gravity: art('gravity-well', 'implode', 6, 90, 72, 1.08, 'space-dent', 43),
+  magic_stop: art('clock', 'freeze', 7, 0, 78, 1.12, 'glass-stop', 44),
+  magic_teleport: art('portal', 'fold', 7, 40, 90, 1.18, 'iris-close', 45),
+  magic_comet: art('meteor', 'diagonal-fall', 6, -35, 96, 1.14, 'crater-pop', 46),
+  magic_slowga: art('clock', 'field-drag', 7, -70, 112, 1.22, 'slow-field', 47),
+  magic_return: art('hourglass', 'rewind', 8, 180, 118, 1.28, 'timeline-snap', 48),
+  magic_graviga: art('gravity-well', 'collapse', 8, 145, 102, 1.34, 'black-lens', 49),
+  magic_hastega: art('clock', 'field-accelerate', 8, 95, 116, 1.28, 'speed-field', 50),
+  magic_old: art('hourglass', 'drain', 6, -95, 76, 1.04, 'age-dust', 51),
+  magic_meteor: art('meteor', 'meteor-rain', 8, 25, 126, 1.42, 'multi-crater', 52),
+  magic_quick: art('clock', 'time-stop', 8, 270, 122, 1.38, 'double-turn', 53),
+  magic_banish: art('portal', 'erase', 8, -140, 96, 1.3, 'void-iris', 54),
+
+  magic_chocobo: art('summon-feather', 'charge', 6, -18, 86, 1.08, 'beak-comet', 55),
+  magic_sylph: art('summon-feather', 'twin-return', 6, 40, 90, 1.1, 'healing-wing', 56),
+  magic_remora: art('chain', 'bind', 6, 70, 72, 1.02, 'chain-lock', 57),
+  magic_shiva: art('ice-crown', 'crystallize', 8, -40, 108, 1.34, 'diamond-dust', 58),
+  magic_ramuh: art('staff-bolt', 'sky-strike', 8, 12, 110, 1.34, 'judgment-arc', 59),
+  magic_ifrit: art('horned-flame', 'eruption', 8, 32, 112, 1.36, 'hellfire', 60),
+  magic_titan: art('mountain-fist', 'heave', 8, -22, 120, 1.42, 'earth-shock', 61),
+  magic_golem: art('guardian-slab', 'assemble', 8, 0, 118, 1.36, 'stone-wall', 62),
+  magic_catoblepas: art('gaze-eye', 'focus', 7, 110, 88, 1.18, 'petrify-gaze', 63),
+  magic_carbuncle: art('prism-jewel', 'facet-bloom', 8, 45, 120, 1.38, 'reflect-field', 64),
+  magic_syldra: art('tidal-wing', 'serpentine', 8, -55, 124, 1.4, 'wind-tide', 65),
+  magic_odin: art('spear-wheel', 'cleave', 8, 90, 118, 1.42, 'zantetsu-line', 66),
+  magic_phoenix: art('rebirth-wing', 'ascend', 8, 18, 132, 1.48, 'rebirth-flare', 67),
+  magic_leviathan: art('abyss-spiral', 'tidal-rise', 8, -100, 136, 1.5, 'tsunami', 68),
+  magic_bahamut: art('megaflare', 'beam-charge', 8, 0, 142, 1.56, 'mega-flare', 69),
+
+  magic_goblin_punch: art('impact-fist', 'straight', 4, 8, 46, 0.8, 'comic-hit', 70),
+  magic_roulette: art('death-sigil', 'roulette', 7, 360, 108, 1.18, 'random-cut', 71),
+  magic_self_destruct: art('star-core', 'caster-collapse', 8, 0, 126, 1.42, 'sacrifice-burst', 72),
+  magic_vampire: art('siphon', 'fang-return', 6, -32, 78, 1.02, 'scarlet-thread', 73),
+  magic_question_marks: art('broken-glyph', 'stutter', 5, 77, 66, 0.96, 'unknown-hit', 74),
+  magic_magic_hammer: art('mana-hammer', 'swing', 6, -55, 74, 1.06, 'mana-crack', 75),
+  magic_moon_flute: art('moon-mist', 'crescendo', 7, 22, 112, 1.2, 'lunar-wave', 76),
+  magic_aero: art('wind-ring', 'slash', 4, -28, 58, 0.84, 'air-cut', 77),
+  magic_flame_thrower: art('flame-jet', 'sweep', 6, 14, 88, 1.08, 'burn-line', 78),
+  magic_lilliputian_lyric: art('music-note', 'shrink-song', 5, 38, 72, 0.9, 'tiny-note', 79),
+  magic_pond_s_chorus: art('music-note', 'hop-song', 5, -42, 76, 0.92, 'pond-ripple', 80),
+  magic_mind_blast: art('mind-eye', 'pulse', 7, 90, 86, 1.14, 'neural-break', 81),
+  magic_flash: art('light-burst', 'screen-flash', 7, 0, 124, 1.3, 'blind-star', 82),
+  magic_missile: art('target-reticle', 'lock-drop', 7, 45, 84, 1.16, 'quarter-break', 83),
+  magic_level_4_graviga: art('number-sigil', 'fourfold-collapse', 8, 144, 116, 1.28, 'level-four', 84),
+  magic_time_slip: art('hourglass', 'sleep-rewind', 7, -120, 92, 1.16, 'dream-age', 85),
+  magic_aera: art('wind-ring', 'cross-slash', 6, 32, 82, 1.06, 'air-cross', 86),
+  magic_doom: art('death-sigil', 'countdown', 7, 0, 88, 1.18, 'doom-clock', 87),
+  magic_level_2_old: art('number-sigil', 'double-age', 7, 72, 106, 1.2, 'level-two', 88),
+  magic_transfusion: art('soul-wing', 'caster-to-ally', 8, 28, 110, 1.3, 'life-transfer', 89),
+  magic_level_3_flare: art('number-star', 'triple-collapse', 8, 108, 120, 1.38, 'level-three-nova', 90),
+  magic_off_guard: art('broken-shield', 'unweave', 6, -24, 76, 1.04, 'armor-crack', 91),
+  magic_death_claw: art('death-claw', 'rake', 7, 35, 88, 1.2, 'critical-grip', 92),
+  magic_level_5_death: art('number-sigil', 'fivefold-judgment', 8, 180, 124, 1.42, 'level-five-death', 93),
+  magic_aeroga: art('wind-ring', 'tornado', 8, -160, 104, 1.32, 'vacuum-cyclone', 94),
+  magic_1000_needles: art('needle-fan', 'barrage', 8, 15, 112, 1.24, 'thousand-hit', 95),
+  magic_dark_spark: art('dark-lens', 'halve', 7, 80, 84, 1.14, 'level-break', 96),
+  magic_white_wind: art('white-feather', 'party-sweep', 8, -20, 126, 1.34, 'white-heal', 97),
+  magic_aqua_breath: art('water-wave', 'breath-surge', 8, 12, 132, 1.42, 'desert-tide', 98),
+  magic_mighty_guard: art('triple-shield', 'field-assemble', 8, 60, 138, 1.46, 'mighty-lock', 99),
+});
+
+export function spellArtForAction(action = {}) {
+  const ids = [action.visualId, action.sourceId, action.id]
+    .filter(Boolean)
+    .flatMap((id) => [String(id), String(id).replace(/^dual-/, '').replace(/^call-/, '')]);
+  for (const id of ids) if (SPELL_ART_BLUEPRINTS[id]) return SPELL_ART_BLUEPRINTS[id];
+  return null;
+}
+
+export function createSpellArtElement(action = {}) {
+  const blueprint = spellArtForAction(action);
+  if (!blueprint || typeof document === 'undefined') return null;
+  const layer = document.createElement('span');
+  layer.className = `fx-spell-art spell-motif-${blueprint.motif} spell-motion-${blueprint.motion} spell-impact-${blueprint.impact}`;
+  layer.dataset.spellArt = String(action.sourceId ?? action.id ?? 'spell');
+  layer.style.setProperty('--spell-layers', String(blueprint.layers));
+  layer.style.setProperty('--spell-rotation', `${blueprint.rotation}deg`);
+  layer.style.setProperty('--spell-rotation-negative', `${-blueprint.rotation}deg`);
+  layer.style.setProperty('--spell-rotation-quarter-negative', `${-blueprint.rotation * 0.25}deg`);
+  layer.style.setProperty('--spell-spread', `${blueprint.spread}px`);
+  layer.style.setProperty('--spell-scale', String(blueprint.scale));
+  layer.style.setProperty('--spell-scale-pop', String(blueprint.scale * 1.16));
+  layer.style.setProperty('--spell-variant', String(blueprint.variant));
+  for (let index = 0; index < blueprint.layers; index += 1) {
+    const piece = document.createElement('i');
+    piece.style.setProperty('--spell-piece', String(index));
+    piece.style.setProperty('--spell-piece-angle', `${blueprint.rotation + (360 / blueprint.layers) * index}deg`);
+    piece.style.setProperty('--spell-piece-angle-negative', `${-(blueprint.rotation + (360 / blueprint.layers) * index)}deg`);
+    piece.style.setProperty('--spell-piece-angle-plus', `${blueprint.rotation + (360 / blueprint.layers) * index + 80}deg`);
+    piece.style.setProperty('--spell-radius', `${-blueprint.spread * 0.48}px`);
+    piece.style.setProperty('--spell-radius-near', `${-blueprint.spread * 0.08}px`);
+    piece.style.setProperty('--spell-piece-delay', `${index * -47}ms`);
+    layer.appendChild(piece);
+  }
+  layer.setAttribute('aria-hidden', 'true');
+  return layer;
+}

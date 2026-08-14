@@ -91,6 +91,9 @@ export function calculateEquipmentBonuses(equipment = {}) {
   const weapon = findEquipment(equipment.weapon);
   const result = {
     attack: weapon?.attack ?? 0,
+    weaponAttack: weapon?.attack ?? 0,
+    weaponType: weapon?.type ?? (weapon ? 'sword' : 'fist'),
+    throwPower: weapon?.throwAttack ?? weapon?.attack ?? 0,
     defense: items.reduce((sum, item) => sum + (item.defense ?? 0), 0),
     magicDefense: items.reduce((sum, item) => sum + (item.magicDefense ?? 0), 0),
     evasion: items.reduce((sum, item) => sum + (item.evasion ?? 0), 0),
@@ -110,6 +113,10 @@ export function calculateEquipmentBonuses(equipment = {}) {
     mpCostMultiplier: 1,
     physicalDamageMultiplier: 1,
     initialImageHits: 0,
+    stealRate: 0.4,
+    danceBoost: false,
+    catchBoost: false,
+    improvedBrawl: false,
   };
 
   items.forEach((item) => {
@@ -122,8 +129,11 @@ export function calculateEquipmentBonuses(equipment = {}) {
     if (special === 'most_status_immunity_and_all_stats_plus_5') {
       result.attack += 5; result.defense += 5; result.magic += 5; result.agility += 5;
     }
-    if (special === 'barehanded_boost_str_plus_5') result.attack += 5;
+    if (special === 'barehanded_boost_str_plus_5') { result.attack += 5; result.improvedBrawl = true; }
     if (special === 'steal_boost_agi_plus_1') result.agility += 1;
+    if (special === 'steal_boost_agi_plus_1') result.stealRate = 0.8;
+    if (special === 'confuse_immunity_and_dance_boost') result.danceBoost = true;
+    if (special === 'catch_boost') result.catchBoost = true;
     if (special === 'sap_sleep_immunity_mag_minus_5') result.magic -= 5;
     if (special === 'physical_evasion') result.evasion += 25;
     if (special === 'evasion_and_protect') result.evasion += 10;

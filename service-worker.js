@@ -1,17 +1,18 @@
-const CACHE_NAME = 'ff-crystal-rush-pwa-v25';
+const CACHE_NAME = 'ff-crystal-rush-pwa-v27';
 const APP_SHELL = [
   './',
   './index.html',
   './app.js',
-  './css/style.css?v=soul-arena-v18',
-  './css/ff5-ui.css?v=soul-arena-v18',
-  './css/battle-effects.css?v=unique-vfx-v1',
+  './css/style.css?v=ff5-system-v1',
+  './css/ff5-ui.css?v=ff5-system-v1',
+  './css/battle-effects.css?v=ff5-system-v1',
   './firebase-config.js',
   './manifest.webmanifest',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
   './assets/icons/icon-maskable-512.png',
   './assets/backgrounds/crystal-sanctum.webp',
+  './assets/backgrounds/crystal-sanctum-pixel.png',
   './assets/images/bosses/omega.webp',
   './assets/ui/soul-crystal-sigil.svg',
 ];

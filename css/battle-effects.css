@@ -460,6 +460,284 @@
   }
 }
 
+/* --------------------------------------------------------------------------
+   Hand-authored spell art layer
+   -------------------------------------------------------------------------- */
+.fx-spell-art {
+  position: absolute;
+  left: var(--fx-target-x, 27%);
+  top: var(--fx-target-y, 43%);
+  width: 112px;
+  height: 112px;
+  z-index: 7;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(var(--spell-scale));
+  animation: spell-art-enter var(--fx-duration) steps(12, end) both;
+  image-rendering: pixelated;
+}
+
+.direction-enemy .fx-spell-art { left: var(--fx-target-x, 74%); top: var(--fx-target-y, 50%); }
+.target-friendly .fx-spell-art { left: var(--fx-target-x, 76%); top: var(--fx-target-y, 52%); }
+.target-friendly-enemy .fx-spell-art { left: var(--fx-target-x, 24%); }
+.target-multi .fx-spell-art { width: 154px; height: 154px; }
+
+.fx-spell-art::before,
+.fx-spell-art::after,
+.fx-spell-art > i {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin: -9px;
+  border: 2px solid var(--fx-highlight);
+  background: var(--fx-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--fx-secondary) 45%, transparent), 0 0 12px var(--fx-primary);
+  transform: rotate(var(--spell-piece-angle)) translateY(var(--spell-radius)) rotate(var(--spell-piece-angle-negative));
+  animation: spell-piece-orbit var(--fx-duration) steps(16, end) var(--spell-piece-delay) both;
+}
+
+.fx-spell-art::before { width: 62%; height: 62%; margin: -31%; background: transparent; transform: rotate(var(--spell-rotation)); animation: spell-core-turn var(--fx-duration) steps(18, end) both; }
+.fx-spell-art::after { width: 22%; height: 22%; margin: -11%; transform: rotate(45deg); animation: spell-impact-pulse var(--fx-duration) steps(8, end) both; }
+
+/* Motifs change actual silhouettes, not only color. */
+.spell-motif-life-rune > i { border-radius: 50% 0 50% 50%; transform-origin: 50% calc(50% + var(--spell-spread)); }
+.spell-motif-life-rune::before { border-radius: 50%; border-style: double; }
+.spell-motif-life-rune::after { clip-path: polygon(42% 0,58% 0,58% 42%,100% 42%,100% 58%,58% 58%,58% 100%,42% 100%,42% 58%,0 58%,0 42%,42% 42%); }
+
+.spell-motif-scan-grid::before { border: 1px solid var(--fx-primary); background: repeating-linear-gradient(0deg, transparent 0 9px, var(--fx-primary) 10px), repeating-linear-gradient(90deg, transparent 0 9px, var(--fx-primary) 10px); }
+.spell-motif-scan-grid > i { width: 4px; height: 30px; border: 0; background: var(--fx-highlight); }
+.spell-motif-scan-grid::after,
+.spell-motif-target-reticle::after { border-radius: 50%; background: transparent; border: 3px solid var(--fx-highlight); box-shadow: inset 0 0 0 5px transparent, 0 0 0 2px var(--fx-secondary); }
+
+.spell-motif-cleanse-drop > i,
+.spell-motif-water-wave > i { border-radius: 65% 35% 62% 38% / 72% 38% 62% 28%; }
+.spell-motif-cleanse-drop::before { border-radius: 50%; border-style: dotted; }
+
+.spell-motif-seal-glyph > i,
+.spell-motif-status-glyph > i,
+.spell-motif-number-sigil > i { background: transparent; clip-path: polygon(50% 0, 100% 28%, 82% 100%, 18% 100%, 0 28%); }
+.spell-motif-seal-glyph::after { background: linear-gradient(90deg, transparent 42%, var(--fx-highlight) 43% 57%, transparent 58%); }
+.spell-motif-number-sigil::before { border: 4px double var(--fx-highlight); border-radius: 50%; }
+
+.spell-motif-barrier::before,
+.spell-motif-triple-shield::before { clip-path: polygon(50% 0, 92% 18%, 82% 78%, 50% 100%, 18% 78%, 8% 18%); background: color-mix(in srgb, var(--fx-primary) 24%, transparent); border: 4px double var(--fx-highlight); }
+.spell-motif-barrier > i,
+.spell-motif-triple-shield > i { clip-path: polygon(50% 0,100% 25%,80% 100%,20% 100%,0 25%); }
+
+.spell-motif-soul-wing::before,
+.spell-motif-rebirth-wing::before,
+.spell-motif-white-feather::before { border: 0; background: linear-gradient(135deg, transparent 40%, var(--fx-highlight) 41% 54%, transparent 55%), linear-gradient(45deg, transparent 40%, var(--fx-primary) 41% 54%, transparent 55%); clip-path: polygon(50% 45%, 0 0, 14% 58%, 50% 100%, 86% 58%, 100% 0); }
+.spell-motif-soul-wing > i,
+.spell-motif-rebirth-wing > i,
+.spell-motif-white-feather > i { clip-path: polygon(0 0,100% 45%,35% 100%); border-radius: 70% 0; }
+
+.spell-motif-afterimage > i,
+.spell-motif-mirror > i { width: 10px; height: 34px; transform: rotate(var(--spell-piece-angle)) translateY(var(--spell-radius)); background: linear-gradient(90deg, transparent, var(--fx-highlight), transparent); }
+.spell-motif-mirror::before { transform: rotate(45deg); background: color-mix(in srgb, var(--fx-highlight) 18%, transparent); }
+
+.spell-motif-holy-cross::before { border: 0; background: linear-gradient(90deg, transparent 43%, var(--fx-highlight) 44% 56%, transparent 57%), linear-gradient(0deg, transparent 43%, var(--fx-highlight) 44% 56%, transparent 57%); }
+.spell-motif-holy-cross > i { clip-path: polygon(45% 0,55% 0,55% 45%,100% 45%,100% 55%,55% 55%,55% 100%,45% 100%,45% 55%,0 55%,0 45%,45% 45%); }
+
+.spell-motif-flame > i,
+.spell-motif-flame-jet > i,
+.spell-motif-horned-flame > i { border-radius: 70% 8% 62% 38%; clip-path: polygon(50% 0,85% 42%,70% 100%,22% 86%,0 46%); }
+.spell-motif-flame::before,
+.spell-motif-horned-flame::before { border-radius: 50%; border-style: dotted; }
+
+.spell-motif-ice-shard > i,
+.spell-motif-ice-crown > i { clip-path: polygon(50% 0,82% 50%,50% 100%,18% 50%); background: linear-gradient(135deg, var(--fx-highlight), var(--fx-primary) 48%, var(--fx-secondary)); }
+.spell-motif-ice-shard::before,
+.spell-motif-ice-crown::before { clip-path: polygon(50% 0,64% 36%,100% 50%,64% 64%,50% 100%,36% 64%,0 50%,36% 36%); }
+
+.spell-motif-lightning > i,
+.spell-motif-staff-bolt > i { clip-path: polygon(56% 0,100% 0,68% 38%,92% 38%,30% 100%,45% 54%,14% 54%); border: 0; }
+.spell-motif-lightning::before,
+.spell-motif-staff-bolt::before { border: 0; background: repeating-linear-gradient(115deg, transparent 0 9px, var(--fx-highlight) 10px 13px, transparent 14px 22px); }
+
+.spell-motif-venom-orb > i { border-radius: 50% 50% 45% 55%; border-style: dotted; }
+.spell-motif-venom-orb::before { border-radius: 46%; background: radial-gradient(circle at 32% 28%, var(--fx-highlight) 0 7%, transparent 8%), radial-gradient(circle at 68% 62%, var(--fx-secondary) 0 12%, transparent 13%); }
+
+.spell-motif-moon-mist::before { border-radius: 50%; border: 0; background: radial-gradient(circle at 60% 38%, transparent 0 34%, var(--fx-highlight) 35% 49%, transparent 50%); }
+.spell-motif-moon-mist > i { border-radius: 50%; width: 9px; height: 9px; }
+
+.spell-motif-siphon > i { width: 8px; height: 26px; border: 0; border-radius: 50%; }
+.spell-motif-siphon::before { border-radius: 50%; border-style: dashed; }
+
+.spell-motif-stone > i,
+.spell-motif-mountain-fist > i,
+.spell-motif-guardian-slab > i { clip-path: polygon(20% 5%,78% 0,100% 40%,72% 100%,12% 86%,0 38%); }
+.spell-motif-stone::before,
+.spell-motif-mountain-fist::before,
+.spell-motif-guardian-slab::before { clip-path: polygon(12% 76%,28% 34%,48% 58%,67% 14%,90% 78%); }
+
+.spell-motif-star-core::before,
+.spell-motif-light-burst::before,
+.spell-motif-number-star::before { clip-path: polygon(50% 0,61% 37%,100% 50%,61% 63%,50% 100%,39% 63%,0 50%,39% 37%); border: 0; background: var(--fx-highlight); }
+.spell-motif-star-core > i,
+.spell-motif-light-burst > i,
+.spell-motif-number-star > i { border-radius: 50%; }
+
+.spell-motif-death-sigil::before,
+.spell-motif-death-claw::before { border-radius: 50%; background: conic-gradient(from 22deg, transparent 0 10%, var(--fx-primary) 11% 14%, transparent 15% 24%); border: 3px double var(--fx-highlight); }
+.spell-motif-death-sigil > i { clip-path: polygon(50% 0,100% 100%,50% 75%,0 100%); }
+.spell-motif-death-claw > i { clip-path: polygon(0 0,30% 0,55% 70%,70% 0,100% 0,72% 100%,28% 100%); }
+
+.spell-motif-clock::before,
+.spell-motif-hourglass::before { border-radius: 50%; border: 4px double var(--fx-highlight); background: conic-gradient(var(--fx-primary) 0 3%, transparent 4% 24%, var(--fx-primary) 25% 28%, transparent 29% 49%, var(--fx-primary) 50% 53%, transparent 54% 74%, var(--fx-primary) 75% 78%, transparent 79%); }
+.spell-motif-clock::after { width: 4px; height: 42px; margin: -21px -2px; transform-origin: 50% 50%; }
+.spell-motif-hourglass::before { border-radius: 0; clip-path: polygon(0 0,100% 0,62% 50%,100% 100%,0 100%,38% 50%); }
+
+.spell-motif-wind-ring > i,
+.spell-motif-tidal-wing > i { border-radius: 70% 0; background: transparent; border-width: 3px 0 0 3px; }
+.spell-motif-wind-ring::before { border-radius: 50%; border-style: dashed; }
+
+.spell-motif-gravity-well::before,
+.spell-motif-dark-lens::before { border-radius: 50%; background: radial-gradient(circle, #000 0 18%, var(--fx-secondary) 19% 32%, transparent 33% 48%, var(--fx-primary) 49% 54%, transparent 55%); border: 0; }
+.spell-motif-gravity-well > i,
+.spell-motif-dark-lens > i { border-radius: 50%; width: 8px; height: 8px; }
+
+.spell-motif-portal::before { border-radius: 50%; border: 5px double var(--fx-highlight); background: conic-gradient(from 45deg, transparent, var(--fx-secondary), transparent, var(--fx-primary), transparent); }
+.spell-motif-portal > i { width: 5px; height: 28px; border: 0; }
+
+.spell-motif-meteor > i { clip-path: polygon(0 36%,65% 0,100% 35%,62% 100%); }
+.spell-motif-meteor::before { border: 0; background: repeating-linear-gradient(-35deg, transparent 0 8px, var(--fx-primary) 9px 13px, transparent 14px 20px); }
+
+.spell-motif-chain > i { border-radius: 50%; background: transparent; border-width: 4px; width: 22px; height: 12px; }
+.spell-motif-gaze-eye::before,
+.spell-motif-mind-eye::before { border-radius: 70% 0; transform: rotate(45deg); background: radial-gradient(circle, var(--fx-highlight) 0 12%, var(--fx-secondary) 13% 30%, transparent 31%); }
+
+.spell-motif-prism-jewel > i { clip-path: polygon(50% 0,100% 40%,78% 100%,22% 100%,0 40%); background: linear-gradient(135deg,var(--fx-highlight),var(--fx-primary),var(--fx-secondary)); }
+.spell-motif-abyss-spiral::before { border-radius: 50%; border: 5px dashed var(--fx-highlight); }
+.spell-motif-megaflare::before { border: 0; background: linear-gradient(90deg, transparent 0 7%, var(--fx-highlight) 8% 18%, var(--fx-primary) 19% 81%, var(--fx-highlight) 82% 92%, transparent 93%); clip-path: polygon(0 38%,100% 0,100% 100%,0 62%); }
+
+.spell-motif-impact-fist > i,
+.spell-motif-mana-hammer > i { clip-path: polygon(0 22%,22% 0,70% 10%,100% 50%,70% 90%,22% 100%,0 78%); }
+.spell-motif-broken-glyph::before,
+.spell-motif-broken-shield::before { border: 4px dashed var(--fx-highlight); transform: skew(-14deg) rotate(var(--spell-rotation)); }
+.spell-motif-music-note > i { border-radius: 50%; width: 11px; height: 11px; box-shadow: 7px -14px 0 -2px var(--fx-primary); }
+.spell-motif-needle-fan > i { width: 3px; height: 32px; border: 0; }
+.spell-motif-spear-wheel::before { border-radius: 50%; border: 4px double var(--fx-highlight); background: repeating-conic-gradient(transparent 0 16deg, var(--fx-primary) 17deg 21deg, transparent 22deg 44deg); }
+.spell-motif-spear-wheel > i { width: 4px; height: 38px; border: 0; clip-path: polygon(50% 0,100% 28%,64% 100%,36% 100%,0 28%); }
+.spell-motif-summon-feather::before { border: 0; clip-path: polygon(50% 0,82% 28%,66% 100%,50% 77%,34% 100%,18% 28%); background: linear-gradient(90deg,var(--fx-secondary),var(--fx-highlight),var(--fx-primary)); }
+.spell-motif-summon-feather > i { border-radius: 85% 0; clip-path: polygon(0 0,100% 36%,28% 100%); }
+
+/* Semantic travel families. */
+.spell-motion-rise,
+.spell-motion-ascend,
+.spell-motion-lift,
+.spell-motion-tidal-rise,
+.spell-motion-erupt,
+.spell-motion-eruption,
+.spell-motion-heave,
+.spell-motion-hop,
+.spell-motion-hop-song { animation-name: spell-rise; }
+.spell-motion-descend,
+.spell-motion-rain,
+.spell-motion-avalanche,
+.spell-motion-meteor-rain,
+.spell-motion-diagonal-fall,
+.spell-motion-lock-drop,
+.spell-motion-sky-strike,
+.spell-motion-fang-return { animation-name: spell-fall; }
+.spell-motion-implode,
+.spell-motion-collapse,
+.spell-motion-caster-collapse,
+.spell-motion-fourfold-collapse,
+.spell-motion-triple-collapse,
+.spell-motion-halve,
+.spell-motion-shrink-song,
+.spell-motion-erase,
+.spell-motion-snap { animation-name: spell-collapse; }
+.spell-motion-orbit,
+.spell-motion-spiral,
+.spell-motion-helix,
+.spell-motion-maelstrom,
+.spell-motion-tornado,
+.spell-motion-roulette,
+.spell-motion-coil,
+.spell-motion-serpentine,
+.spell-motion-storm,
+.spell-motion-swing { animation-name: spell-orbit-scene; }
+.spell-motion-sweep,
+.spell-motion-slash,
+.spell-motion-cross-slash,
+.spell-motion-cleave,
+.spell-motion-rake,
+.spell-motion-barrage,
+.spell-motion-straight,
+.spell-motion-branch,
+.spell-motion-breath-surge { animation-name: spell-sweep; }
+.spell-motion-rewind,
+.spell-motion-sleep-rewind,
+.spell-motion-return,
+.spell-motion-double-return,
+.spell-motion-twin-return,
+.spell-motion-double-age,
+.spell-motion-time-stop,
+.spell-motion-countdown,
+.spell-motion-unweave,
+.spell-motion-fold { animation-name: spell-rewind; }
+.spell-motion-assemble,
+.spell-motion-field-assemble,
+.spell-motion-crystallize,
+.spell-motion-bloom,
+.spell-motion-facet-bloom,
+.spell-motion-charge,
+.spell-motion-beam-charge,
+.spell-motion-focus,
+.spell-motion-crescendo,
+.spell-motion-pulse,
+.spell-motion-heartbeat,
+.spell-motion-fivefold-judgment,
+.spell-motion-split,
+.spell-motion-screen-flash { animation-name: spell-assemble; }
+.spell-motion-field-expand,
+.spell-motion-field-drag,
+.spell-motion-field-accelerate,
+.spell-motion-party-sweep,
+.spell-motion-accelerate,
+.spell-motion-expand,
+.spell-motion-caster-to-ally,
+.spell-motion-drift,
+.spell-motion-drag,
+.spell-motion-drain,
+.spell-motion-seep,
+.spell-motion-bind,
+.spell-motion-freeze,
+.spell-motion-stutter { animation-name: spell-field; }
+
+@keyframes spell-art-enter {
+  0% { opacity: 0; transform: translate(-50%,-50%) scale(.18) rotate(var(--spell-rotation-quarter-negative)); }
+  26% { opacity: 1; }
+  72% { opacity: 1; transform: translate(-50%,-50%) scale(var(--spell-scale)) rotate(0); }
+  100% { opacity: 0; transform: translate(-50%,-50%) scale(var(--spell-scale-pop)); }
+}
+@keyframes spell-rise { 0% { opacity: 0; transform: translate(-50%,35%) scale(.3); } 45%,75% { opacity: 1; transform: translate(-50%,-55%) scale(var(--spell-scale)); } 100% { opacity: 0; transform: translate(-50%,-105%) scale(1.08); } }
+@keyframes spell-fall { 0% { opacity: 0; transform: translate(-15%,-145%) scale(.55) rotate(-18deg); } 58% { opacity: 1; transform: translate(-50%,-50%) scale(var(--spell-scale)); } 72% { transform: translate(-50%,-42%) scale(1.2,.76); } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.48); } }
+@keyframes spell-collapse { 0% { opacity: 0; transform: translate(-50%,-50%) scale(1.8) rotate(var(--spell-rotation)); } 58% { opacity: 1; transform: translate(-50%,-50%) scale(.45) rotate(0); } 75% { transform: translate(-50%,-50%) scale(.16); } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.65); } }
+@keyframes spell-orbit-scene { 0% { opacity: 0; transform: translate(-50%,-50%) rotate(var(--spell-rotation-negative)) scale(.4); } 25%,72% { opacity: 1; } 82% { transform: translate(-50%,-50%) rotate(var(--spell-rotation)) scale(var(--spell-scale)); } 100% { opacity: 0; transform: translate(-50%,-50%) rotate(var(--spell-rotation)) scale(.15); } }
+@keyframes spell-sweep { 0% { opacity: 0; transform: translate(-145%,-65%) rotate(-26deg) scale(.35); } 45% { opacity: 1; } 72% { transform: translate(-35%,-42%) rotate(12deg) scale(var(--spell-scale)); } 100% { opacity: 0; transform: translate(45%,-22%) rotate(24deg) scale(.8); } }
+@keyframes spell-rewind { 0% { opacity: 0; transform: translate(-50%,-50%) rotate(180deg) scale(1.3); } 35%,72% { opacity: 1; } 90% { transform: translate(-50%,-50%) rotate(-180deg) scale(.5); } 100% { opacity: 0; transform: translate(-50%,-50%) rotate(-260deg) scale(.1); } }
+@keyframes spell-assemble { 0% { opacity: 0; transform: translate(-50%,-50%) scale(1.6); } 55% { opacity: 1; transform: translate(-50%,-50%) scale(var(--spell-scale)); } 82% { transform: translate(-50%,-50%) scale(.96); } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.08); } }
+@keyframes spell-field { 0% { opacity: 0; transform: translate(-50%,-50%) scaleX(.1); } 42%,78% { opacity: 1; transform: translate(-50%,-50%) scale(1.45,.86); } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.8,.35); } }
+@keyframes spell-piece-orbit { 0% { opacity: 0; } 22% { opacity: 1; } 70% { transform: rotate(var(--spell-piece-angle)) translateY(var(--spell-radius)) rotate(var(--spell-piece-angle-negative)); } 100% { opacity: 0; transform: rotate(var(--spell-piece-angle-plus)) translateY(var(--spell-radius-near)) scale(.2); } }
+@keyframes spell-core-turn { 0% { opacity: 0; transform: rotate(var(--spell-rotation-negative)) scale(.2); } 32%,74% { opacity: 1; } 100% { opacity: 0; transform: rotate(var(--spell-rotation)) scale(1.3); } }
+@keyframes spell-impact-pulse { 0%,54% { opacity: 0; transform: rotate(45deg) scale(.1); } 66% { opacity: 1; transform: rotate(45deg) scale(1.15); } 100% { opacity: 0; transform: rotate(135deg) scale(2); } }
+
+@media (max-width: 430px) {
+  .fx-spell-art { width: 88px; height: 88px; }
+  .target-multi .fx-spell-art { width: 116px; height: 116px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-spell-art,
+  .fx-spell-art::before,
+  .fx-spell-art::after,
+  .fx-spell-art > i { animation-duration: 380ms !important; animation-iteration-count: 1 !important; }
+}
+
 @keyframes fx-reduced {
   0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(.92); }
   35%, 75% { opacity: .9; transform: translate(-50%, -50%) scale(1); }

@@ -390,6 +390,9 @@ class Unit {
     this.mp = config.mp ?? this.maxMp;
 
     this.atk = config.atk ?? 10;
+    this.monsterM = config.monsterM ?? (this.isEnemy ? Math.max(1, Math.round(this.atk / 10)) : null);
+    this.strength = config.strength ?? config.baseAtk ?? this.atk;
+    this.vitality = config.vitality ?? config.baseDef ?? config.def ?? 10;
     this.def = config.def ?? 10;
     this.magicDef = config.magicDef ?? Math.round(this.def * 0.5);
     this.magic = config.magic ?? 10;
@@ -402,12 +405,16 @@ class Unit {
     this.weaponAccuracy = config.weaponAccuracy ?? 100;
     this.weaponSpecial = config.weaponSpecial ?? null;
     this.weaponId = config.weaponId ?? 'w_neutral';
+    this.equipmentEffects = config.equipmentEffects ?? {};
+    this.weaponAttack = config.weaponAttack ?? this.equipmentEffects?.weaponAttack ?? 0;
+    this.weaponType = config.weaponType ?? this.equipmentEffects?.weaponType ?? 'sword';
+    this.hasBrawl = Boolean(config.hasBrawl);
     this.baseAtk = config.baseAtk ?? this.atk;
     this.baseDef = config.baseDef ?? this.def;
     this.baseMagicDef = config.baseMagicDef ?? this.magicDef;
     this.baseMagic = config.baseMagic ?? this.magic;
     this.baseAgility = config.baseAgility ?? this.agility;
-    this.equipmentEffects = config.equipmentEffects ?? {};    this.mpCostMultiplier = this.equipmentEffects.mpCostMultiplier ?? 1;
+    this.mpCostMultiplier = this.equipmentEffects.mpCostMultiplier ?? 1;
     this.physicalDamageMultiplier = this.equipmentEffects.physicalDamageMultiplier ?? 1;
     this.imageHits = this.equipmentEffects.initialImageHits ?? 0;
     this.nextAttackMultiplier = 1;
@@ -421,6 +428,8 @@ class Unit {
       ...(this.equipmentEffects.statusImmunities ?? []),
     ]);
     this.statusResistance = Math.min(0.9, Math.max(0, config.statusResistance ?? this.equipmentEffects.statusResistance ?? 0));
+    this.temporaryNullElements = new Set(config.temporaryNullElements ?? []);
+    this.elementalPower = Boolean(config.elementalPower);
     this.level = config.level ?? 1;
     this.equippedAbilitySet = config.equippedAbilitySet ?? 'たたかう型';
     this.equipment = config.equipment ?? {
@@ -442,6 +451,12 @@ class Unit {
     this.heavy = config.heavy ?? this.creatureTypes.has('boss');
     this.isUndead = config.isUndead ?? this.equipmentEffects.undeadProperties ?? this.creatureTypes.has('undead');
     this.removedFromBattle = false;
+    this.hidden = Boolean(config.hidden);
+    this.pendingJump = config.pendingJump ?? null;
+    this.capturedMonster = config.capturedMonster ?? null;
+    this.singing = config.singing ?? null;
+    this.weaponSpellblade = config.weaponSpellblade ?? null;
+    this.stolen = Boolean(config.stolen);
 
     // CTB state
     this.ctValue = config.ctValue ?? Math.random() * 200 + (this.equipmentEffects.initialCtBonus ?? 0); // slight stagger at battle start
@@ -549,6 +564,199 @@ class Unit {
   }
 }
 
+// ---- src/battle/FF5FormulaEngine.js ----
+/**
+ * Integer battle formulas modelled after the SFC Final Fantasy V battle code.
+ *
+ * The original engine first derives attack (A), defense (D), and a stat/level
+ * multiplier (M), then applies: max(0, A - D) * M.  Weapon families are not
+ * interchangeable: axes roll a wide attack range, knives split Strength and
+ * Agility, and spears only double M while landing from Jump.
+ *
+ * Reference implementation used while deriving these rules:
+ * https://github.com/everything8215/ff5/blob/main/src/battle/battle-main.asm
+ */
+
+const DAMAGE_CAP = 9999;
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const stat = (value) => clamp(Math.floor(Number(value) || 0), 0, 99);
+const level = (unit) => clamp(Math.floor(Number(unit.level) || 1), 1, 99);
+
+function randomInt(maxInclusive, random = Math.random) {
+  const max = Math.max(0, Math.floor(maxInclusive));
+  return Math.floor(clamp(random(), 0, 0.999999999) * (max + 1));
+}
+
+function ff5FinalDamage(attack, defense, multiplier) {
+  return clamp(Math.max(0, Math.floor(attack) - Math.floor(defense)) * Math.max(0, Math.floor(multiplier)), 0, DAMAGE_CAP);
+}
+
+function ff5PhysicalHit({ attacker, defender, action = {}, random = Math.random }) {
+  if (action.ignoreEvasion || action.commandFormula === 'aim' || action.commandFormula === 'rapid-fire' || action.commandFormula === 'jump') return true;
+  if ((defender.imageHits ?? 0) > 0) return false;
+  let accuracy = Math.floor(action.accuracy ?? attacker.weaponAccuracy ?? 100);
+  if (attacker.statuses?.has('blind')) accuracy = Math.max(1, Math.floor(accuracy / 4));
+  let evasion = Math.floor(defender.evasion ?? 0);
+  if (defender.statuses?.has('toad')) evasion = 0;
+  if (defender.statuses?.has('mini')) evasion = Math.min(99, evasion * 2);
+  if (randomInt(99, random) >= accuracy) return false;
+  if (['sleep', 'confuse', 'paralyze', 'stop'].some((status) => defender.statuses?.has(status))) return true;
+  return randomInt(99, random) >= evasion;
+}
+
+function basePhysicalParameters(attacker, defender, action, random) {
+  const configuredWeaponPower = Number(attacker.equipmentEffects?.weaponAttack ?? attacker.weaponAttack ?? 0);
+  const weaponPower = Math.max(0, Math.floor(configuredWeaponPower > 0 ? configuredWeaponPower : attacker.atk));
+  const strength = stat(attacker.strength ?? attacker.baseAtk ?? attacker.atk);
+  const agility = stat(attacker.agility);
+  const attackerLevel = level(attacker);
+  const weaponType = action.weaponType ?? attacker.equipmentEffects?.weaponType ?? attacker.weaponType ?? (weaponPower > 0 ? 'sword' : 'fist');
+  let attack;
+  let multiplier;
+
+  switch (weaponType) {
+    case 'axe':
+    case 'hammer':
+    case 'flail':
+      attack = Math.floor(weaponPower / 2) + randomInt(weaponPower, random);
+      multiplier = Math.floor(attackerLevel * strength / 128) + 2;
+      break;
+    case 'knife':
+    case 'ninja_blade':
+    case 'whip':
+    case 'bow':
+    case 'throwing':
+      attack = weaponPower + randomInt(3, random);
+      multiplier = Math.floor(attackerLevel * strength / 128) + Math.floor(attackerLevel * agility / 128) + 2;
+      break;
+    case 'bell':
+      attack = Math.floor(weaponPower / 2) + randomInt(Math.floor(weaponPower / 2), random);
+      multiplier = Math.floor(attackerLevel * stat(attacker.magic) / 128) + Math.floor(attackerLevel * agility / 128) + 2;
+      break;
+    case 'rod':
+      attack = randomInt(weaponPower, random) * 2;
+      multiplier = Math.floor(attackerLevel * stat(attacker.magic) / 256) + 2;
+      break;
+    case 'fist':
+      if (attacker.hasBrawl || attacker.abilityId === 'ability_barehanded') {
+        attack = weaponPower + attackerLevel * 2 + randomInt(Math.floor(attackerLevel / 4), random)
+          + (attacker.equipmentEffects?.improvedBrawl ? 50 : 0);
+        multiplier = Math.floor(attackerLevel * strength / 256) + 2;
+      } else {
+        attack = weaponPower + randomInt(Math.floor(attackerLevel / 4), random);
+        multiplier = 2;
+      }
+      break;
+    default:
+      attack = weaponPower + randomInt(Math.floor(weaponPower / 8), random);
+      multiplier = Math.floor(attackerLevel * strength / 128) + 2;
+      break;
+  }
+
+  let defense = Math.max(0, Math.floor(defender.def ?? 0));
+  if (['axe', 'hammer', 'flail'].includes(weaponType)) defense = Math.floor(defense / 4);
+  if (['bell', 'rod'].includes(weaponType)) defense = Math.max(0, Math.floor(defender.magicDef ?? 0));
+  let postMultiplier = Number(action.power ?? 1) * Number(action.attackMultiplier ?? 1);
+
+  if (action.commandFormula === 'rapid-fire') {
+    defense = 0;
+    postMultiplier *= 0.5;
+  }
+  if (action.commandFormula === 'focus') postMultiplier *= 2;
+  if (action.commandFormula === 'sword-dance') postMultiplier *= 4;
+  if (action.commandFormula === 'jump' && ['spear', 'lance'].includes(weaponType)) multiplier *= 2;
+  if (action.ignoreDefense) defense = 0;
+
+  const isRanged = action.ranged || ['bow', 'whip'].includes(weaponType) || action.commandFormula === 'jump' || action.commandFormula === 'throw';
+  if (!isRanged && attacker.row === 'back' && !attacker.equipmentEffects?.backRowFullDamage) multiplier = Math.floor(multiplier / 2);
+  if (!isRanged && defender.row === 'back') multiplier = Math.floor(multiplier / 2);
+  if (defender.statuses?.has('protect')) multiplier = Math.floor(multiplier / 2);
+  if (defender.defending) multiplier = Math.floor(multiplier / 2);
+  if (attacker.statuses?.has('berserk')) attack = Math.floor(attack * 1.5);
+  if (attacker.statuses?.has('toad') || attacker.statuses?.has('mini')) attack = 3;
+  if (defender.statuses?.has('toad') || defender.statuses?.has('mini')) defense = 0;
+
+  const critical = Boolean(action.forceCritical)
+    || (['katana'].includes(weaponType) && random() < (attacker.weaponSpecial === 'high_critical' ? 0.25 : 0.125));
+  if (critical) {
+    defense = 0;
+    multiplier *= 2;
+  }
+
+  return { attack, defense, multiplier, postMultiplier, weaponType, critical };
+}
+
+function ff5PhysicalDamage(attacker, defender, action = {}, random = Math.random) {
+  if (attacker.weaponSpecial === 'always_1_damage' && action.commandFormula !== 'throw') return { damage: 1, critical: false };
+  const params = basePhysicalParameters(attacker, defender, action, random);
+  let damage = Math.floor(ff5FinalDamage(params.attack, params.defense, params.multiplier) * params.postMultiplier);
+  damage = clamp(Math.floor(damage * (defender.physicalDamageMultiplier ?? 1)), 0, DAMAGE_CAP);
+  return { damage, critical: params.critical, formula: params };
+}
+
+/**
+ * SFC monster attacks do not reuse a character's sword formula.
+ * A = MonsterAttack + 0..MonsterAttack/8, M = MonsterM, D = Defense.
+ */
+function ff5MonsterDamage(attacker, defender, action = {}, random = Math.random) {
+  let attack = Math.max(0, Math.floor(attacker.atk ?? 0));
+  attack += randomInt(Math.floor(attack / 8), random);
+  let defense = Math.max(0, Math.floor(defender.def ?? 0));
+  let multiplier = Math.max(1, Math.floor(attacker.monsterM ?? 1));
+  if (action.commandFormula === 'rapid-fire') defense = 0;
+  if (action.ignoreDefense) defense = 0;
+  if (defender.statuses?.has('protect')) multiplier = Math.floor(multiplier / 2);
+  if (defender.defending) multiplier = Math.floor(multiplier / 2);
+  let damage = ff5FinalDamage(attack, defense, multiplier);
+  damage = Math.floor(damage * Number(action.power ?? 1) * Number(action.attackMultiplier ?? 1));
+  damage = Math.floor(damage * (defender.physicalDamageMultiplier ?? 1));
+  return { damage: clamp(damage, 0, DAMAGE_CAP), formula: { attack, defense, multiplier, weaponType: 'monster' } };
+}
+
+function ff5MagicDamage(caster, defender, spell = {}, random = Math.random) {
+  const power = Math.max(0, Math.floor(spell.ff5Power ?? spell.magicPower ?? Math.max(1, Number(spell.power ?? 1) * 40)));
+  const casterLevel = level(caster);
+  const magic = stat(caster.magic);
+  const flareFormula = spell.formula === 'ff5_flare' || spell.sourceId === 'magic_flare' || spell.id === 'magic_flare';
+  let attack = power + randomInt(Math.floor(power / (flareFormula ? 32 : 8)), random);
+  let defense = Math.max(0, Math.floor(defender.magicDef ?? 0));
+  let multiplier = Math.floor(casterLevel * magic / 256) + 4;
+
+  if (spell.multiTarget) attack = Math.floor(attack / 2);
+  if (flareFormula) defense = Math.floor(defense / 32);
+  if (defender.statuses?.has('shell')) multiplier = Math.floor(multiplier / 2);
+  if (defender.defending) multiplier = Math.floor(multiplier / 2);
+  const boosted = caster.equipmentEffects?.magicBoostElements?.includes(spell.element);
+  if (boosted || caster.elementalPower) attack = Math.floor(attack * 1.5);
+
+  return { damage: ff5FinalDamage(attack, defense, multiplier), formula: { attack, defense, multiplier, power } };
+}
+
+function ff5MagicHeal(caster, spell = {}, random = Math.random) {
+  const power = Math.max(1, Math.floor(spell.ff5Power ?? spell.magicPower ?? 10));
+  const attack = power + randomInt(Math.floor(power / 8), random);
+  let multiplier = Math.floor(level(caster) * stat(caster.magic) / 256) + 4;
+  if (spell.multiTarget) multiplier = Math.max(1, Math.floor(multiplier / 2));
+  return clamp(attack * multiplier, 1, DAMAGE_CAP);
+}
+
+function ff5ThrowDamage(attacker, defender, throwPower, random = Math.random) {
+  const attack = Math.max(0, Math.floor(throwPower)) + randomInt(Math.floor(throwPower / 8), random);
+  const multiplier = (Math.floor(level(attacker) * stat(attacker.strength ?? attacker.baseAtk) / 128)
+    + Math.floor(level(attacker) * stat(attacker.agility) / 128) + 2) * 2;
+  return ff5FinalDamage(attack, defender.def ?? 0, multiplier);
+}
+
+function ff5Zeninage(actor, targetCount = 1) {
+  const attack = level(actor) + 10;
+  const multiplier = 50;
+  // Gil is paid once per command; hitting several enemies does not multiply
+  // the price. Param1 and Param2 are both 50 in FFV's command data.
+  const cost = level(actor) * 50;
+  return { cost, attack, multiplier, targetCount: Math.max(1, targetCount) };
+}
+
 // ---- src/battle/ActionResolver.js ----
 /**
  * ActionResolver
@@ -558,18 +766,12 @@ class Unit {
  */
 
 
-const VARIANCE = 0.12; // readable tactical outcomes without feeling deterministic
-
-function randomVariance(base) {
-  const factor = 1 + (Math.random() * 2 - 1) * VARIANCE;
-  return base * factor;
-}
-
 function equipmentElementState(defender, element) {
   const effects = defender.equipmentEffects ?? {};
   if (!element) return 'normal';
   element = normalizeElement(element);
   if (effects.absorbs?.includes(element)) return 'absorb';
+  if (defender.temporaryNullElements?.has(element)) return 'null';
   if (effects.nullElements?.includes(element)) return 'null';
   if (effects.weaknesses?.includes(element) || defender.weakness === element) return 'weak';
   if (effects.resistances?.includes(element) || defender.resist === element) return 'resist';
@@ -578,52 +780,45 @@ function equipmentElementState(defender, element) {
 
 /** Physical attack damage: ATK vs DEF, with weapon and armor effects. */
 function resolvePhysicalDamage(attacker, defender, action = {}) {
-  if (attacker.weaponSpecial === 'always_1_damage') return 1;
-  let multiplier = (action.power ?? 1) * (action.attackMultiplier ?? 1);
-  if (attacker.row === 'back' && !action.ranged && !attacker.equipmentEffects?.backRowFullDamage) multiplier *= 0.55;
-  if (defender.row === 'back' && !action.ranged) multiplier *= 0.55;
-  if ((attacker.equipmentEffects?.killers ?? []).some((type) => defender.creatureTypes?.has(type))) multiplier *= 1.5;
-  const raw = Math.max(1, attacker.atk * 2.2 * multiplier - defender.def * 1.1);
-  let dmg = randomVariance(raw);
-  const elementState = equipmentElementState(defender, attacker.weaponElement);
-  if (elementState === 'weak') dmg *= 1.5;
+  const spellblade = attacker.weaponSpellblade;
+  const formulaAction = spellblade?.effect === 'flare' ? { ...action, ignoreDefense: true } : action;
+  let dmg = (attacker.isEnemy
+    ? ff5MonsterDamage(attacker, defender, action)
+    : ff5PhysicalDamage(attacker, defender, formulaAction)).damage;
+  if ((attacker.equipmentEffects?.killers ?? []).some((type) => defender.creatureTypes?.has(type))) dmg *= 2;
+  const attackElement = spellblade?.element ?? attacker.weaponElement;
+  const elementState = equipmentElementState(defender, attackElement);
+  if (elementState === 'weak') dmg *= Math.max(2, spellblade?.tier ?? 2);
   if (elementState === 'resist') dmg *= 0.5;
   if (elementState === 'null' || elementState === 'absorb') dmg = 0;
-  if (attacker.weaponSpecial === 'critical' && Math.random() < 0.12) dmg *= 2;
-  if (attacker.weaponSpecial === 'high_critical' && Math.random() < 0.25) dmg *= 2;
-  if (defender.defending || defender.statuses?.has('protect')) dmg *= defender.defending ? 0.5 : 0.75;
-  dmg *= defender.physicalDamageMultiplier ?? 1;
   return Math.max(0, Math.round(dmg));
 }
 
 /** Magic/elemental damage: MAGIC stat * spell power, weakness/resist modifiers. */
 function resolveMagicDamage(caster, defender, spell) {
-  const boost = caster.equipmentEffects?.magicBoostElements?.includes(spell.element) ? 1.25 : 1;
-  const raw = Math.max(1, caster.magic * 2.6 * (spell.power ?? 1.0) * boost - defender.magicDef * 0.7);
-  let dmg = randomVariance(raw);
+  let dmg = ff5MagicDamage(caster, defender, spell).damage;
 
   if (spell.element) {
     const elementState = equipmentElementState(defender, spell.element);
-    if (elementState === 'weak') dmg *= 1.75;
-    if (elementState === 'resist') dmg *= 0.4;
+    if (elementState === 'weak') dmg *= 2;
+    if (elementState === 'resist') dmg *= 0.5;
     if (elementState === 'null') dmg = 0;
   }
-  if (defender.defending) dmg *= 0.7;
-  if (defender.statuses?.has('shell')) dmg *= 0.72;
   if (equipmentElementState(defender, spell.element) === 'null') return 0;
   return Math.max(0, Math.round(dmg));
 }
 
-/** Heal amount, with light randomness. */
-function resolveHeal(amount) {
-  return Math.max(1, Math.round(randomVariance(amount)));
+/** Items are fixed; magic healing uses the same integer A×M structure as FFV. */
+function resolveHeal(amount, caster = null, action = {}) {
+  if (action.formula === 'ff5_magic' || action.ff5Power) return ff5MagicHeal(caster, action);
+  return Math.max(1, Math.round(amount));
 }
 
 function operationToAction(operation, actor) {
   const common = { _compiledOperation: true, mpCost: 0 };
   switch (operation.op) {
-    case 'damage.magic': return { ...common, kind: 'magic-attack', power: operation.power, hits: operation.hits, element: operation.element };
-    case 'damage.physical': return { ...common, kind: 'physical-attack', power: operation.power, sameLevelMultiplier: operation.sameLevelMultiplier };
+    case 'damage.magic': return { ...common, kind: 'magic-attack', power: operation.power, ff5Power: operation.ff5Power, formula: operation.formula, hits: operation.hits, element: operation.element };
+    case 'damage.physical': return { ...common, kind: 'physical-attack', power: operation.power, sameLevelMultiplier: operation.sameLevelMultiplier, commandFormula: operation.commandFormula };
     case 'damage.fixed': return { ...common, kind: 'fixed-damage', fixedDamage: operation.amount };
     case 'damage.caster_hp': return { ...common, kind: 'fixed-damage', fixedDamage: actor.hp, sacrificeCaster: operation.sacrificeCaster };
     case 'damage.missing_hp': return { ...common, kind: 'fixed-damage', fixedDamage: actor.maxHp - actor.hp };
@@ -633,7 +828,7 @@ function operationToAction(operation, actor) {
     case 'damage.mp_ratio': return { ...common, kind: 'mp-ratio-damage', ratio: operation.ratio };
     case 'drain.hp': return { ...common, kind: 'magic-attack', power: operation.power, drain: true };
     case 'drain.mp': return { ...common, kind: 'mp-drain', power: operation.power };
-    case 'heal.hp': return { ...common, kind: 'heal', healAmount: operation.amount };
+    case 'heal.hp': return { ...common, kind: 'heal', healAmount: operation.amount, ff5Power: operation.ff5Power, formula: operation.formula };
     case 'heal.caster_hp': return { ...common, kind: 'heal', healAmount: actor.hp };
     case 'heal.mp': return { ...common, kind: 'mp-heal-target', mpAmount: operation.amount };
     case 'restore.full': return { ...common, kind: 'full-restore' };
@@ -646,6 +841,7 @@ function operationToAction(operation, actor) {
     case 'battle.speed': return { ...common, kind: 'field-speed', multiplier: operation.multiplier, duration: operation.duration };
     case 'battle.field_status': return { ...common, kind: 'field-status', status: operation.status, duration: operation.duration };
     case 'barrier.physical': return { ...common, kind: 'barrier-physical', amountFormula: operation.amountFormula, amount: operation.amount };
+    case 'summon.odin': return { ...common, kind: 'summon-odin', ff5Power: operation.ff5Power ?? 180, formula: 'ff5_magic' };
     case 'caster.sacrifice': return { ...common, kind: 'sacrifice' };
     case 'remove.from_battle': return { ...common, kind: 'remove-from-battle' };
     case 'turn.extra': return { ...common, kind: 'extra-turn', count: operation.count };
@@ -708,9 +904,7 @@ function resolveAction({ actor, action, targets, battleUnits = targets }) {
       for (let hit = 0; hit < hits; hit += 1) {
         const blockedByImage = !action.ignoreEvasion && target.imageHits > 0;
         if (blockedByImage) target.imageHits -= 1;
-        const blindPenalty = actor.statuses?.has('blind') ? 35 : 0;
-        const hitChance = Math.min(1, Math.max(0.08, ((actor.weaponAccuracy ?? 100) - blindPenalty - (action.ignoreEvasion ? 0 : target.evasion ?? 0)) / 100));
-        if (blockedByImage || Math.random() > hitChance) {
+        if (blockedByImage || !ff5PhysicalHit({ attacker: actor, defender: target, action })) {
           missedHits += 1;
           continue;
         }
@@ -739,6 +933,26 @@ function resolveAction({ actor, action, targets, battleUnits = targets }) {
         actor.mp += restored;
         if (restored > 0) results.push({ type: 'mp-heal', targetUid: actor.uid, amount: restored });
       }
+      const spellbladeEffect = actor.weaponSpellblade?.effect;
+      if (dealtTotal > 0 && ['poison', 'silence', 'sleep', 'petrify'].includes(spellbladeEffect)) {
+        const blocked = target.heavy && spellbladeEffect === 'petrify';
+        const applied = !blocked && target.addStatus?.(spellbladeEffect, { chance: 1 });
+        results.push({ type: applied ? 'status' : 'status-resist', targetUid: target.uid, statuses: [spellbladeEffect] });
+      }
+      if (dealtTotal > 0 && spellbladeEffect === 'drain') {
+        const amount = actor.applyHeal(dealtTotal);
+        if (amount) results.push({ type: 'heal', targetUid: actor.uid, amount });
+      }
+      if (dealtTotal > 0 && spellbladeEffect === 'osmose') {
+        const amount = Math.min(target.mp, Math.max(1, Math.floor(dealtTotal / 8)));
+        target.spendMp(amount);
+        actor.mp = Math.min(actor.maxMp, actor.mp + amount);
+        results.push({ type: 'mp-damage', targetUid: target.uid, amount }, { type: 'mp-heal', targetUid: actor.uid, amount });
+      }
+      if (dealtTotal > 0 && target.singing) {
+        target.singing = null;
+        results.push({ type: 'song-stopped', targetUid: target.uid });
+      }
       if (dealtTotal > 0) {
         (actor.equipmentEffects?.onHitStatuses ?? []).forEach(({ status, chance }) => {
           if (status === 'ko' && target.heavy) return;
@@ -765,7 +979,7 @@ function resolveAction({ actor, action, targets, battleUnits = targets }) {
         const elementState = equipmentElementState(target, action.element);
         const hits = Math.max(1, action.hits ?? 1);
         let dmg = 0;
-        for (let hit = 0; hit < hits; hit += 1) dmg += resolveMagicDamage(actor, target, action);
+        for (let hit = 0; hit < hits; hit += 1) dmg += resolveMagicDamage(actor, target, { ...action, multiTarget: targets.length > 1 });
         dmg = Math.round(dmg * (target.magicDamageMultiplier ?? 1));
         if (elementState === 'absorb') {
           const healed = target.applyHeal(dmg);
@@ -774,6 +988,10 @@ function resolveAction({ actor, action, targets, battleUnits = targets }) {
           const dealt = elementState === 'null' ? 0 : target.applyDamage(dmg);
           drainedTotal += dealt;
           results.push({ type: 'damage', targetUid: target.uid, amount: dealt, hits, element: action.element, weak: elementState === 'weak', resisted: elementState === 'resist', nullified: elementState === 'null' });
+          if (dealt > 0 && target.singing) {
+            target.singing = null;
+            results.push({ type: 'song-stopped', targetUid: target.uid });
+          }
         }
       });
       if (action.drain && drainedTotal > 0) results.push({ type: 'heal', targetUid: actor.uid, amount: actor.applyHeal(drainedTotal) });
@@ -783,11 +1001,11 @@ function resolveAction({ actor, action, targets, battleUnits = targets }) {
       if (action.mpCost) actor.spendMp(Math.ceil(action.mpCost * (actor.mpCostMultiplier ?? 1)));
       targets.forEach((target) => {
         if (target.statuses?.has('zombie') || target.isUndead) {
-          const damaged = target.applyDamage(resolveHeal(action.healAmount));
+          const damaged = target.applyDamage(resolveHeal(action.healAmount, actor, { ...action, multiTarget: targets.length > 1 }));
           results.push({ type: 'damage', targetUid: target.uid, amount: damaged, reversed: true });
           return;
         }
-        const healed = target.applyHeal(resolveHeal(action.healAmount));
+        const healed = target.applyHeal(resolveHeal(action.healAmount, actor, { ...action, multiTarget: targets.length > 1 }));
         results.push({ type: 'heal', targetUid: target.uid, amount: healed });
       });
       break;
@@ -882,6 +1100,13 @@ function resolveAction({ actor, action, targets, battleUnits = targets }) {
       }));
       break;
     }
+    case 'throw-damage': {
+      targets.forEach((target) => {
+        const amount = ff5ThrowDamage(actor, target, action.throwPower ?? 1);
+        results.push({ type: 'damage', targetUid: target.uid, amount: target.applyDamage(amount), element: action.element });
+      });
+      break;
+    }
     case 'status': {
       targets.forEach((target) => {
         const appliedStatuses = [];
@@ -893,8 +1118,17 @@ function resolveAction({ actor, action, targets, battleUnits = targets }) {
         // status resistance, just like FF5's own accuracy formula.
         const guaranteedByWeakness = action.element && equipmentElementState(target, action.element) === 'weak';
         (action.statuses ?? []).forEach((status) => {
+          if (status === 'ko' && action.heavyImmune && target.heavy) {
+            resistedStatuses.push(status);
+            return;
+          }
+          const guaranteedBuff = target.isEnemy === actor.isEnemy && POSITIVE_STATUSES.includes(status);
           if (action.toggle && target.statuses.has(status)) target.removeStatus(status);
-          else if (target.addStatus?.(status, { duration: action.duration, chance: guaranteedByWeakness ? 1 : (action.statusChance ?? action.chance ?? 0.85), guaranteed: guaranteedByWeakness })) appliedStatuses.push(status);
+          else if (target.addStatus?.(status, {
+            duration: action.duration,
+            chance: guaranteedByWeakness || guaranteedBuff ? 1 : (action.statusChance ?? action.chance ?? 0.85),
+            guaranteed: guaranteedByWeakness || guaranteedBuff,
+          })) appliedStatuses.push(status);
           else resistedStatuses.push(status);
         });
         if (action.imageHits) target.imageHits = Math.max(target.imageHits, action.imageHits);
@@ -970,6 +1204,22 @@ function resolveAction({ actor, action, targets, battleUnits = targets }) {
       results.push({ type: 'effect', targetUid: targets[0]?.uid ?? actor.uid, label: action.label });
       break;
     }
+    case 'summon-odin': {
+      targets.forEach((target) => {
+        if (!target.heavy && !target.statusImmunities?.has('ko')) {
+          const applied = target.addStatus?.('ko', { chance: 1, guaranteed: true });
+          results.push({ type: applied ? 'status' : 'status-resist', targetUid: target.uid, statuses: ['ko'] });
+          return;
+        }
+        const amount = target.applyDamage(resolveMagicDamage(actor, target, action));
+        results.push({ type: 'damage', targetUid: target.uid, amount, element: null, odinFallback: 'gungnir' });
+      });
+      break;
+    }
+    case 'special-command': {
+      results.push({ type: 'effect', targetUid: targets[0]?.uid ?? actor.uid, label: action.name ?? action.specialCommand });
+      break;
+    }
     case 'defend': {
       actor.defending = true;
       results.push({ type: 'defend', targetUid: actor.uid });
@@ -1000,7 +1250,8 @@ function resolveAction({ actor, action, targets, battleUnits = targets }) {
     case 'imbue': {
       actor.spendMp(Math.ceil((action.mpCost ?? 0) * (actor.mpCostMultiplier ?? 1)));
       actor.weaponElement = action.element;
-      results.push({ type: 'buff', targetUid: actor.uid, label: `${action.element}属性付与` });
+      actor.weaponSpellblade = { element: action.element ?? null, tier: action.spellbladeTier ?? 1, effect: action.spellbladeEffect ?? null, name: action.name };
+      results.push({ type: 'buff', targetUid: actor.uid, label: `${action.name ?? '魔法剣'}を付与` });
       break;
     }
     default:
@@ -1141,6 +1392,7 @@ const ff5DatabaseMeta = Object.freeze({
   locale: 'ja-JP',
   updatedAt: '2026-08-11',
   policy: 'FF5のゲーム上の事実を本作向けに正規化。説明文は独自に要約し、版差は別レコードで管理する。',
+  progression: 'all_commands_available_no_abp',
   expectedCounts: { weapons: 107, armor: 79, whiteMagic: 18, blackMagic: 18, timeMagic: 18, summonMagic: 15, blueMagic: 30, songs: 8 },
 });
 
@@ -1285,7 +1537,8 @@ const ff5Magic = Object.freeze(magicRows.map(([school, level, nameEn, nameJa, mp
 })));
 
 const jobAbilityRows = [
-  // job, English, Japanese, type, ABP, effect
+  // job, English, Japanese, type, historical ABP reference, effect.
+  // referenceAbp is archival metadata only; this boss-rush has no ABP gates.
   ['knight','Cover','かばう','passive',10,'瀕死の味方への単体物理攻撃を肩代わり'],
   ['knight','Guard','まもり','command',30,'直接物理攻撃を無効化'],
   ['knight','Two-Handed','りょうてもち','passive',50,'対応する片手武器を両手で持ち攻撃力を高める'],
@@ -1362,14 +1615,16 @@ const jobAbilityRows = [
   ['mime','Mimic','ものまね','command',999,'直前の味方行動をコストなしで再現'],
 ];
 
-const ff5JobAbilities = Object.freeze(jobAbilityRows.map(([job, nameEn, nameJa, type, abp, effect]) => Object.freeze({
+const ff5JobAbilities = Object.freeze(jobAbilityRows.map(([job, nameEn, nameJa, type, referenceAbp, effect]) => Object.freeze({
   id: `ability_${slug(nameEn)}`,
   sourceVersion: SOURCE_VERSION,
   job,
   nameJa,
   nameEn,
   type,
-  abp,
+  // Historical reference only. FFM never gates commands or visuals by ABP.
+  referenceAbp,
+  unlockRequirement: null,
   effect,
   implemented: false,
 })));
@@ -1429,7 +1684,9 @@ const ff5Items = Object.freeze(itemRows.map(([nameEn, nameJa, category, buyPrice
   effect,
   consumable: !['key_battle'].includes(category),
   shopAvailable,
-  implemented: nameEn === 'Potion',
+  // All records are routed: direct-use items execute from Item; Mix/Drink/
+  // Throw materials are visible with their correct command requirement.
+  implemented: true,
 })));
 
 const weaponRows = [
@@ -1595,6 +1852,9 @@ function calculateEquipmentBonuses(equipment = {}) {
   const weapon = findEquipment(equipment.weapon);
   const result = {
     attack: weapon?.attack ?? 0,
+    weaponAttack: weapon?.attack ?? 0,
+    weaponType: weapon?.type ?? (weapon ? 'sword' : 'fist'),
+    throwPower: weapon?.throwAttack ?? weapon?.attack ?? 0,
     defense: items.reduce((sum, item) => sum + (item.defense ?? 0), 0),
     magicDefense: items.reduce((sum, item) => sum + (item.magicDefense ?? 0), 0),
     evasion: items.reduce((sum, item) => sum + (item.evasion ?? 0), 0),
@@ -1614,6 +1874,10 @@ function calculateEquipmentBonuses(equipment = {}) {
     mpCostMultiplier: 1,
     physicalDamageMultiplier: 1,
     initialImageHits: 0,
+    stealRate: 0.4,
+    danceBoost: false,
+    catchBoost: false,
+    improvedBrawl: false,
   };
 
   items.forEach((item) => {
@@ -1626,8 +1890,11 @@ function calculateEquipmentBonuses(equipment = {}) {
     if (special === 'most_status_immunity_and_all_stats_plus_5') {
       result.attack += 5; result.defense += 5; result.magic += 5; result.agility += 5;
     }
-    if (special === 'barehanded_boost_str_plus_5') result.attack += 5;
+    if (special === 'barehanded_boost_str_plus_5') { result.attack += 5; result.improvedBrawl = true; }
     if (special === 'steal_boost_agi_plus_1') result.agility += 1;
+    if (special === 'steal_boost_agi_plus_1') result.stealRate = 0.8;
+    if (special === 'confuse_immunity_and_dance_boost') result.danceBoost = true;
+    if (special === 'catch_boost') result.catchBoost = true;
     if (special === 'sap_sleep_immunity_mag_minus_5') result.magic -= 5;
     if (special === 'physical_evasion') result.evasion += 25;
     if (special === 'evasion_and_protect') result.evasion += 10;
@@ -1702,6 +1969,25 @@ function calculateEquipmentBonuses(equipment = {}) {
 // ---- src/database/battleCatalog.js ----
 const normalizeBattleElement = (element) => element === 'lightning' ? 'thunder' : element;
 
+// SFC-style spell attack powers.  Keeping these explicit prevents a spell's
+// database prose or MP cost from silently changing its battle strength.
+const FF5_MAGIC_SPECS = Object.freeze({
+  magic_cure: { power: 15, formula: 'heal' }, magic_cura: { power: 45, formula: 'heal' }, magic_curaga: { power: 180, formula: 'heal' },
+  magic_fire: { power: 15 }, magic_blizzard: { power: 15 }, magic_thunder: { power: 15 },
+  magic_fira: { power: 50 }, magic_blizzara: { power: 50 }, magic_thundara: { power: 50 },
+  magic_drain: { power: 45 }, magic_bio: { power: 105 },
+  magic_firaga: { power: 185 }, magic_blizzaga: { power: 185 }, magic_thundaga: { power: 185 },
+  magic_flare: { power: 254, formula: 'ff5_flare' }, magic_holy: { power: 241 },
+  magic_comet: { power: 50, variance: 'comet' }, magic_meteor: { power: 110, hits: 4, variance: 'meteor' },
+  magic_chocobo: { power: 30 }, magic_sylph: { power: 25 }, magic_shiva: { power: 45 },
+  magic_ramuh: { power: 50 }, magic_ifrit: { power: 50 }, magic_titan: { power: 110 },
+  magic_syldra: { power: 165 }, magic_phoenix: { power: 105 }, magic_leviathan: { power: 195 }, magic_bahamut: { power: 250 },
+  magic_goblin_punch: { power: 1 }, magic_vampire: { power: 35 },
+  magic_aero: { power: 10 }, magic_flame_thrower: { power: 50 }, magic_mind_blast: { power: 50 },
+  magic_aera: { power: 50 }, magic_level_3_flare: { power: 254, formula: 'ff5_flare' },
+  magic_aeroga: { power: 140 }, magic_aqua_breath: { power: 75 },
+});
+
 const statusMatchers = Object.freeze([
   ['poison', /毒/], ['blind', /暗闇/], ['silence', /沈黙/], ['toad', /カエル/],
   ['mini', /小人/], ['petrify', /石化/], ['confuse', /混乱/], ['paralyze', /麻痺/],
@@ -1740,6 +2026,7 @@ function statusesFromEffect(effect) {
 }
 
 function magicPower(record) {
+  if (FF5_MAGIC_SPECS[record.id]) return FF5_MAGIC_SPECS[record.id].power;
   const level = record.level ?? ({ blue: 3, summon: 3 }[record.school] ?? 1);
   if (/大ダメージ|フレア|バハムート/.test(record.effect)) return 4.2 + level * 0.15;
   if (/中ダメージ/.test(record.effect)) return 2.7;
@@ -1748,69 +2035,68 @@ function magicPower(record) {
 }
 
 function healAmount(record) {
-  if (record.id === 'magic_cure') return 400;
-  if (record.id === 'magic_cura') return 850;
-  if (record.id === 'magic_curaga') return 1600;
+  if (FF5_MAGIC_SPECS[record.id]?.formula === 'heal') return null;
   return 500 + (record.level ?? 1) * 180;
 }
 
 function magicOperations(record) {
-  const effect = record.effect ?? '';
-  const statuses = statusesFromEffect(effect);
-  const operations = [];
   const conditionalLevel = Number(record.nameEn.match(/^Level (\d)/)?.[1] ?? 0) || null;
-
-  if (record.id === 'magic_speed') operations.push({ op: 'battle.speed', multiplier: 0.7, duration: 4 });
-  else if (record.id === 'magic_golem') operations.push({ op: 'barrier.physical', amountFormula: 'caster_level' });
-  else if (record.id === 'magic_phoenix') operations.push(
-    { op: 'damage.magic', formula: 'ff5_magic', power: magicPower(record), targetSide: 'enemy' },
-    { op: 'revive', hpRatio: 1, targetSide: 'ally' },
-  );
-  else if (record.id === 'magic_sylph') operations.push(
-    { op: 'drain.hp', formula: 'ff5_magic', power: magicPower(record), targetSide: 'enemy' },
-    { op: 'heal.hp', formula: 'ff5_magic', amount: healAmount(record), targetSide: 'ally' },
-  );
-  else if (record.id === 'magic_transfusion') operations.push(
-    { op: 'restore.full', targetSide: 'ally' },
-    { op: 'caster.sacrifice' },
-  );
-  else if (record.id === 'magic_1000_needles') operations.push({ op: 'damage.fixed', amount: 1000 });
-  else if (record.id === 'magic_goblin_punch') operations.push({ op: 'damage.physical', formula: 'ff5_goblin_punch', power: 1, sameLevelMultiplier: 8 });
-  else if (record.id === 'magic_self_destruct') operations.push({ op: 'damage.caster_hp', sacrificeCaster: true });
-  else if (record.id === 'magic_question_marks') operations.push({ op: 'damage.missing_hp' });
-  else if (record.id === 'magic_white_wind') operations.push({ op: 'heal.caster_hp' });
-  else if (record.id === 'magic_magic_hammer') operations.push({ op: 'damage.mp_ratio', ratio: 0.5 });
-  else if (record.id === 'magic_osmose') operations.push({ op: 'drain.mp', power: 1.5 });
-  else if (record.id === 'magic_gravity') operations.push({ op: 'damage.hp_ratio', ratio: 0.5, heavyImmune: true });
-  else if (record.id === 'magic_graviga' || record.id === 'magic_missile' || record.id === 'magic_level_4_graviga') operations.push({ op: 'damage.hp_ratio', ratio: 0.75, heavyImmune: true });
-  else if (/HPを吸収|敵からHPを吸収/.test(effect)) operations.push({ op: 'drain.hp', formula: 'ff5_magic', power: magicPower(record) });
-  else if (/HPを.*回復|HPを回復|HPを中回復|HPを大回復/.test(effect)) operations.push({ op: 'heal.hp', formula: 'ff5_magic', amount: healAmount(record) });
-  else if (/完全回復|HP・MPを全回復/.test(effect)) operations.push({ op: 'restore.full' });
-  else if (/固定ダメージ/.test(effect)) operations.push({ op: 'damage.fixed', amount: 700 });
-  else if (/ダメージ|攻撃|フレア/.test(effect)) operations.push({ op: 'damage.magic', formula: record.id === 'magic_flare' ? 'ff5_flare' : 'ff5_magic', power: magicPower(record), hits: /複数回/.test(effect) ? 4 : 1 });
-
-  if (record.id !== 'magic_phoenix' && /復帰|蘇生/.test(effect)) operations.push({ op: 'revive', hpRatio: /完全/.test(effect) ? 1 : 0.25 });
-  if (/調べる/.test(effect)) operations.push({ op: 'inspect', fields: ['hp', 'mp', 'weakness', 'status', 'level'] });
-  if (/治療/.test(effect)) operations.push({ op: 'status.remove', statuses: statuses.filter((status) => status !== 'ko'), mode: /以外|複数/.test(effect) ? 'all_curable' : 'listed' });
-  if (/有利な魔法効果を解除/.test(effect)) operations.push({ op: 'status.dispel', polarity: 'positive' });
-  if (/付与|切り替える|バーサク|リフレク|浮遊|徐々に回復|ダメージを軽減|分身/.test(effect)) operations.push({ op: 'status.apply', statuses, toggle: /切り替える/.test(effect), imageHits: /分身/.test(effect) ? 2 : null });
-  if (statuses.length > 0 && !/治療|復帰|蘇生/.test(effect) && !operations.some((operation) => operation.op === 'status.apply')) {
-    operations.push({ op: 'status.apply', statuses });
-  }
-  if (/防御を低下/.test(effect)) operations.push({ op: 'stat.modify', stat: 'def', multiplier: 0.5 });
-  if (/レベルを半減/.test(effect)) operations.push({ op: 'stat.modify', stat: 'level', multiplier: 0.5 });
-  if (/現在MPを半減/.test(effect)) operations.push({ op: 'damage.mp_ratio', ratio: 0.5 });
-  if (/戦場から消去/.test(effect)) operations.push({ op: 'remove.from_battle' });
-  if (/脱出/.test(effect)) operations.push({ op: 'battle.escape' });
-  if (/巻き戻す/.test(effect)) operations.push({ op: 'battle.restart' });
-  if (/2回行動/.test(effect)) operations.push({ op: 'turn.extra', count: 2 });
-  if (/速度を上昇/.test(effect) && !statuses.includes('haste')) operations.push({ op: 'stat.modify', stat: 'agility', multiplier: 1.25 });
-  if (/速度を低下/.test(effect) && !statuses.includes('slow')) operations.push({ op: 'stat.modify', stat: 'agility', multiplier: 0.75 });
-  if (/魔法使用不能/.test(effect)) operations.push({ op: 'battle.field_status', status: 'mute' });
-  if (/物理ダメージを肩代わり/.test(effect) && !operations.some((operation) => operation.op === 'barrier.physical')) operations.push({ op: 'barrier.physical', amountFormula: 'caster_level' });
-  if (record.id === 'magic_transfusion' && !operations.some((operation) => operation.op === 'caster.sacrifice')) operations.push({ op: 'caster.sacrifice' });
-
-  if (operations.length === 0) operations.push({ op: 'effect.script', handlerKey: record.id });
+  const status = (statuses, extra = {}) => [{ op: 'status.apply', statuses, ...extra }];
+  const damage = (extra = {}) => [{
+    op: 'damage.magic', formula: FF5_MAGIC_SPECS[record.id]?.formula ?? 'ff5_magic',
+    ff5Power: magicPower(record), power: magicPower(record), hits: FF5_MAGIC_SPECS[record.id]?.hits ?? 1, ...extra,
+  }];
+  const explicit = {
+    magic_cure: [{ op: 'heal.hp', formula: 'ff5_magic', ff5Power: 15 }],
+    magic_libra: [{ op: 'inspect', fields: ['hp', 'mp', 'weakness', 'status', 'level'] }],
+    magic_poisona: [{ op: 'status.remove', statuses: ['poison'], mode: 'listed' }],
+    magic_silence: status(['silence']), magic_protect: status(['protect']), magic_mini: status(['mini'], { toggle: true }),
+    magic_cura: [{ op: 'heal.hp', formula: 'ff5_magic', ff5Power: 45 }],
+    magic_raise: [{ op: 'revive', hpRatio: 0.25 }], magic_confuse: status(['confuse']),
+    magic_blink: status([], { imageHits: 2 }), magic_shell: status(['shell']),
+    magic_esuna: [{ op: 'status.remove', statuses: [], mode: 'all_curable' }],
+    magic_curaga: [{ op: 'heal.hp', formula: 'ff5_magic', ff5Power: 180 }],
+    magic_reflect: status(['reflect']), magic_berserk: status(['berserk']),
+    magic_arise: [{ op: 'revive', hpRatio: 1 }], magic_dispel: [{ op: 'status.dispel', polarity: 'positive' }],
+    magic_poison: status(['poison']), magic_sleep: status(['sleep']), magic_toad: status(['toad'], { toggle: true }),
+    magic_break: status(['petrify']), magic_bio: [...damage(), ...status(['sap'])], magic_death: status(['ko']),
+    magic_osmose: [{ op: 'drain.mp', power: 1.5 }],
+    magic_speed: [{ op: 'battle.speed', multiplier: 0.7, duration: 4 }], magic_slow: status(['slow']),
+    magic_regen: status(['regen']), magic_mute: [{ op: 'battle.field_status', status: 'mute' }],
+    magic_haste: status(['haste']), magic_float: status(['float']),
+    magic_gravity: [{ op: 'damage.hp_ratio', ratio: 0.5, heavyImmune: true }], magic_stop: status(['stop']),
+    magic_teleport: [{ op: 'battle.escape' }], magic_slowga: status(['slow']), magic_return: [{ op: 'battle.restart' }],
+    magic_graviga: [{ op: 'damage.hp_ratio', ratio: 0.75, heavyImmune: true }], magic_hastega: status(['haste']),
+    magic_old: status(['old']), magic_quick: [{ op: 'turn.extra', count: 2 }],
+    magic_banish: [{ op: 'remove.from_battle' }],
+    magic_sylph: [
+      { op: 'drain.hp', formula: 'ff5_magic', ff5Power: 25, power: 25, targetSide: 'enemy' },
+      { op: 'heal.hp', formula: 'ff5_magic', ff5Power: 25, targetSide: 'ally' },
+    ],
+    magic_remora: status(['paralyze']), magic_golem: [{ op: 'barrier.physical', amountFormula: 'caster_level' }],
+    magic_catoblepas: status(['petrify']), magic_carbuncle: status(['reflect']),
+    magic_odin: [{ op: 'summon.odin', ff5Power: 180 }],
+    magic_phoenix: [
+      { op: 'damage.magic', formula: 'ff5_magic', ff5Power: 105, targetSide: 'enemy' },
+      { op: 'revive', hpRatio: 1, targetSide: 'ally' },
+    ],
+    magic_goblin_punch: [{ op: 'damage.physical', formula: 'ff5_goblin_punch', power: 1, sameLevelMultiplier: 8 }],
+    magic_roulette: status(['ko']), magic_self_destruct: [{ op: 'damage.caster_hp', sacrificeCaster: true }],
+    magic_vampire: [{ op: 'drain.hp', formula: 'ff5_magic', ff5Power: 35, power: 35 }],
+    magic_question_marks: [{ op: 'damage.missing_hp' }], magic_magic_hammer: [{ op: 'damage.mp_ratio', ratio: 0.5 }],
+    magic_moon_flute: status(['berserk']), magic_lilliputian_lyric: status(['mini']), magic_pond_s_chorus: status(['toad']),
+    magic_mind_blast: [...damage(), ...status(['paralyze', 'sap'])], magic_flash: status(['blind']),
+    magic_missile: [{ op: 'damage.hp_ratio', ratio: 0.75, heavyImmune: true }],
+    magic_level_4_graviga: [{ op: 'damage.hp_ratio', ratio: 0.75, heavyImmune: true }],
+    magic_time_slip: status(['sleep', 'old']), magic_doom: status(['doom']), magic_level_2_old: status(['old']),
+    magic_transfusion: [{ op: 'restore.full', targetSide: 'ally' }, { op: 'caster.sacrifice' }],
+    magic_level_3_flare: damage(), magic_off_guard: [{ op: 'stat.modify', stat: 'def', multiplier: 0.5 }],
+    magic_death_claw: [{ op: 'damage.to_critical', heavyImmune: true }, ...status(['paralyze'])],
+    magic_level_5_death: status(['ko']), magic_1000_needles: [{ op: 'damage.fixed', amount: 1000 }],
+    magic_dark_spark: [{ op: 'stat.modify', stat: 'level', multiplier: 0.5 }],
+    magic_white_wind: [{ op: 'heal.caster_hp' }], magic_mighty_guard: status(['protect', 'shell', 'float']),
+  };
+  const operations = explicit[record.id] ?? (FF5_MAGIC_SPECS[record.id] ? damage() : [{ op: 'effect.script', handlerKey: record.id }]);
   return operations.map((operation) => Object.freeze({ ...operation, ...(conditionalLevel ? { conditionalLevel } : {}) }));
 }
 
@@ -1826,7 +2112,9 @@ function itemOperations(record) {
   if (/攻撃力を上昇/.test(effect)) return [{ op: 'stat.modify', stat: 'atk', multiplier: 1.25 }];
   if (/行動速度を上昇/.test(effect)) return [{ op: 'stat.modify', stat: 'agility', multiplier: 1.25 }];
   if (/物理防御を上昇/.test(effect)) return [{ op: 'stat.modify', stat: 'def', multiplier: 1.25 }];
+  if (/レベルを上昇/.test(effect)) return [{ op: 'stat.modify', stat: 'level', multiplier: 1.2 }];
   if (/全体攻撃/.test(effect)) return [{ op: 'damage.magic', formula: 'ff5_magic', power: 2.5 }];
+  if (record.id === 'item_magic_lamp') return [{ op: 'item.magic_lamp' }];
   return [{ op: record.category === 'mix_material' ? 'craft.material' : 'effect.script', handlerKey: record.id }];
 }
 
@@ -1852,7 +2140,7 @@ function makeBattleDescriptor(record, sourceType, operations) {
     target: targetDescriptor(record.target),
     mpCost: Math.max(0, Number(record.mpCost ?? 0)),
     element: normalizeBattleElement(record.element ?? null),
-    formulaVersion: 'ff5_adapter_v1',
+    formulaVersion: 'ff5_sfc_integer_v2',
     operations: Object.freeze(operations.map((operation) => Object.freeze({ ...operation }))),
     runtimeReady: true,
   });
@@ -1901,6 +2189,7 @@ function primaryActionKind(operation) {
   if (operation.op === 'battle.speed') return 'field-speed';
   if (operation.op === 'battle.field_status') return 'field-status';
   if (operation.op === 'barrier.physical') return 'barrier-physical';
+  if (operation.op === 'summon.odin') return 'summon-odin';
   return 'scripted';
 }
 
@@ -1908,6 +2197,11 @@ function battleDisabledReason(record) {
   const operations = record.battle?.operations ?? [];
   if (operations.some((operation) => operation.op === 'battle.escape')) return 'ボス戦からはテレポで脱出できない。';
   if (operations.some((operation) => operation.op === 'battle.restart')) return 'ボス戦では戦闘開始時へ巻き戻せない。';
+  if (record.category === 'camp') return '戦闘中は使用できない。';
+  if (record.category === 'drink') return '「のむ」で使用する専用薬。';
+  if (record.category === 'throw') return '「なげる」で使用する投擲アイテム。';
+  if (record.category === 'mix_material') return '「ちょうごう」で使用する素材。';
+  if (record.id === 'item_beastmaster_gourd') return '装備品のため戦闘中は使用できない。';
   return null;
 }
 
@@ -1918,6 +2212,7 @@ function magicRecordToAction(record) {
     sourceId: record.id,
     sourceType: 'magic',
     school: record.school,
+    ignoreReflect: record.school === 'summon',
     level: record.level,
     name: record.nameJa,
     actionKind: primaryActionKind(primary),
@@ -1927,6 +2222,8 @@ function magicRecordToAction(record) {
     target: record.target,
     effect: record.effect,
     power: primary.power,
+    ff5Power: primary.ff5Power,
+    formula: primary.formula,
     healAmount: primary.amount,
     fixedDamage: primary.amount,
     ratio: primary.ratio,
@@ -1953,6 +2250,8 @@ function battleRecordToAction(record) {
     target: record.battle.target.id,
     effect: record.effect ?? record.lore ?? '',
     power: primary.power,
+    ff5Power: primary.ff5Power,
+    formula: primary.formula,
     healAmount: primary.amount,
     fixedDamage: primary.amount,
     ratio: primary.ratio,
@@ -1960,6 +2259,17 @@ function battleRecordToAction(record) {
     operations: record.battle.operations,
     runtimeReady: true,
     disabledReason: battleDisabledReason(record),
+  });
+}
+
+function itemRecordToAction(record) {
+  const action = battleRecordToAction(record);
+  return Object.freeze({
+    ...action,
+    name: record.nameJa,
+    ctbCost: 1,
+    consumable: record.consumable,
+    category: record.category,
   });
 }
 
@@ -1989,6 +2299,10 @@ function publicProfile(profile, loginId, loginIdKey, createdAt, updatedAt) {
     gil: Math.max(0, Math.trunc(profile.gil || 0)),
     diamonds: Math.max(0, Math.trunc(profile.diamonds || 0)),
     potions: Math.max(0, Math.trunc(profile.potions || 0)),
+    items: Object.fromEntries(Object.entries(profile.items ?? {}).map(([id, count]) => [
+      String(id).slice(0, 64),
+      Math.max(0, Math.min(99, Math.trunc(Number(count) || 0))),
+    ])),
     volume: Math.min(100, Math.max(0, Math.trunc(profile.volume ?? 70))),
     windowHue: Math.min(359, Math.max(0, Math.trunc(profile.windowHue ?? 220))),
     shards: Array.isArray(profile.shards)
@@ -2162,6 +2476,129 @@ class FirebaseAccountService {
   }
 }
 
+// ---- src/battle/FF5MixCatalog.js ----
+/**
+ * FFV Mix/Combine table.
+ *
+ * The 12 x 12 result matrix is transcribed from MixComboTbl at D1/6EF9 in
+ * the SFC disassembly.  Only the upper triangle is exposed because ingredient
+ * order does not change the result: 12 * 13 / 2 = 78 selectable recipes.
+ */
+
+const FF5_MIX_INGREDIENTS = Object.freeze([
+  ['item_potion', 'ポーション'],
+  ['item_hi_potion', 'ハイポーション'],
+  ['item_phoenix_down', 'フェニックスのお'],
+  ['item_ether', 'エーテル'],
+  ['item_antidote', 'どくけし'],
+  ['item_eye_drops', 'めぐすり'],
+  ['item_maiden_s_kiss', 'おとめのキッス'],
+  ['item_holy_water', 'せいすい'],
+  ['item_elixir', 'エリクサー'],
+  ['item_turtle_shell', 'かめのこうら'],
+  ['item_dragon_fang', 'りゅうのきば'],
+  ['item_dark_matter', 'ダークマター'],
+]);
+
+// Result ids are the original byte values from the SFC MixComboTbl.
+const RESULT_MATRIX = Object.freeze([
+  [0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,0x0a,0x10,0x11,0x12,0x13,0x14],
+  [0x0b,0x15,0x16,0x0d,0x0e,0x0f,0x15,0x17,0x11,0x12,0x13,0x14],
+  [0x0c,0x16,0x10,0x0d,0x19,0x1a,0x10,0x0c,0x1b,0x1c,0x1d,0x1e],
+  [0x0d,0x0d,0x0d,0x0d,0x19,0x1a,0x0d,0x1f,0x0d,0x0d,0x22,0x23],
+  [0x0e,0x0e,0x19,0x19,0x24,0x25,0x26,0x27,0x28,0x29,0x2a,0x2b],
+  [0x0f,0x0f,0x1a,0x1a,0x25,0x0f,0x2c,0x2d,0x2e,0x2f,0x30,0x31],
+  [0x0a,0x15,0x10,0x0d,0x26,0x2c,0x32,0x33,0x34,0x35,0x36,0x37],
+  [0x10,0x17,0x0c,0x1f,0x27,0x2d,0x33,0x38,0x39,0x3a,0x3b,0x3c],
+  [0x11,0x11,0x1b,0x0d,0x28,0x2e,0x34,0x39,0x3d,0x3e,0x3f,0x40],
+  [0x12,0x12,0x1c,0x0d,0x29,0x2f,0x35,0x3a,0x3e,0x41,0x42,0x43],
+  [0x13,0x13,0x1d,0x22,0x2a,0x30,0x36,0x3b,0x3f,0x42,0x44,0x45],
+  [0x14,0x14,0x1e,0x23,0x2b,0x31,0x37,0x3c,0x40,0x43,0x45,0x46],
+]);
+
+const result = (name, effect, target = 'single-any') => Object.freeze({ name, effect, target });
+
+const FF5_MIX_RESULTS = Object.freeze({
+  0x0a: result('ポーション', 'potion'),
+  0x0b: result('ライフウォーター', 'lifewater', 'single-ally'),
+  0x0c: result('リザレクション', 'resurrection', 'single-ally'),
+  0x0d: result('エクスポーション', 'x-potion', 'single-ally'),
+  0x0e: result('ニュートラライズ', 'neutralizer', 'single-ally'),
+  0x0f: result('キュアブラインド', 'cure-blind', 'single-ally'),
+  0x10: result('フェニックスのお', 'phoenix-down', 'single-ally'),
+  0x11: result('エリクサー', 'elixir', 'single-ally'),
+  0x12: result('エーテル', 'ether', 'single-ally'),
+  0x13: result('ドラゴンパワー', 'dragon-power'),
+  0x14: result('デビルジュース', 'devil-juice', 'single-enemy'),
+  0x15: result('ハイポーション', 'hi-potion', 'single-ally'),
+  0x16: result('リザレクション', 'resurrection', 'single-ally'),
+  0x17: result('ハーフエリクサー', 'balm', 'single-ally'),
+  0x19: result('レジストアイス', 'resist-ice', 'single-ally'),
+  0x1a: result('レジストサンダー', 'resist-thunder', 'single-ally'),
+  0x1b: result('リンカネーション', 'reincarnate', 'single-ally'),
+  0x1c: result('ばんのうやく', 'remedy', 'single-ally'),
+  0x1d: result('ドラゴンアーマー', 'dragon-defense', 'single-ally'),
+  0x1e: result('デスポーション', 'death-potion', 'single-enemy'),
+  0x1f: result('リリスのキッス', 'lilith-kiss', 'single-enemy'),
+  0x22: result('ドラゴンシールド', 'dragon-shield', 'single-ally'),
+  0x23: result('ダークエーテル', 'dark-ether', 'single-enemy'),
+  0x24: result('どくけし', 'antidote', 'single-ally'),
+  0x25: result('きつけぐすり', 'smelling-salts', 'single-ally'),
+  0x26: result('レビテト', 'levisalve', 'single-ally'),
+  0x27: result('サムソンパワー', 'samson-power'),
+  0x28: result('エリクサー', 'elixir', 'single-ally'),
+  0x29: result('かめのこうらわり', 'turtle-soup', 'single-enemy'),
+  0x2a: result('ポイズンブレス', 'poison-breath', 'all_enemies'),
+  0x2b: result('ポイズン', 'poison', 'single-enemy'),
+  0x2c: result('ラミアのキッス', 'lamia-kiss', 'single-enemy'),
+  0x2d: result('エレメンタルパワー', 'elemental-power', 'single-ally'),
+  0x2e: result('エリクサー', 'elixir', 'single-ally'),
+  0x2f: result('ヘイストドリンク', 'hasty-ade', 'single-ally'),
+  0x30: result('ダークサイ', 'dark-sigh', 'single-enemy'),
+  0x31: result('ダークガス', 'dark-gas', 'all_enemies'),
+  0x32: result('おとめのキッス', 'maiden-kiss', 'single-ally'),
+  0x33: result('しゅくふくのキッス', 'blessed-kiss'),
+  0x34: result('リリスのキッス', 'lilith-kiss', 'single-enemy'),
+  0x35: result('サキュバスのキッス', 'succubus-kiss', 'single-enemy'),
+  0x36: result('りゅうのくちづけ', 'dragon-kiss'),
+  0x37: result('トードキッス', 'toad-kiss', 'single-enemy'),
+  0x38: result('せいすい', 'holy-water', 'single-ally'),
+  0x39: result('エリクサー', 'elixir', 'single-ally'),
+  0x3a: result('バッカスのさけ', 'bacchus-cider'),
+  0x3b: result('ホーリーブレス', 'holy-breath', 'single-enemy'),
+  0x3c: result('しっぱいさく', 'dud-poison', 'single-enemy'),
+  0x3d: result('エリクサー', 'elixir', 'single-ally'),
+  0x3e: result('しっぱいさく', 'antilixir', 'single-enemy'),
+  0x3f: result('ゴライアストニック', 'goliath', 'single-ally'),
+  0x40: result('アンチリクサー', 'antilixir', 'single-enemy'),
+  0x41: result('プロテクトポーション', 'protect-potion', 'single-ally'),
+  0x42: result('しっぱいさく', 'dud-gravity', 'single-enemy'),
+  0x43: result('TNT', 'tnt', 'all_enemies'),
+  0x44: result('ドラゴンブレス', 'dragon-breath', 'all_enemies'),
+  0x45: result('ダークブレス', 'dark-breath', 'single-enemy'),
+  0x46: result('シャドウフレア', 'shadowflare', 'single-enemy'),
+});
+
+const ff5MixActions = Object.freeze(FF5_MIX_INGREDIENTS.flatMap(([firstId, firstName], row) =>
+  FF5_MIX_INGREDIENTS.slice(row).map(([secondId, secondName], offset) => {
+    const column = row + offset;
+    const resultId = RESULT_MATRIX[row][column];
+    const spec = FF5_MIX_RESULTS[resultId];
+    return Object.freeze({
+      id: `mix-${row}-${column}`,
+      name: spec.name,
+      description: `${firstName} + ${secondName}`,
+      actionKind: 'special-command',
+      specialCommand: 'mix',
+      ingredients: [firstId, secondId],
+      mixEffect: spec.effect,
+      mixResultId: resultId,
+      target: spec.target,
+      ctbCost: 1.2,
+    });
+  })
+));
+
 // ---- src/data/abilityData.js ----
 /**
  * ctbCost is a multiplier applied to the CTB threshold when an action is
@@ -2196,22 +2633,7 @@ const defendAction = {
   damageTakenMultiplier: 0.5,
 };
 
-const itemActions = [
-  {
-    id: 'potion',
-    name: 'ポーション',
-    ctbCost: 0.8,
-    healAmount: 400,
-    target: 'single-ally',
-  },
-  {
-    id: 'hi-potion',
-    name: 'ハイポーション',
-    ctbCost: 0.9,
-    healAmount: 900,
-    target: 'single-ally',
-  },
-];
+const itemActions = Object.freeze(battleReadyItems.map(itemRecordToAction));
 
 // Battle menus are generated directly from the reference database. Adding or
 // correcting a spell record therefore updates every command that consumes it.
@@ -2231,36 +2653,48 @@ const magicSets = {
 
 const directAbilityActions = Object.freeze({
   ability_guard: [{ id: 'guard', name: 'まもり', actionKind: 'guard', ctbCost: 0.7, target: 'self' }],
-  ability_focus: [{ id: 'focus', name: 'ためる', actionKind: 'focus', ctbCost: 0.8, target: 'self' }],
-  ability_chakra: [{ id: 'chakra', name: 'チャクラ', actionKind: 'heal', healAmount: 450, ctbCost: 0.9, target: 'self' }],
+  ability_focus: [{ id: 'focus', name: 'ためる', actionKind: 'focus', commandFormula: 'focus', ctbCost: 0.8, target: 'self' }],
+  ability_chakra: [{ id: 'chakra', name: 'チャクラ', actionKind: 'special-command', specialCommand: 'chakra', ctbCost: 0.9, target: 'self' }],
   ability_image: [{ id: 'image', name: 'ぶんしん', actionKind: 'image', imageHits: 2, ctbCost: 0.9, target: 'self' }],
-  ability_aim: [{ id: 'aim', name: 'ねらう', actionKind: 'physical-attack', power: 1.2, ignoreEvasion: true, ctbCost: 1.0, target: 'single-enemy' }],
-  ability_rapid_fire: [{ id: 'rapid-fire', name: 'みだれうち', actionKind: 'physical-attack', power: 0.6, hits: 4, ignoreEvasion: true, ctbCost: 1.5, target: 'single-enemy' }],
-  ability_jump: [{ id: 'jump', name: 'ジャンプ', actionKind: 'physical-attack', power: 1.8, ctbCost: 1.4, target: 'single-enemy' }],
-  ability_lance: [{ id: 'lance', name: 'りゅうけん', actionKind: 'physical-attack', power: 0.8, drain: true, mpDrain: 12, ctbCost: 1.1, target: 'single-enemy' }],
-  ability_mug: [{ id: 'mug', name: 'ぶんどる', actionKind: 'physical-attack', power: 1.0, ctbCost: 1.1, target: 'single-enemy' }],
-  ability_gaia: [{ id: 'gaia', name: 'ちけい', actionKind: 'magic-attack', power: 2.5, element: 'earth', ctbCost: 1.1, target: 'single-enemy' }],
-  ability_throw: [{ id: 'throw', name: 'なげる', actionKind: 'fixed-damage', fixedDamage: 750, ctbCost: 1.2, target: 'single-enemy' }],
-  ability_mineuchi: [{ id: 'mineuchi', name: 'みねうち', actionKind: 'physical-attack', power: 0.9, ctbCost: 0.9, target: 'single-enemy' }],
-  ability_zeninage: [{ id: 'zeninage', name: 'ぜになげ', actionKind: 'fixed-damage', fixedDamage: 900, ctbCost: 1.3, target: 'single-enemy' }],
-  ability_iainuki: [{ id: 'iainuki', name: 'いあいぬき', actionKind: 'physical-attack', power: 1.6, ctbCost: 1.4, target: 'single-enemy' }],
-  ability_dance: [{ id: 'dance', name: 'おどる', actionKind: 'physical-attack', power: 1.7, ctbCost: 1.1, target: 'single-enemy' }],
-  ability_mix: [{ id: 'mix', name: 'ちょうごう', actionKind: 'heal', healAmount: 1000, ctbCost: 1.2, target: 'single-ally' }],
-  ability_drink: [{ id: 'drink', name: 'のむ', actionKind: 'focus', ctbCost: 0.8, target: 'self' }],
+  ability_aim: [{ id: 'aim', name: 'ねらう', actionKind: 'physical-attack', commandFormula: 'aim', ignoreEvasion: true, ctbCost: 1.0, target: 'single-enemy' }],
+  ability_rapid_fire: [{ id: 'rapid-fire', name: 'みだれうち', actionKind: 'physical-attack', commandFormula: 'rapid-fire', hits: 4, ignoreEvasion: true, ctbCost: 1.5, target: 'single-enemy' }],
+  ability_jump: [{ id: 'jump', name: 'ジャンプ', actionKind: 'special-command', specialCommand: 'jump', commandFormula: 'jump', ctbCost: 1.0, target: 'single-enemy' }],
+  ability_lance: [{ id: 'lance', name: 'りゅうけん', actionKind: 'special-command', specialCommand: 'lance', ctbCost: 1.1, target: 'single-enemy' }],
+  ability_mug: [{ id: 'mug', name: 'ぶんどる', actionKind: 'special-command', specialCommand: 'mug', ctbCost: 1.1, target: 'single-enemy' }],
+  ability_gaia: [{ id: 'gaia', name: 'ちけい', actionKind: 'special-command', specialCommand: 'gaia', ctbCost: 1.0, target: 'single-enemy' }],
+  ability_throw: [
+    { id: 'throw-fire-scroll', name: 'かとんのじゅつ', actionKind: 'special-command', specialCommand: 'throw', requiredItemId: 'item_fire_scroll', throwPower: 120, element: 'fire', ctbCost: 1, target: 'all_enemies' },
+    { id: 'throw-water-scroll', name: 'すいとんのじゅつ', actionKind: 'special-command', specialCommand: 'throw', requiredItemId: 'item_water_scroll', throwPower: 120, element: 'water', ctbCost: 1, target: 'all_enemies' },
+    { id: 'throw-lightning-scroll', name: 'らいじんのじゅつ', actionKind: 'special-command', specialCommand: 'throw', requiredItemId: 'item_lightning_scroll', throwPower: 120, element: 'thunder', ctbCost: 1, target: 'all_enemies' },
+    { id: 'throw-ash', name: 'すす', actionKind: 'special-command', specialCommand: 'throw', requiredItemId: 'item_ash', throwPower: 50, ctbCost: 1, target: 'single-enemy' },
+  ],
+  ability_mineuchi: [{ id: 'mineuchi', name: 'みねうち', actionKind: 'scripted', operations: [{ op: 'damage.physical', power: 1 }, { op: 'status.apply', statuses: ['paralyze'], statusChance: 0.5 }], ctbCost: 1, target: 'single-enemy' }],
+  ability_zeninage: [{ id: 'zeninage', name: 'ぜになげ', actionKind: 'special-command', specialCommand: 'zeninage', ctbCost: 1.3, target: 'all_enemies' }],
+  ability_iainuki: [{ id: 'iainuki', name: 'いあいぬき', actionKind: 'status', statuses: ['ko'], statusChance: 0.85, heavyImmune: true, ctbCost: 1.4, target: 'all_enemies' }],
+  ability_dance: [{ id: 'dance', name: 'おどる', actionKind: 'special-command', specialCommand: 'dance', ctbCost: 1.0, target: 'single-enemy' }],
+  ability_mix: ff5MixActions,
+  ability_drink: [
+    ['item_giant_drink', 'きょじんのくすり', 'giant'], ['item_power_drink', 'ちからのくすり', 'power'],
+    ['item_speed_shake', 'スピードドリンク', 'speed'], ['item_iron_draft', 'プロテスドリンク', 'iron'],
+    ['item_hero_s_cocktail', 'えいゆうのくすり', 'hero'],
+  ].map(([requiredItemId, name, drinkEffect]) => ({ id: `drink-${drinkEffect}`, name, actionKind: 'special-command', specialCommand: 'drink', requiredItemId, drinkEffect, ctbCost: 0.8, target: 'self' })),
   ability_scram: [{ id: 'scram', name: 'とんずら', actionKind: 'scripted', ctbCost: 0.45, target: 'self', disabledReason: 'ボス戦からは逃走できない。' }],
-  ability_steal: [{ id: 'steal', name: 'ぬすむ', actionKind: 'scripted', label: '盗みを試みた', ctbCost: 0.75, target: 'single-enemy' }],
+  ability_steal: [{ id: 'steal', name: 'ぬすむ', actionKind: 'special-command', specialCommand: 'steal', ctbCost: 0.75, target: 'single-enemy' }],
   ability_check: [{ id: 'check', name: 'しらべる', actionKind: 'scan', ctbCost: 0.65, target: 'single-enemy' }],
   ability_scan: [{ id: 'scan', name: 'みやぶる', actionKind: 'scan', ctbCost: 0.8, target: 'single-enemy' }],
-  ability_calm: [{ id: 'calm', name: 'なだめる', actionKind: 'status', statuses: ['stop'], statusChance: 0.7, ctbCost: 0.8, target: 'single-enemy' }],
-  ability_control: [{ id: 'control', name: 'あやつる', actionKind: 'status', statuses: ['confuse'], statusChance: 0.62, ctbCost: 1.0, target: 'single-enemy' }],
-  ability_catch: [{ id: 'catch', name: 'とらえる', actionKind: 'remove-from-battle', ctbCost: 1.15, target: 'single-enemy' }],
+  ability_calm: [{ id: 'calm', name: 'なだめる', actionKind: 'special-command', specialCommand: 'calm', ctbCost: 0.8, target: 'single-enemy' }],
+  ability_control: [{ id: 'control', name: 'あやつる', actionKind: 'special-command', specialCommand: 'control', ctbCost: 1.0, target: 'single-enemy' }],
+  ability_catch: [
+    { id: 'catch', name: 'とらえる', actionKind: 'special-command', specialCommand: 'catch', ctbCost: 1.15, target: 'single-enemy', requiresNoCapture: true },
+    { id: 'release', name: 'はなつ', actionKind: 'special-command', specialCommand: 'release', ctbCost: 1.15, target: 'all_enemies', requiresCapture: true },
+  ],
   ability_smoke: [{ id: 'smoke', name: 'けむりだま', actionKind: 'scripted', ctbCost: 0.45, target: 'self', disabledReason: 'ボス戦からは逃走できない。' }],
-  ability_animals: [{ id: 'animals', name: 'どうぶつ', actionKind: 'magic-attack', power: 2.1, element: 'wind', ctbCost: 1.0, target: 'single-enemy' }],
-  ability_hide: [{ id: 'hide', name: 'かくれる', actionKind: 'image', imageHits: 3, ctbCost: 0.65, target: 'self' }],
+  ability_animals: [{ id: 'animals', name: 'どうぶつ', actionKind: 'special-command', specialCommand: 'animals', ctbCost: 1.0, target: 'single-enemy' }],
+  ability_hide: [{ id: 'hide', name: 'かくれる', actionKind: 'special-command', specialCommand: 'hide', ctbCost: 0.65, target: 'self' }],
   ability_flirt: [{ id: 'flirt', name: 'いろめ', actionKind: 'status', statuses: ['confuse'], statusChance: 0.78, ctbCost: 0.85, target: 'single-enemy' }],
   ability_recover: [{ id: 'recover', name: 'ちゆ', actionKind: 'cleanse', mode: 'all_curable', statuses: [], ctbCost: 1.15, target: 'all_allies' }],
   ability_revive: [{ id: 'revive-party', name: 'そせい', actionKind: 'revive', hpRatio: 0.25, ctbCost: 1.4, target: 'all_allies' }],
-  ability_mimic: [{ id: 'mimic', name: 'ものまね', actionKind: 'scripted', label: '直前の行動を写し取った', ctbCost: 0.9, target: 'self' }],
+  ability_mimic: [{ id: 'mimic', name: 'ものまね', actionKind: 'special-command', specialCommand: 'mimic', ctbCost: 0.9, target: 'self' }],
 });
 
 const abilityMagicSet = Object.freeze({
@@ -2276,16 +2710,27 @@ function getAbilityActions(abilityId) {
     }));
   }
   if (abilityId === 'ability_dualcast') {
-    return magicSets['赤魔法'].map((spell) => ({ ...spell, id: `dual-${spell.id}`, visualId: `ability_dualcast_${spell.sourceId}`, commandSourceId: 'ability_dualcast', name: `${spell.name}×2`, power: spell.power ? spell.power * 1.7 : spell.power, healAmount: spell.healAmount ? Math.round(spell.healAmount * 1.7) : spell.healAmount, mpCost: (spell.mpCost ?? 0) * 2 }));
+    return magicSets['赤魔法'].map((spell) => ({
+      ...spell,
+      id: `dual-${spell.id}`,
+      visualId: `ability_dualcast_${spell.sourceId}`,
+      commandSourceId: 'ability_dualcast',
+      dualcastCandidate: true,
+    }));
   }
   if (abilityId === 'ability_spellblade') {
     return [
-      { id: 'spellblade-fire', name: 'ファイア剣', actionKind: 'imbue', element: 'fire', mpCost: 5, ctbCost: 0.8, target: 'self' },
-      { id: 'spellblade-ice', name: 'ブリザド剣', actionKind: 'imbue', element: 'ice', mpCost: 5, ctbCost: 0.8, target: 'self' },
-      { id: 'spellblade-thunder', name: 'サンダー剣', actionKind: 'imbue', element: 'thunder', mpCost: 5, ctbCost: 0.8, target: 'self' },
-    ].map((action) => ({ ...action, sourceType: 'ability', sourceId: 'ability_spellblade', visualId: `ability_spellblade_${action.id}` }));
+      ['fire', 'ファイア剣', 'fire', 2, 5], ['blizzard', 'ブリザド剣', 'ice', 2, 5], ['thunder', 'サンダー剣', 'thunder', 2, 5],
+      ['poison', 'ポイズン剣', 'poison', 1, 5, 'poison'], ['silence', 'サイレス剣', null, 1, 5, 'silence'], ['sleep', 'スリプル剣', null, 1, 5, 'sleep'],
+      ['fira', 'ファイラ剣', 'fire', 2, 10], ['blizzara', 'ブリザラ剣', 'ice', 2, 10], ['thundara', 'サンダラ剣', 'thunder', 2, 10],
+      ['drain', 'ドレイン剣', null, 1, 15, 'drain'], ['break', 'ブレイク剣', null, 1, 15, 'petrify'], ['bio', 'バイオ剣', 'poison', 2, 15, 'poison'],
+      ['firaga', 'ファイガ剣', 'fire', 3, 20], ['blizzaga', 'ブリザガ剣', 'ice', 3, 20], ['thundaga', 'サンダガ剣', 'thunder', 3, 20],
+      ['holy', 'ホーリー剣', 'holy', 3, 30], ['flare', 'フレア剣', null, 1, 30, 'flare'], ['osmose', 'アスピル剣', null, 1, 1, 'osmose'],
+    ].map(([id, name, element, spellbladeTier, mpCost, spellbladeEffect]) => ({
+      id: `spellblade-${id}`, name, actionKind: 'imbue', element, spellbladeTier, spellbladeEffect, mpCost, ctbCost: 0.8, target: 'self',
+    })).map((action) => ({ ...action, sourceType: 'ability', sourceId: 'ability_spellblade', visualId: `ability_spellblade_${action.id}` }));
   }
-  if (abilityId === 'ability_call') return magicSets['召喚魔法'].map((spell) => ({ ...spell, id: `call-${spell.id}`, visualId: `ability_call_${spell.sourceId}`, commandSourceId: 'ability_call', mpCost: 0 }));
+  if (abilityId === 'ability_call') return [{ id: 'call', sourceId: 'ability_call', sourceType: 'ability', visualId: 'ability_call_random', commandSourceId: 'ability_call', name: 'よびだす', actionKind: 'special-command', specialCommand: 'call', target: 'all_enemies', ctbCost: 1, mpCost: 0 }];
   if (abilityId === 'ability_sing') {
     // Instant songs each apply a specific status; continuous songs are
     // stat-up buffs that persist while the dancer keeps singing.
@@ -2304,7 +2749,9 @@ function getAbilityActions(abilityId) {
         commandSourceId: 'ability_sing',
         visualId: song.id,
         name: song.nameJa,
-        actionKind: instant?.actionKind ?? 'stat-modify',
+        actionKind: instant?.actionKind ?? 'special-command',
+        specialCommand: instant ? null : 'sing',
+        songMode: song.mode,
         element: instant?.element ?? null,
         power: instant?.power,
         statuses: instant?.statuses ?? [],
@@ -2345,6 +2792,7 @@ const partyData = [
   {
     id: 'p1',
     name: 'バッツ',
+    level: 50,
     role: '前衛',
     maxHp: 1200,
     maxMp: 300,
@@ -2368,6 +2816,7 @@ const partyData = [
   {
     id: 'p2',
     name: 'タバサ',
+    level: 50,
     role: '後衛',
     maxHp: 950,
     maxMp: 450,
@@ -2392,6 +2841,7 @@ const partyData = [
   {
     id: 'p3',
     name: 'ガラフ',
+    level: 50,
     role: '前衛',
     maxHp: 1400,
     maxMp: 200,
@@ -2415,6 +2865,7 @@ const partyData = [
   {
     id: 'p4',
     name: 'ファリス',
+    level: 50,
     role: '後衛',
     maxHp: 1000,
     maxMp: 350,
@@ -2469,6 +2920,7 @@ const bossData = [
     maxMp: 60700,
     level: 119,
     atk: 115,
+    monsterM: 12,
     def: 190,
     magic: 199,
     magicDef: 150,
@@ -2507,6 +2959,7 @@ const bossData = [
     maxHp: 4200,
     level: 30,
     atk: 65,
+    monsterM: 7,
     def: 20,
     magic: 15,
     agility: 34,
@@ -2521,6 +2974,7 @@ const bossData = [
     maxHp: 6000,
     level: 50,
     atk: 80,
+    monsterM: 9,
     def: 30,
     magic: 40,
     agility: 26,
@@ -3104,151 +3558,444 @@ const ff5BossTechniquesById = Object.freeze(
 );
 
 // ---- src/battle/BossActionProfiles.js ----
-/** Original boss kits. Data-only so encounter tuning does not add DOM cost. */
-const attack = (id, name, power, extra = {}) => ({ id, name, kind: 'physical-attack', power, ctbCost: 1, ...extra });
-const magic = (id, name, power, element, extra = {}) => ({ id, name, kind: 'magic-attack', power, element, ctbCost: 1.15, ...extra });
-const status = (id, name, statuses, extra = {}) => ({ id, name, kind: 'status', statuses, statusChance: 0.78, ctbCost: 0.9, ...extra });
+/** Boss-specific action scripts.  No shared "pick any weighted move" AI. */
+const physical = (id, name, power, extra = {}) => ({ id, name, kind: 'physical-attack', power, ctbCost: 1, ...extra });
+const magic = (id, name, ff5Power, element, extra = {}) => ({ id, name, kind: 'magic-attack', ff5Power, formula: 'ff5_magic', element, ctbCost: 1.15, ...extra });
+const scripted = (id, name, operations, extra = {}) => ({ id, name, kind: 'scripted', operations, ctbCost: 1.2, ...extra });
+const phase = (maxHpRatio, sequence) => ({ maxHpRatio, sequence, actions: sequence });
+const randomChoice = (...choices) => Object.freeze({ choices: Object.freeze(choices) });
 
-/**
- * オメガ（次元の狭間）— FF5原作の行動パターンを再現したキット。
- * 出典: src/database/ff5BossTechniques.js の 'bossref_omega_boss' レコード
- * （行動パターンは 神ゲー攻略/FF5ピクセルリマスター版ボス個別ページ 準拠）。
- *
- * 原作の構成:
- *  - 通常行動: 8種の技から1つを選んで行動（アトミックレイ/かえんほうしゃ/
- *    ターゲッティング/デルタアタック/にじいろのかぜ/はどうほう/ブラスター/
- *    ミールストーム）
- *  - 2連続行動: 上記のうち6種（じしんを含む）から2つを選んで連続行動
- *  - 反撃行動: ダメージを受けると必ず、サークル/マスタードボム/ロケットパンチ
- *    から2つを選んで反撃してくる（BattleManagerのcounterOnHit機構で再現）
- *
- * エンジン上の簡略化点（完全な1:1ではない箇所）:
- *  - 「ターゲッティング」は原作では次の行動の対象を絞るだけの技だが、この
- *    エンジンでは1ターン目に「照準ロック」を予告し、2ターン目にその対象へ
- *    強力な一撃（ダメージ+マヒ）を放つ形で再現している（telegraph機構を流用）。
- *  - 「2連続行動」は全15通りの組み合わせではなく、代表的な組み合わせのみを
- *    個別の複合アクションとして採用している。
- */
-const omegaCombo = (id, name, ops, extra = {}) => ({ id, name, kind: 'scripted', operations: ops, ctbCost: 1.4, weight: 1, ...extra });
+const omegaActions = Object.freeze({
+  atomicRay: magic('omega-atomic-ray', 'アトミックレイ', 95, 'fire', { target: 'all_enemies' }),
+  flameThrower: magic('omega-flame-thrower', 'かえんほうしゃ', 70, 'fire', { target: 'one_enemy' }),
+  deltaAttack: scripted('omega-delta-attack', 'デルタアタック', [
+    { op: 'damage.magic', formula: 'ff5_magic', ff5Power: 65 },
+    { op: 'status.apply', statuses: ['petrify'], statusChance: 0.66 },
+  ], { target: 'one_enemy' }),
+  rainbowWind: scripted('omega-rainbow-wind', 'にじいろのかぜ', [
+    { op: 'status.apply', statuses: ['blind', 'silence', 'sap'], statusChance: 0.85 },
+  ], { target: 'one_enemy' }),
+  waveCannon: scripted('omega-wave-cannon', 'はどうほう', [
+    { op: 'damage.max_hp_ratio', ratio: 0.5 },
+    { op: 'status.apply', statuses: ['sap'], statusChance: 1 },
+  ], { target: 'all_enemies', ctbCost: 1.55 }),
+  blasterParalyze: { id: 'omega-blaster-paralyze', name: 'ブラスター', kind: 'status', statuses: ['paralyze'], statusChance: 0.85, target: 'one_enemy', ctbCost: 1 },
+  blasterDeath: { id: 'omega-blaster-death', name: 'ブラスター', kind: 'status', statuses: ['ko'], statusChance: 0.66, target: 'one_enemy', ctbCost: 1 },
+  maelstrom: scripted('omega-maelstrom', 'ミールストーム', [{ op: 'damage.to_critical' }], { target: 'all_enemies', ctbCost: 1.4 }),
+  quake: magic('omega-quake', 'じしん', 110, 'earth', { target: 'all_enemies' }),
+  targeting: physical('omega-targeting', 'ターゲッティング', 1.6, { target: 'one_enemy', ignoreEvasion: true }),
+});
 
 const BOSS_ACTION_PROFILES = Object.freeze({
+  boss1: Object.freeze({
+    phases: [phase(1, [
+      magic('granite-fall', '大陸落とし', 120, 'earth', { target: 'all_enemies', telegraph: '巨岩を天高く掲げた――次の行動で落下する！', ctbCost: 1.8 }),
+      physical('granite-fist', '花崗岩の拳', 1.25),
+      magic('fault-line', '断層波', 70, 'earth', { target: 'all_enemies' }),
+    ])],
+    counterPool: [],
+  }),
   omega: Object.freeze({
+    // SFC Omega's eight-slot loop alternates a choice group with Wave Cannon.
+    // Choice selection is derived from the persisted cursor, so suspend/resume
+    // cannot reroll a more convenient move.
     phases: [
-      {
-        maxHpRatio: 1,
-        actions: [
-          // ---- 通常行動（8種）----
-          magic('omega-atomic-ray', 'アトミックレイ', 1.3, 'fire', { target: 'all_enemies', weight: 3 }),
-          magic('omega-flame-thrower', 'かえんほうしゃ', 1.15, 'fire', { target: 'one_enemy', weight: 2 }),
-          {
-            id: 'omega-targeting', name: '照準ロック', kind: 'scripted', target: 'one_enemy', weight: 1, ctbCost: 1.3,
-            telegraph: 'オメガの照準が一点に絞られていく……！',
-            operations: [
-              { op: 'damage.physical', power: 1.9 },
-              { op: 'status.apply', statuses: ['paralyze'], statusChance: 0.5 },
-            ],
-          },
-          omegaCombo('omega-delta-attack', 'デルタアタック', [
-            { op: 'damage.physical', power: 1.35 },
-            { op: 'status.apply', statuses: ['petrify'], statusChance: 0.6 },
-          ], { target: 'one_enemy', weight: 2 }),
-          omegaCombo('omega-rainbow-wind', 'にじいろのかぜ', [
-            { op: 'status.apply', statuses: ['silence'], statusChance: 0.85 },
-            { op: 'status.apply', statuses: ['sap'], statusChance: 0.85 },
-          ], { target: 'one_enemy', weight: 2 }),
-          omegaCombo('omega-wave-cannon', 'はどうほう', [
-            { op: 'damage.max_hp_ratio', ratio: 0.5, heavyImmune: true },
-            { op: 'status.apply', statuses: ['sap'], statusChance: 1 },
-          ], { target: 'all_enemies', weight: 3, ctbCost: 1.6 }),
-          status('omega-blaster-paralyze', 'ブラスター', ['paralyze'], { target: 'one_enemy', weight: 1, statusChance: 0.85 }),
-          status('omega-blaster-death', 'ブラスター', ['ko'], { target: 'one_enemy', weight: 1, statusChance: 0.4 }),
-          omegaCombo('omega-maelstrom', 'ミールストーム', [
-            { op: 'damage.to_critical', heavyImmune: true },
-          ], { target: 'all_enemies', weight: 2, ctbCost: 1.5 }),
-
-          // ---- 2連続行動（代表的な組み合わせ）----
-          omegaCombo('omega-combo-quake-wave', 'じしん→はどうほう', [
-            { op: 'damage.magic', power: 1.2, element: 'earth' },
-            { op: 'damage.max_hp_ratio', ratio: 0.5, heavyImmune: true },
-            { op: 'status.apply', statuses: ['sap'], statusChance: 1 },
-          ], { target: 'all_enemies', weight: 1, ctbCost: 1.9 }),
-          omegaCombo('omega-combo-wave-maelstrom', 'はどうほう→ミールストーム', [
-            { op: 'damage.max_hp_ratio', ratio: 0.5, heavyImmune: true },
-            { op: 'status.apply', statuses: ['sap'], statusChance: 1 },
-            { op: 'damage.to_critical', heavyImmune: true },
-          ], { target: 'all_enemies', weight: 1, ctbCost: 2.1, telegraph: 'オメガの機関部が唸りを上げる――全力出力！' }),
-          omegaCombo('omega-combo-delta-blaster', 'デルタアタック→ブラスター', [
-            { op: 'damage.physical', power: 1.35 },
-            { op: 'status.apply', statuses: ['petrify'], statusChance: 0.55 },
-            { op: 'status.apply', statuses: ['paralyze'], statusChance: 0.5 },
-          ], { target: 'one_enemy', weight: 1, ctbCost: 1.8 }),
-          omegaCombo('omega-combo-wind-delta', 'にじいろのかぜ→デルタアタック', [
-            { op: 'status.apply', statuses: ['silence'], statusChance: 0.85 },
-            { op: 'status.apply', statuses: ['sap'], statusChance: 0.85 },
-            { op: 'damage.physical', power: 1.35 },
-            { op: 'status.apply', statuses: ['petrify'], statusChance: 0.55 },
-          ], { target: 'one_enemy', weight: 1, ctbCost: 1.8 }),
-        ],
-      },
+      phase(1, [
+        randomChoice(omegaActions.atomicRay, omegaActions.deltaAttack, omegaActions.blasterParalyze, omegaActions.blasterDeath),
+        omegaActions.waveCannon,
+        randomChoice(omegaActions.rainbowWind, omegaActions.flameThrower, omegaActions.atomicRay),
+        omegaActions.waveCannon,
+        randomChoice(omegaActions.maelstrom, omegaActions.quake, omegaActions.rainbowWind),
+        omegaActions.waveCannon,
+        omegaActions.targeting,
+        omegaActions.waveCannon,
+      ]),
     ],
-    /**
-     * 反撃行動: ダメージを受けると必ず、以下から2つ選んで反撃してくる。
-     * BattleManager.resolveCounterAttacks() から参照される。
-     */
     counterPool: [
       { id: 'omega-circle', name: 'サークル', kind: 'remove-from-battle', target: 'one_enemy', ctbCost: 0 },
-      omegaCombo('omega-mustard-bomb', 'マスタードボム', [
-        { op: 'damage.magic', power: 1.5, element: null },
-        { op: 'status.apply', statuses: ['sap'], statusChance: 0.85 },
-      ], { target: 'one_enemy', ctbCost: 0 }),
-      omegaCombo('omega-rocket-punch', 'ロケットパンチ', [
-        { op: 'damage.hp_ratio', ratio: 0.5 },
-        { op: 'status.apply', statuses: ['confuse'], statusChance: 0.85 },
-      ], { target: 'one_enemy', ctbCost: 0 }),
-    ],
-  }),
-  boss1: Object.freeze({
-    phases: [
-      { maxHpRatio: 1, actions: [attack('granite-fist', '花崗岩の拳', 1.25, { weight: 3 }), magic('fault-line', '断層波', 1.1, 'earth', { target: 'all_enemies', weight: 2 }), status('stone-roar', '石気の咆哮', ['slow'], { target: 'all_enemies' })] },
-      { maxHpRatio: 0.5, actions: [attack('crush', '地殻粉砕', 1.65, { weight: 2 }), magic('magma-vein', '灼熱脈動', 1.55, 'fire', { target: 'all_enemies' }), attack('continental-fall', '大陸落とし', 2.5, { target: 'all_enemies', telegraph: '巨岩を天高く掲げた――水の力で体勢を崩せ！', ctbCost: 1.8 })] },
+      scripted('omega-mustard-bomb', 'マスタードボム', [{ op: 'damage.magic', formula: 'ff5_magic', ff5Power: 85 }, { op: 'status.apply', statuses: ['sap'], statusChance: 0.85 }], { target: 'one_enemy', ctbCost: 0 }),
+      scripted('omega-rocket-punch', 'ロケットパンチ', [{ op: 'damage.hp_ratio', ratio: 0.5 }, { op: 'status.apply', statuses: ['confuse'], statusChance: 0.85 }], { target: 'one_enemy', ctbCost: 0 }),
     ],
   }),
   boss2: Object.freeze({
     phases: [
-      { maxHpRatio: 1, actions: [attack('talon', '裂空爪', 1.15, { weight: 3 }), magic('razor-gale', '真空連刃', 1.05, 'wind', { hits: 3, weight: 2 }), status('siren-cry', '天哭', ['silence'], { target: 'all_enemies' })] },
-      { maxHpRatio: 0.5, actions: [magic('tempest', '蒼穹の嵐', 1.55, 'wind', { target: 'all_enemies', weight: 2 }), attack('sky-dive', '天墜衝', 1.9), magic('eye-of-storm', '滅びの風眼', 2.65, 'wind', { target: 'all_enemies', telegraph: '風が一点へ収束する――氷撃で風眼を乱せ！', ctbCost: 1.9 })] },
+      phase(1, [physical('garuda-talon', '裂空爪', 1.15), magic('garuda-gale', '真空連刃', 45, 'wind', { hits: 3 }), { id: 'garuda-cry', name: '天鳴', kind: 'status', statuses: ['silence'], statusChance: 0.7, target: 'all_enemies' }]),
+      phase(0.5, [magic('garuda-tempest', '蒼穹の嵐', 90, 'wind', { target: 'all_enemies' }), physical('garuda-dive', '天墜衝', 1.9), magic('garuda-eye', '嵐の風眼', 145, 'wind', { target: 'all_enemies', telegraph: '風が一点へ収束する――次の行動で風眼が荒れ狂う！', ctbCost: 1.8 })]),
     ],
+    counterPool: [],
   }),
   boss3: Object.freeze({
     phases: [
-      { maxHpRatio: 1, actions: [attack('dragon-claw', '竜爪連撃', 0.75, { hits: 2, weight: 3 }), magic('dark-flare', '黒耀フレア', 1.7, null, { weight: 2 }), status('dread-roar', '竜威', ['sap'], { target: 'all_enemies' })] },
-      { maxHpRatio: 0.6, actions: [magic('storm-breath', '雷嵐の息吹', 1.6, 'thunder', { target: 'all_enemies', weight: 2 }), attack('tail-calamity', '震天尾撃', 1.7, { target: 'all_enemies' }), magic('astral-collapse', '星蝕メガフレア', 2.8, null, { target: 'all_enemies', telegraph: '星光が竜の胸へ集う――守りを固め、雷で魔力を散らせ！', ctbCost: 2 })] },
-      { maxHpRatio: 0.25, actions: [magic('last-nova', '終焉新星', 2.1, 'fire', { target: 'all_enemies', weight: 2 }), attack('ruin-rush', '破滅の四連撃', 0.58, { hits: 4, weight: 2 }), magic('astral-collapse-plus', '極星蝕メガフレア', 3.2, null, { target: 'all_enemies', telegraph: '空間が砕け始めた――これが最後の予兆だ！', ctbCost: 2.2 })] },
+      phase(1, [physical('bahamut-claw', '竜爪連撃', 0.75, { hits: 2 }), magic('bahamut-flare', 'ダークフレア', 130, null), { id: 'bahamut-roar', name: '竜威', kind: 'status', statuses: ['sap'], statusChance: 0.8, target: 'all_enemies' }]),
+      phase(0.6, [magic('bahamut-breath', '雷嵐の息吹', 120, 'thunder', { target: 'all_enemies' }), physical('bahamut-tail', '震天尾撃', 1.7, { target: 'all_enemies' }), magic('bahamut-collapse', '星砕メガフレア', 210, null, { target: 'all_enemies', telegraph: '星光が竜の胸へ集う――守りを固めろ！', ctbCost: 2 })]),
+      phase(0.25, [magic('bahamut-nova', '終焉新星', 185, 'fire', { target: 'all_enemies' }), physical('bahamut-rush', '破滅の四連撃', 0.58, { hits: 4 }), magic('bahamut-collapse-plus', '極星砕メガフレア', 250, null, { target: 'all_enemies', telegraph: '空間が砕け始めた――これが最後の予兆だ！', ctbCost: 2.2 })]),
     ],
+    counterPool: [],
   }),
 });
 
-function bossActionsFor(unit) {
+function activePhase(unit) {
   const profile = BOSS_ACTION_PROFILES[unit.id];
-  if (!profile) return unit.aiActions ?? [];
-  const ratio = unit.hpRatio();
-  return profile.phases
-    .filter((phase) => ratio <= phase.maxHpRatio)
-    .sort((a, b) => a.maxHpRatio - b.maxHpRatio)[0]?.actions ?? [];
+  if (!profile) return null;
+  return profile.phases.filter((phase) => unit.hpRatio() <= phase.maxHpRatio).sort((a, b) => a.maxHpRatio - b.maxHpRatio)[0] ?? profile.phases[0];
+}
+
+function bossActionsFor(unit) {
+  return activePhase(unit)?.sequence ?? unit.aiActions ?? [];
+}
+
+function nextBossActionFor(unit, cursor = 0) {
+  const sequence = bossActionsFor(unit);
+  if (!sequence.length) return { id: 'enemy-attack', name: 'こうげき', kind: 'physical-attack', ctbCost: 1 };
+  const safeCursor = Math.max(0, cursor);
+  const entry = sequence[safeCursor % sequence.length];
+  if (!entry?.choices?.length) return entry;
+  const cycle = Math.floor(safeCursor / sequence.length);
+  const choiceIndex = ((Math.imul(cycle + 1, 1103515245) + safeCursor * 12345) >>> 16) % entry.choices.length;
+  return entry.choices[choiceIndex];
 }
 
 function bossPhaseIndex(unit) {
   const profile = BOSS_ACTION_PROFILES[unit.id];
   if (!profile) return 0;
-  const eligible = profile.phases.filter((phase) => unit.hpRatio() <= phase.maxHpRatio);
-  const active = eligible.sort((a, b) => a.maxHpRatio - b.maxHpRatio)[0];
-  return profile.phases.indexOf(active);
+  return Math.max(0, profile.phases.indexOf(activePhase(unit)));
 }
 
-/** Counter-move pool for bosses that always retaliate when hit (e.g. Omega). */
 function counterPoolFor(unit) {
-  const profile = BOSS_ACTION_PROFILES[unit.id];
-  return profile?.counterPool ?? [];
+  return BOSS_ACTION_PROFILES[unit.id]?.counterPool ?? [];
+}
+
+// ---- src/battle/FF5CommandSystem.js ----
+const SUMMONS = magicActionsForSchool('summon');
+
+const STEAL_TABLE = Object.freeze({
+  omega: { common: 'item_elixir', rare: 'item_dragon_fang', commonName: 'エリクサー', rareName: 'りゅうのきば' },
+  boss2: { common: 'item_hi_potion', rare: 'item_ether', commonName: 'ハイポーション', rareName: 'エーテル' },
+  boss3: { common: 'item_dark_matter', rare: 'item_elixir', commonName: 'ダークマター', rareName: 'エリクサー' },
+});
+
+const GAIA_CRYSTAL_SANCTUM = Object.freeze([
+  { id: 'gaia-wind-slash', name: 'かまいたち', kind: 'magic-attack', ff5Power: 90, element: 'wind', target: 'all_enemies' },
+  { id: 'gaia-earthquake', name: 'じしん', kind: 'magic-attack', ff5Power: 110, element: 'earth', target: 'all_enemies' },
+  { id: 'gaia-stalactite', name: 'しょうにゅうせき', kind: 'magic-attack', ff5Power: 75, element: null, target: 'single-enemy' },
+  { id: 'gaia-cave-in', name: 'らくばん', kind: 'ratio-damage', ratio: 0.75, heavyImmune: true, target: 'single-enemy' },
+]);
+
+const ANIMALS = Object.freeze([
+  { minLevel: 1, id: 'animal-mysidian-rabbit', name: 'ミシディアうさぎ', kind: 'heal', ff5Power: 10, formula: 'ff5_magic', target: 'all_allies' },
+  { minLevel: 5, id: 'animal-squirrel', name: 'りす', kind: 'status', statuses: ['blind'], statusChance: 0.8, target: 'single-enemy' },
+  { minLevel: 10, id: 'animal-bee-swarm', name: 'はちのむれ', kind: 'magic-attack', ff5Power: 45, element: 'poison', target: 'single-enemy' },
+  { minLevel: 20, id: 'animal-nightingale', name: 'ナイチンゲール', kind: 'heal', ff5Power: 30, formula: 'ff5_magic', target: 'all_allies', cleanse: ['poison', 'blind'] },
+  { minLevel: 30, id: 'animal-falcon', name: 'はやぶさ', kind: 'ratio-damage', ratio: 0.75, heavyImmune: true, target: 'single-enemy' },
+  { minLevel: 40, id: 'animal-skunk', name: 'スカンク', kind: 'status', statuses: ['poison', 'blind'], statusChance: 0.8, target: 'all_enemies' },
+  { minLevel: 50, id: 'animal-wild-boar', name: 'いのしし', kind: 'physical-attack', power: 2, ranged: true, target: 'single-enemy' },
+  { minLevel: 60, id: 'animal-unicorn', name: 'ユニコーン', kind: 'heal', ff5Power: 120, formula: 'ff5_magic', target: 'all_allies' },
+]);
+
+const choose = (list, random = Math.random) => list[Math.floor(random() * list.length)];
+const livingAllies = (manager, actor) => manager.units.filter((unit) => unit.isAlive() && !unit.removedFromBattle && unit.isEnemy === actor.isEnemy);
+const livingEnemies = (manager, actor) => manager.units.filter((unit) => unit.isAlive() && !unit.removedFromBattle && !unit.hidden && unit.isEnemy !== actor.isEnemy);
+const resultLabel = (actor, text) => ({ type: 'command-message', targetUid: actor.uid, label: text });
+
+function commandTargets(manager, actor, action, fallback) {
+  if (['all_enemies', 'enemy_group'].includes(action.target)) return livingEnemies(manager, actor);
+  if (['all_allies', 'party'].includes(action.target)) return livingAllies(manager, actor);
+  if (action.target === 'self') return [actor];
+  return [fallback ?? livingEnemies(manager, actor)[0] ?? actor];
+}
+
+function steal(manager, actor, target) {
+  if (!target || target.stolen) return [resultLabel(actor, '何も持っていない。')];
+  const rate = actor.equipmentEffects?.stealRate ?? 0.4;
+  if (Math.random() >= rate) return [resultLabel(actor, 'ぬすめなかった。')];
+  const table = STEAL_TABLE[target.id] ?? { common: 'item_potion', rare: 'item_hi_potion', commonName: 'ポーション', rareName: 'ハイポーション' };
+  const rare = Math.floor(Math.random() * 256) < 10;
+  const itemId = rare ? table.rare : table.common;
+  const itemName = rare ? table.rareName : table.commonName;
+  target.stolen = true;
+  manager.addItemStock?.(itemId, 1);
+  return [{ type: 'steal', targetUid: target.uid, itemId, itemName, rare }];
+}
+
+function resolveMix(manager, actor, action, targets) {
+  const needed = new Map();
+  action.ingredients.forEach((id) => needed.set(id, (needed.get(id) ?? 0) + 1));
+  for (const [id, amount] of needed) {
+    if (manager.getItemStock(id) < amount) return { valid: false, reason: '調合素材が足りない。' };
+  }
+  for (const [id, amount] of needed) manager.consumeItemStock(id, amount);
+  const results = [];
+  const applyTo = targets.length ? targets : [actor];
+  const heal = (unit, amount) => results.push({ type: 'heal', targetUid: unit.uid, amount: unit.applyHeal(amount) });
+  const restoreMp = (unit, amount) => {
+    const before = unit.mp;
+    unit.mp = Math.min(unit.maxMp, unit.mp + amount);
+    results.push({ type: 'mp-heal', targetUid: unit.uid, amount: unit.mp - before });
+  };
+  const damage = (unit, amount, element = null) => results.push({ type: 'damage', targetUid: unit.uid, amount: unit.applyDamage(amount), element });
+  const status = (unit, statuses, duration = 12) => {
+    const applied = statuses.filter((name) => unit.addStatus(name, { duration, chance: 1, guaranteed: true }));
+    results.push({ type: applied.length ? 'status' : 'status-resist', targetUid: unit.uid, statuses: applied.length ? applied : statuses });
+  };
+  const cleanse = (unit, statuses) => {
+    const removed = statuses.filter((name) => unit.removeStatus(name));
+    results.push({ type: 'cleanse', targetUid: unit.uid, statuses: removed });
+  };
+  const revive = (unit, hpRatio, fullMp = false) => {
+    const amount = unit.revive(hpRatio);
+    if (fullMp) unit.mp = unit.maxMp;
+    results.push({ type: 'revive', targetUid: unit.uid, amount });
+  };
+
+  switch (action.mixEffect) {
+    case 'potion': applyTo.forEach((unit) => heal(unit, 90)); break;
+    case 'hi-potion': applyTo.forEach((unit) => heal(unit, 900)); break;
+    case 'lifewater': applyTo.forEach((unit) => status(unit, ['regen'])); break;
+    case 'resurrection': applyTo.forEach((unit) => revive(unit, 0.25)); break;
+    case 'reincarnate': applyTo.forEach((unit) => revive(unit, 1, true)); break;
+    case 'phoenix-down': applyTo.forEach((unit) => revive(unit, 0.125)); break;
+    case 'x-potion': applyTo.forEach((unit) => heal(unit, 9999)); break;
+    case 'neutralizer': applyTo.forEach((unit) => { heal(unit, 90); cleanse(unit, ['poison']); }); break;
+    case 'cure-blind': applyTo.forEach((unit) => { heal(unit, 90); cleanse(unit, ['blind']); }); break;
+    case 'maiden-kiss': applyTo.forEach((unit) => { heal(unit, 90); cleanse(unit, ['toad']); }); break;
+    case 'holy-water': applyTo.forEach((unit) => { heal(unit, 90); cleanse(unit, ['zombie']); }); break;
+    case 'antidote': applyTo.forEach((unit) => cleanse(unit, ['poison'])); break;
+    case 'remedy': applyTo.forEach((unit) => cleanse(unit, ['poison', 'blind', 'sleep', 'petrify', 'toad', 'mini', 'old', 'silence'])); break;
+    case 'smelling-salts': applyTo.forEach((unit) => cleanse(unit, ['confuse', 'sleep', 'paralyze'])); break;
+    case 'ether': applyTo.forEach((unit) => restoreMp(unit, 80)); break;
+    case 'balm': applyTo.forEach((unit) => restoreMp(unit, 9999)); break;
+    case 'elixir': applyTo.forEach((unit) => { heal(unit, 9999); restoreMp(unit, 9999); }); break;
+    case 'dragon-power': applyTo.forEach((unit) => { unit.level = Math.min(255, unit.level + 20); results.push({ type: 'buff', targetUid: unit.uid, label: 'レベル+20' }); }); break;
+    case 'samson-power': applyTo.forEach((unit) => { unit.level = Math.min(255, unit.level + 10); results.push({ type: 'buff', targetUid: unit.uid, label: 'レベル+10' }); }); break;
+    case 'goliath': applyTo.forEach((unit) => { const gain = unit.maxHp; unit.maxHp = Math.min(9999, unit.maxHp * 2); unit.hp = Math.min(unit.maxHp, unit.hp + gain); results.push({ type: 'buff', targetUid: unit.uid, label: '最大HP2倍' }); }); break;
+    case 'elemental-power': applyTo.forEach((unit) => { unit.elementalPower = true; results.push({ type: 'buff', targetUid: unit.uid, label: '全属性強化' }); }); break;
+    case 'resist-fire': case 'resist-ice': case 'resist-thunder': {
+      const element = action.mixEffect.replace('resist-', '');
+      applyTo.forEach((unit) => { unit.temporaryNullElements.add(element); results.push({ type: 'buff', targetUid: unit.uid, label: `${element}無効` }); });
+      break;
+    }
+    case 'dragon-shield': applyTo.forEach((unit) => { ['fire', 'ice', 'thunder'].forEach((element) => unit.temporaryNullElements.add(element)); results.push({ type: 'buff', targetUid: unit.uid, label: '炎・氷・雷無効' }); }); break;
+    case 'dragon-defense': applyTo.forEach((unit) => status(unit, ['protect', 'shell', 'regen', 'reflect'])); break;
+    case 'protect-potion': applyTo.forEach((unit) => status(unit, ['protect', 'shell'])); break;
+    case 'levisalve': applyTo.forEach((unit) => status(unit, ['float'])); break;
+    case 'hasty-ade': applyTo.forEach((unit) => status(unit, ['haste'])); break;
+    case 'lifeshield': applyTo.forEach((unit) => { unit.statusImmunities.add('ko'); results.push({ type: 'buff', targetUid: unit.uid, label: '即死耐性' }); }); break;
+    case 'dragon-kiss': applyTo.forEach((unit) => { unit.creatureTypes.add('dragon'); unit.heavy = true; results.push({ type: 'buff', targetUid: unit.uid, label: '竜・ボス特性' }); }); break;
+    case 'blessed-kiss': applyTo.forEach((unit) => { status(unit, ['berserk', 'haste']); unit.imageHits = Math.max(unit.imageHits, 2); results.push({ type: 'buff', targetUid: unit.uid, label: '分身×2' }); }); break;
+    case 'bacchus-cider': applyTo.forEach((unit) => status(unit, ['berserk'])); break;
+    case 'lamia-kiss': applyTo.forEach((unit) => status(unit, ['confuse'])); break;
+    case 'toad-kiss': applyTo.forEach((unit) => status(unit, ['toad'])); break;
+    case 'poison': case 'dud-poison': applyTo.forEach((unit) => status(unit, ['poison'])); break;
+    case 'dark-gas': applyTo.forEach((unit) => status(unit, ['blind'])); break;
+    case 'dark-sigh': {
+      const ailments = ['blind', 'old', 'confuse', 'sleep', 'toad', 'mini', 'silence'];
+      applyTo.forEach((unit) => status(unit, [choose(ailments)]));
+      break;
+    }
+    case 'death-potion': applyTo.forEach((unit) => status(unit, ['ko'])); break;
+    case 'turtle-soup': applyTo.forEach((unit) => { unit.def = Math.floor(unit.def / 2); unit.magicDef = Math.floor(unit.magicDef / 2); results.push({ type: 'debuff', targetUid: unit.uid, label: '防御・魔法防御半減' }); }); break;
+    case 'dark-ether': applyTo.forEach((unit) => { const amount = unit.mp - Math.floor(unit.mp / 4); unit.spendMp(amount); results.push({ type: 'mp-damage', targetUid: unit.uid, amount }); }); break;
+    case 'lilith-kiss': applyTo.forEach((unit) => { const amount = Math.min(unit.mp, Math.max(1, actor.level)); unit.spendMp(amount); actor.mp = Math.min(actor.maxMp, actor.mp + amount); results.push({ type: 'mp-damage', targetUid: unit.uid, amount }, { type: 'mp-heal', targetUid: actor.uid, amount }); }); break;
+    case 'succubus-kiss': applyTo.forEach((unit) => { const amount = unit.applyDamage(Math.max(1, actor.level * 8)); actor.applyHeal(amount); results.push({ type: 'damage', targetUid: unit.uid, amount }, { type: 'heal', targetUid: actor.uid, amount }); }); break;
+    case 'devil-juice': applyTo.forEach((unit) => damage(unit, 666)); break;
+    case 'holy-breath': applyTo.forEach((unit) => damage(unit, actor.hp, 'holy')); break;
+    case 'dragon-breath': applyTo.forEach((unit) => damage(unit, actor.hp, 'fire')); break;
+    case 'dark-breath': applyTo.forEach((unit) => damage(unit, Math.max(1, actor.maxHp - actor.hp))); break;
+    case 'dud-gravity': applyTo.forEach((unit) => damage(unit, Math.floor(unit.hp / 4))); break;
+    case 'antilixir': applyTo.forEach((unit) => { const amount = Math.max(0, unit.hp - 1); damage(unit, amount); const mpAmount = Math.max(0, unit.mp - 1); unit.spendMp(mpAmount); results.push({ type: 'mp-damage', targetUid: unit.uid, amount: mpAmount }); }); break;
+    case 'poison-breath': {
+      const derived = { ...action, kind: 'magic-attack', specialCommand: null, ff5Power: 60, formula: 'ff5_magic', element: 'poison', statuses: ['poison'], statusChance: 0.75 };
+      results.push(...resolveAction({ actor, action: derived, targets: applyTo, battleUnits: manager.units }));
+      break;
+    }
+    case 'shadowflare': {
+      const derived = { ...action, kind: 'scripted', specialCommand: null, operations: [{ op: 'damage.magic', formula: 'ff5_flare', ff5Power: 200 }, { op: 'status.apply', statuses: ['sap'], statusChance: 0.75 }] };
+      results.push(...resolveAction({ actor, action: derived, targets: applyTo, battleUnits: manager.units }));
+      break;
+    }
+    case 'tnt': applyTo.forEach((unit) => damage(unit, Math.max(1, actor.maxHp), 'fire')); actor.applyDamage(actor.hp); results.push({ type: 'damage', targetUid: actor.uid, amount: actor.maxHp, element: 'fire' }); break;
+    default: return { valid: false, reason: 'この組み合わせは調合できない。' };
+  }
+  return { valid: true, action: { ...action, kind: 'special-command' }, targets: applyTo, results };
+}
+
+function dualcastTargets(manager, actor, spell, storedUid, fallback) {
+  if (['all_enemies', 'enemy_group'].includes(spell.target)) return livingEnemies(manager, actor);
+  if (['all_allies', 'party'].includes(spell.target)) return livingAllies(manager, actor);
+  if (spell.target === 'self') return [actor];
+  const stored = manager.units.find((unit) => unit.uid === storedUid && unit.isAlive() && !unit.removedFromBattle);
+  if (stored) return [stored];
+  if (String(spell.target).includes('ally')) return [actor];
+  return [fallback ?? livingEnemies(manager, actor)[0] ?? actor];
+}
+
+function applySongStep(manager, actor, action) {
+  const allies = livingAllies(manager, actor);
+  const id = action.id ?? '';
+  const stats = id.includes('hero') ? ['level', 'strength', 'magic', 'agility']
+    : id.includes('mana') ? ['magic']
+      : id.includes('sinewy') ? ['strength']
+        : ['agility'];
+  const results = [];
+  allies.forEach((unit) => {
+    stats.forEach((statName) => {
+      const current = Math.max(1, Math.floor(unit[statName] ?? (statName === 'strength' ? unit.atk : 1)));
+      unit[statName] = Math.min(99, current + 1);
+      if (statName === 'strength') unit.atk = Math.max(unit.atk, unit.strength);
+    });
+    results.push({ type: 'buff', targetUid: unit.uid, label: `${action.name}：${stats.join('・')}+1` });
+  });
+  return results;
+}
+
+/** Resolve commands whose behavior cannot be expressed as one generic action. */
+function resolveFF5SpecialCommand({ manager, actor, action, targets }) {
+  const target = targets[0];
+  switch (action.specialCommand) {
+    case 'steal':
+      return { valid: true, action, targets, results: steal(manager, actor, target) };
+    case 'mug': {
+      const attack = { ...action, kind: 'physical-attack', specialCommand: null, commandFormula: 'mug' };
+      return { valid: true, action: attack, targets, results: [...resolveAction({ actor, action: attack, targets, battleUnits: manager.units }), ...steal(manager, actor, target)] };
+    }
+    case 'mimic': {
+      const saved = manager.lastPartyAction;
+      if (!saved?.action || saved.action.specialCommand === 'mimic') return { valid: false, reason: 'ものまねできる行動がない。' };
+      const copied = { ...saved.action, mpCost: 0, _mimicked: true, name: saved.action.name ?? 'ものまね' };
+      const copiedTargets = (saved.targetIds ?? []).map((uid) => manager.units.find((unit) => unit.uid === uid)).filter((unit) => unit?.isAlive());
+      const finalTargets = copiedTargets.length ? copiedTargets : targets;
+      return { valid: true, action: copied, targets: finalTargets, results: resolveAction({ actor, action: copied, targets: finalTargets, battleUnits: manager.units }), remember: false };
+    }
+    case 'dualcast': {
+      const spells = action.dualSpells ?? [];
+      if (spells.length !== 2) return { valid: false, reason: 'れんぞくまは2つの魔法を選ぶ。' };
+      const totalCost = spells.reduce((sum, spell) => sum + Math.ceil((spell.mpCost ?? 0) * (actor.mpCostMultiplier ?? 1)), 0);
+      if (actor.mp < totalCost) return { valid: false, reason: `MPが足りない（必要 ${totalCost}）。` };
+      const results = [];
+      spells.forEach((spell, index) => {
+        const spellTargets = dualcastTargets(manager, actor, spell, action.dualTargetUids?.[index], target);
+        results.push(...resolveAction({ actor, action: { ...spell, kind: spell.actionKind ?? 'magic-attack' }, targets: spellTargets, battleUnits: manager.units })
+          .map((result) => ({ ...result, castIndex: index, visualAction: spell })));
+      });
+      return { valid: true, action, targets, results };
+    }
+    case 'jump':
+      actor.pendingJump = { targetUid: target?.uid ?? null, action: { ...action, kind: 'physical-attack', specialCommand: null, commandFormula: 'jump', ignoreEvasion: true } };
+      actor.hidden = true;
+      return { valid: true, action, targets: [actor], results: [{ type: 'jump-start', targetUid: actor.uid }], remember: false };
+    case 'gaia': {
+      const derived = { ...choose(GAIA_CRYSTAL_SANCTUM), sourceId: action.sourceId, commandSourceId: action.sourceId, visualId: `ability_gaia_${Date.now()}` };
+      const derivedTargets = commandTargets(manager, actor, derived, target);
+      return { valid: true, action: derived, targets: derivedTargets, results: resolveAction({ actor, action: derived, targets: derivedTargets, battleUnits: manager.units }) };
+    }
+    case 'animals': {
+      const eligible = ANIMALS.filter((animal) => actor.level >= animal.minLevel);
+      const derived = { ...choose(eligible), sourceId: action.sourceId, commandSourceId: action.sourceId };
+      const derivedTargets = commandTargets(manager, actor, derived, target);
+      const results = resolveAction({ actor, action: derived, targets: derivedTargets, battleUnits: manager.units });
+      if (derived.cleanse) derivedTargets.forEach((unit) => derived.cleanse.forEach((status) => unit.removeStatus(status)));
+      return { valid: true, action: derived, targets: derivedTargets, results };
+    }
+    case 'dance': {
+      const dances = [
+        { id: 'tempting-tango', name: 'ゆうわくのタンゴ', kind: 'status', statuses: ['confuse'], statusChance: 1 },
+        { id: 'mystery-waltz', name: 'ミステリーワルツ', kind: 'mp-drain', power: 2 },
+        { id: 'jitterbug', name: '二人のジルバ', kind: 'physical-attack', drain: true },
+        { id: 'sword-dance', name: 'つるぎのまい', kind: 'physical-attack', commandFormula: 'sword-dance', ignoreEvasion: true },
+      ];
+      let derived = actor.equipmentEffects?.danceBoost && Math.random() < 0.5 ? dances[3] : choose(dances);
+      derived = { ...derived, sourceId: action.sourceId, commandSourceId: action.sourceId, target: 'single-enemy' };
+      return { valid: true, action: derived, targets, results: resolveAction({ actor, action: derived, targets, battleUnits: manager.units }) };
+    }
+    case 'throw': {
+      if (manager.getItemStock(action.requiredItemId) < 1) return { valid: false, reason: '投げるアイテムがない。' };
+      manager.consumeItemStock(action.requiredItemId, 1);
+      const derived = action.element
+        ? { ...action, kind: 'magic-attack', specialCommand: null, ff5Power: action.throwPower, formula: 'ff5_magic', mpCost: 0 }
+        : { ...action, kind: 'throw-damage', specialCommand: null };
+      return { valid: true, action: derived, targets, results: resolveAction({ actor, action: derived, targets, battleUnits: manager.units }) };
+    }
+    case 'zeninage': {
+      const spec = ff5Zeninage(actor, targets.length);
+      if ((manager.getGil?.() ?? 0) < spec.cost) return { valid: false, reason: `ギルが足りない（必要 ${spec.cost}）。` };
+      manager.spendGil?.(spec.cost);
+      const results = targets.map((unit) => ({ type: 'damage', targetUid: unit.uid, amount: unit.applyDamage(ff5FinalDamage(spec.attack, unit.def ?? 0, spec.multiplier)) }));
+      return { valid: true, action: { ...action, specialCommand: null }, targets, results };
+    }
+    case 'mix': return resolveMix(manager, actor, action, targets);
+    case 'drink': {
+      if (manager.getItemStock(action.requiredItemId) < 1) return { valid: false, reason: '薬がない。' };
+      manager.consumeItemStock(action.requiredItemId, 1);
+      let derived;
+      if (action.drinkEffect === 'giant') derived = { ...action, kind: 'stat-modify', stat: 'maxHp', multiplier: 2 };
+      else if (action.drinkEffect === 'power') derived = { ...action, kind: 'stat-modify', stat: 'atk', multiplier: 1.25 };
+      else if (action.drinkEffect === 'speed') derived = { ...action, kind: 'status', statuses: ['haste'], duration: 12, statusChance: 1 };
+      else if (action.drinkEffect === 'iron') derived = { ...action, kind: 'status', statuses: ['protect'], duration: 12, statusChance: 1 };
+      else derived = { ...action, kind: 'stat-modify', stat: 'level', multiplier: 1.2 };
+      return { valid: true, action: derived, targets: [actor], results: resolveAction({ actor, action: derived, targets: [actor], battleUnits: manager.units }) };
+    }
+    case 'call': {
+      const summon = { ...choose(SUMMONS), mpCost: 0, id: `call-${Date.now()}`, commandSourceId: 'ability_call' };
+      const summonTargets = commandTargets(manager, actor, summon, target);
+      return { valid: true, action: summon, targets: summonTargets, results: resolveAction({ actor, action: summon, targets: summonTargets, battleUnits: manager.units }) };
+    }
+    case 'lance': {
+      const hpAction = { ...action, kind: 'magic-attack', specialCommand: null, ff5Power: 35, drain: true, mpCost: 0 };
+      const results = resolveAction({ actor, action: hpAction, targets, battleUnits: manager.units });
+      const mpAmount = Math.min(target?.mp ?? 0, Math.max(1, Math.floor(actor.level * actor.magic / 128) + 1));
+      if (target && mpAmount) { target.spendMp(mpAmount); actor.mp = Math.min(actor.maxMp, actor.mp + mpAmount); results.push({ type: 'mp-damage', targetUid: target.uid, amount: mpAmount }, { type: 'mp-heal', targetUid: actor.uid, amount: mpAmount }); }
+      return { valid: true, action: hpAction, targets, results };
+    }
+    case 'chakra': {
+      const amount = Math.max(1, Math.floor(actor.level * actor.level / 4) + actor.vitality);
+      const healed = actor.applyHeal(amount);
+      ['poison', 'blind'].forEach((status) => actor.removeStatus(status));
+      return { valid: true, action, targets: [actor], results: [{ type: 'heal', targetUid: actor.uid, amount: healed }, { type: 'cleanse', targetUid: actor.uid, statuses: ['poison', 'blind'] }] };
+    }
+    case 'calm': {
+      const calmable = target && !target.heavy && [...(target.creatureTypes ?? [])].some((type) => ['beast', 'magic_beast'].includes(type));
+      if (!calmable) return { valid: true, action, targets, results: [resultLabel(actor, `${target?.name ?? '敵'}には なだめるが効かない！`)] };
+      const derived = { ...action, kind: 'status', specialCommand: null, statuses: ['stop'], statusChance: 1 };
+      return { valid: true, action: derived, targets, results: resolveAction({ actor, action: derived, targets, battleUnits: manager.units }) };
+    }
+    case 'control':
+      if (target?.heavy || target?.statusImmunities?.has('confuse')) return { valid: true, action, targets, results: [resultLabel(actor, `${target.name}は あやつれない！`)] };
+      return { valid: true, action, targets, results: resolveAction({ actor, action: { ...action, kind: 'status', statuses: ['confuse'], statusChance: actor.equipmentEffects?.controlBoost ? 0.8 : 0.4 }, targets, battleUnits: manager.units }) };
+    case 'catch': {
+      const threshold = actor.equipmentEffects?.catchBoost ? 0.5 : 0.125;
+      if (!target || target.heavy || target.hpRatio() > threshold) return { valid: true, action, targets, results: [resultLabel(actor, `${target?.name ?? '敵'}は とらえられない！`)] };
+      actor.capturedMonster = { id: target.id, name: target.name, level: target.level, atk: target.atk, magic: target.magic };
+      target.removedFromBattle = true;
+      return { valid: true, action, targets, results: [{ type: 'captured', targetUid: target.uid, label: `${target.name}を とらえた！` }] };
+    }
+    case 'release': {
+      const captured = actor.capturedMonster;
+      if (!captured) return { valid: false, reason: 'はなせるモンスターがいない。' };
+      actor.capturedMonster = null;
+      const derived = {
+        ...action,
+        id: `release-${captured.id}`,
+        name: `${captured.name}を はなつ`,
+        kind: 'magic-attack',
+        specialCommand: null,
+        ff5Power: Math.max(30, Math.min(180, (captured.atk ?? 20) + Math.floor((captured.level ?? 1) / 2))),
+        formula: 'ff5_magic',
+        mpCost: 0,
+        target: 'all_enemies',
+      };
+      const releaseTargets = livingEnemies(manager, actor);
+      return { valid: true, action: derived, targets: releaseTargets, results: resolveAction({ actor, action: derived, targets: releaseTargets, battleUnits: manager.units }) };
+    }
+    case 'sing': {
+      actor.singing = { ...action };
+      return { valid: true, action, targets: livingAllies(manager, actor), results: applySongStep(manager, actor, action), remember: false };
+    }
+    case 'hide':
+      actor.hidden = !actor.hidden;
+      return { valid: true, action: { ...action, name: actor.hidden ? 'かくれる' : 'あらわれる' }, targets: [actor], results: [{ type: actor.hidden ? 'hidden' : 'revealed', targetUid: actor.uid }] };
+    default:
+      return { valid: false, reason: '特殊コマンドの処理が見つからない。' };
+  }
 }
 
 // ---- src/ui/MessageWindow.js ----
@@ -3361,6 +4108,7 @@ function snapshotUnit(unit) {
     maxMp: unit.maxMp,
     mp: unit.mp,
     atk: unit.atk,
+    monsterM: unit.monsterM,
     def: unit.def,
     magicDef: unit.magicDef,
     magic: unit.magic,
@@ -3372,6 +4120,11 @@ function snapshotUnit(unit) {
     weaponAccuracy: unit.weaponAccuracy,
     weaponSpecial: unit.weaponSpecial,
     weaponId: unit.weaponId,
+    weaponAttack: unit.weaponAttack,
+    weaponType: unit.weaponType,
+    hasBrawl: unit.hasBrawl,
+    strength: unit.strength,
+    vitality: unit.vitality,
     baseAtk: unit.baseAtk,
     baseDef: unit.baseDef,
     baseMagicDef: unit.baseMagicDef,
@@ -3388,6 +4141,8 @@ function snapshotUnit(unit) {
     permanentStatuses: [...(unit.permanentStatuses ?? [])],
     statusImmunities: [...unit.statusImmunities],
     statusResistance: unit.statusResistance,
+    temporaryNullElements: [...(unit.temporaryNullElements ?? [])],
+    elementalPower: Boolean(unit.elementalPower),
     level: unit.level,
     equippedAbilitySet: unit.equippedAbilitySet,
     equipment: cloneSerializable(unit.equipment, {}),
@@ -3401,6 +4156,12 @@ function snapshotUnit(unit) {
     heavy: unit.heavy,
     isUndead: unit.isUndead,
     removedFromBattle: unit.removedFromBattle,
+    hidden: unit.hidden,
+    pendingJump: cloneSerializable(unit.pendingJump, null),
+    capturedMonster: cloneSerializable(unit.capturedMonster, null),
+    singing: cloneSerializable(unit.singing, null),
+    weaponSpellblade: cloneSerializable(unit.weaponSpellblade, null),
+    stolen: unit.stolen,
     ctValue: unit.ctValue,
     defending: unit.defending,
     magicList: cloneSerializable(unit.magicList, []),
@@ -3416,6 +4177,8 @@ function restoreUnit(snapshot) {
     statusDurations: snapshot.statusDurations ?? [],
     permanentStatuses: snapshot.permanentStatuses ?? [],
     statusImmunities: snapshot.statusImmunities ?? [],
+    temporaryNullElements: snapshot.temporaryNullElements ?? [],
+    elementalPower: Boolean(snapshot.elementalPower),
     creatureTypes: snapshot.creatureTypes ?? [],
     magicList: cloneSerializable(snapshot.magicList, []),
   });
@@ -3448,6 +4211,12 @@ class BattleManager {
     this.presentationHoldUntil = 0;
     this.itemStockProvider = options.getItemStock ?? (() => Infinity);
     this.itemConsumer = options.consumeItem ?? (() => true);
+    this.itemAdder = options.addItemStock ?? (() => true);
+    this.gilProvider = options.getGil ?? (() => 0);
+    this.gilConsumer = options.spendGil ?? (() => false);
+    this.lastPartyAction = null;
+    this.magicLampUse = 0;
+    this.enemyActionCursor = 0;
   }
 
   createSnapshot() {
@@ -3466,6 +4235,17 @@ class BattleManager {
         this.units.findIndex((unit) => unit.uid === uid),
         cloneSerializable(action, null),
       ]).filter(([index, action]) => index >= 0 && action),
+      // Unit uids are recreated while restoring a suspended battle. Persist
+      // target indexes as the stable reference so Mimic keeps the exact
+      // original targets after a task-kill/resume cycle.
+      lastPartyAction: this.lastPartyAction ? {
+        action: cloneSerializable(this.lastPartyAction.action, null),
+        targetIndexes: (this.lastPartyAction.targetIds ?? [])
+          .map((uid) => this.units.findIndex((unit) => unit.uid === uid))
+          .filter((index) => index >= 0),
+      } : null,
+      magicLampUse: this.magicLampUse,
+      enemyActionCursor: this.enemyActionCursor,
     };
   }
 
@@ -3492,6 +4272,14 @@ class BattleManager {
       const unit = units[index];
       return unit && action ? [[unit.uid, action]] : [];
     }));
+    manager.lastPartyAction = snapshot.lastPartyAction ? {
+      action: cloneSerializable(snapshot.lastPartyAction.action, null),
+      targetIds: (snapshot.lastPartyAction.targetIndexes ?? [])
+        .map((index) => units[index]?.uid)
+        .filter(Boolean),
+    } : null;
+    manager.magicLampUse = Math.max(0, Number(snapshot.magicLampUse) || 0);
+    manager.enemyActionCursor = Math.max(0, Number(snapshot.enemyActionCursor) || 0);
     return manager;
   }
 
@@ -3557,6 +4345,14 @@ class BattleManager {
       preview: this.ctb.previewQueue(8),
     });
   }
+
+  addItemStock(itemOrId, amount = 1) {
+    return this.itemAdder(this.itemId(itemOrId), amount, itemOrId) !== false;
+  }
+
+  getGil() { return Math.max(0, Math.floor(Number(this.gilProvider()) || 0)); }
+
+  spendGil(amount) { return this.gilConsumer(Math.max(0, Math.floor(amount))) !== false; }
 
   revealBossIntel(action, target = this.boss) {
     if (!target || target.uid !== this.boss.uid || action?.kind !== 'scan') return false;
@@ -3665,12 +4461,26 @@ class BattleManager {
     actor.defending = false;
     actor.physicalDamageMultiplier = actor.equipmentEffects?.physicalDamageMultiplier ?? 1;
 
-    if (isIncapacitated(actor)) {
+    if (actor.pendingJump) {
+      this.resolveJumpLanding(actor);
+    } else if (isIncapacitated(actor)) {
       this.log(`${actor.name} は動けない！`);
       this.ctb.consumeTurn(actor, 0.45);
       this.currentActor = null;
       this.broadcastState();
       this.scheduleNextTurn(260);
+    } else if (actor.singing) {
+      const actionStartSequence = this.logSequence;
+      const action = { ...actor.singing, specialCommand: 'sing' };
+      eventBus.emit('battle:actionStarted', { actor, action });
+      this.log(`${actor.name} は ${action.name}を歌い続けている。`);
+      const special = resolveFF5SpecialCommand({ manager: this, actor, action, targets: this.party });
+      const results = special.results ?? [];
+      this.emitActionResolved(actor, results, actionStartSequence, action);
+      this.ctb.consumeTurn(actor, action.ctbCost ?? 1.15);
+      this.currentActor = null;
+      this.broadcastState();
+      if (!this.checkBattleEnd()) this.scheduleNextTurn();
     } else if (actor.statuses.has('berserk') || actor.statuses.has('confuse')) {
       this.broadcastState();
       setTimeout(() => this.forcedAct(actor), 360);
@@ -3684,9 +4494,29 @@ class BattleManager {
     }
   }
 
+  resolveJumpLanding(actor) {
+    const pending = actor.pendingJump;
+    actor.pendingJump = null;
+    actor.hidden = false;
+    const target = this.units.find((unit) => unit.uid === pending?.targetUid && unit.isAlive())
+      ?? this.units.find((unit) => unit.isAlive() && unit.isEnemy !== actor.isEnemy);
+    if (!target) { this.currentActor = null; this.scheduleNextTurn(); return; }
+    const actionStartSequence = this.logSequence;
+    const action = { ...pending.action, name: 'ジャンプ' };
+    eventBus.emit('battle:actionStarted', { actor, action });
+    this.log(`${actor.name} の ジャンプ！`);
+    const results = resolveAction({ actor, action, targets: [target], battleUnits: this.units });
+    results.filter((result) => result.type === 'damage').forEach((result) => this.log(`${target.name} に ${result.amount} の ダメージ！`));
+    this.emitActionResolved(actor, results, actionStartSequence, action);
+    this.ctb.consumeTurn(actor, 1);
+    this.currentActor = null;
+    this.broadcastState();
+    if (!this.checkBattleEnd()) this.scheduleNextTurn();
+  }
+
   forcedAct(actor) {
     const confused = actor.statuses.has('confuse');
-    const candidates = this.units.filter((unit) => unit.isAlive() && !unit.removedFromBattle && (confused || unit.isEnemy !== actor.isEnemy));
+    const candidates = this.units.filter((unit) => unit.isAlive() && !unit.hidden && !unit.removedFromBattle && (confused || unit.isEnemy !== actor.isEnemy));
     const target = candidates[Math.floor(Math.random() * candidates.length)];
     if (!target) return this.scheduleNextTurn();
     eventBus.emit('battle:actionStarted', { actor, action: { kind: 'physical-attack', name: 'こうげき' } });
@@ -3702,7 +4532,7 @@ class BattleManager {
 
   /** Simple AI: picks a target based on the boss's `ai` behaviour tag. */
   pickEnemyTarget() {
-    const aliveParty = this.party.filter((p) => p.isAlive());
+    const aliveParty = this.party.filter((p) => p.isAlive() && !p.hidden && !p.removedFromBattle);
     if (aliveParty.length === 0) return null;
 
     switch (this.boss.ai) {
@@ -3720,16 +4550,19 @@ class BattleManager {
     if (this.finished) return;
     const target = this.pickEnemyTarget();
     if (!target) {
-      this.checkBattleEnd();
+      this.log(`${actor.name} は攻撃対象を見失った。`);
+      this.ctb.consumeTurn(actor, 1);
+      this.currentActor = null;
+      this.broadcastState();
+      if (!this.checkBattleEnd()) this.scheduleNextTurn();
       return;
     }
 
     const actionStartSequence = this.logSequence;
     const pendingAction = this.pendingEnemyActions.get(actor.uid);
     if (pendingAction) this.pendingEnemyActions.delete(actor.uid);
-    const usableAiActions = bossActionsFor(actor).filter((action) => actor.canAffordMp(action.mpCost ?? 0));
-    const weightedActions = usableAiActions.flatMap((action) => Array(Math.max(1, action.weight ?? 1)).fill(action));
-    const chosenAction = pendingAction ?? (weightedActions.length ? weightedActions[Math.floor(Math.random() * weightedActions.length)] : { kind: 'physical-attack' });
+    const scriptedAction = nextBossActionFor(actor, this.enemyActionCursor);
+    const chosenAction = pendingAction ?? (actor.canAffordMp(scriptedAction.mpCost ?? 0) ? scriptedAction : { id: 'enemy-attack', name: 'こうげき', kind: 'physical-attack' });
     if (chosenAction.telegraph && !pendingAction) {
       const preparedAction = { ...chosenAction, telegraph: null };
       this.pendingEnemyActions.set(actor.uid, preparedAction);
@@ -3742,7 +4575,7 @@ class BattleManager {
       return;
     }
     const targets = chosenAction.target === 'all_enemies'
-      ? this.party.filter((unit) => unit.isAlive())
+      ? this.party.filter((unit) => unit.isAlive() && !unit.hidden && !unit.removedFromBattle)
       : [target];
     eventBus.emit('battle:actionStarted', { actor, action: chosenAction });
     this.log(`${actor.name} の ${chosenAction.name ?? 'こうげき'}！`, chosenAction.power >= 2 ? 'danger' : 'action');
@@ -3762,6 +4595,7 @@ class BattleManager {
     });
 
     this.emitActionResolved(actor, results, actionStartSequence, chosenAction);
+    this.enemyActionCursor += 1;
     this.ctb.consumeTurn(actor, chosenAction.ctbCost ?? attackAction.ctbCost);
     this.currentActor = null;
     this.broadcastState();
@@ -3787,7 +4621,7 @@ class BattleManager {
 
     const times = counterConfig.times ?? 1;
     for (let i = 0; i < times; i += 1) {
-      const aliveParty = this.party.filter((unit) => unit.isAlive() && !unit.removedFromBattle);
+      const aliveParty = this.party.filter((unit) => unit.isAlive() && !unit.hidden && !unit.removedFromBattle);
       if (!aliveParty.length || !this.boss.isAlive()) break;
       const counterAction = pool[Math.floor(Math.random() * pool.length)];
       const focusTarget = aliveParty.includes(originalActor) ? originalActor : aliveParty[Math.floor(Math.random() * aliveParty.length)];
@@ -3821,7 +4655,10 @@ class BattleManager {
     let targets;
     const resolveTargets = (targetId, fallback) => {
       if (targetId === 'self') return [actor];
-      if (['all_allies', 'party'].includes(targetId)) return this.party.filter((unit) => unit.isAlive());
+      if (['all_allies', 'party'].includes(targetId)) {
+        const revive = (choice.spell?.operations ?? choice.ability?.operations ?? choice.item?.operations ?? []).some((operation) => operation.op === 'revive');
+        return this.party.filter((unit) => revive ? !unit.isAlive() : unit.isAlive());
+      }
       if (['all_enemies', 'enemy_group'].includes(targetId)) return this.units.filter((unit) => unit.isAlive() && unit.isEnemy !== actor.isEnemy);
       if (targetId === 'all_units' || targetId === 'enemy_and_party') return this.units.filter((unit) => unit.isAlive());
       if (targetId === 'enemy_group_and_ally') return [this.boss, fallback ?? actor];
@@ -3875,7 +4712,17 @@ class BattleManager {
         action = (choice.item.operations ?? choice.item.battle?.operations)?.length
           ? { ...choice.item, operations: choice.item.operations ?? choice.item.battle.operations, kind: choice.item.actionKind ?? 'scripted' }
           : { kind: 'heal', healAmount: choice.item.healAmount };
-        targets = [targetUnit ?? actor];
+        targets = resolveTargets(choice.item.target ?? choice.item.battle?.target?.id, targetUnit ?? actor);
+        if (choice.item.sourceId === 'item_magic_lamp' || choice.item.id === 'item_magic_lamp') {
+          const lampOrder = ['magic_bahamut', 'magic_leviathan', 'magic_phoenix', 'magic_odin', 'magic_syldra', 'magic_carbuncle', 'magic_catoblepas', 'magic_golem', 'magic_titan', 'magic_ifrit', 'magic_ramuh', 'magic_shiva', 'magic_remora', 'magic_sylph', 'magic_chocobo'];
+          const summonId = lampOrder[Math.min(this.magicLampUse, lampOrder.length - 1)];
+          const summon = Object.values(magicSets).flat().find((spell) => spell.sourceId === summonId);
+          if (summon) {
+            this.magicLampUse += 1;
+            action = { ...summon, kind: summon.actionKind, mpCost: 0, name: `${choice.item.name}：${summon.name}` };
+            targets = resolveTargets(summon.target, this.boss);
+          }
+        }
         this.log(`${actor.name} は ${choice.item.name} を つかった！`);
         break;
       case 'defend':
@@ -3922,12 +4769,26 @@ class BattleManager {
       });
     }
 
-    if (choice.type === 'item' && !this.consumeItemStock(choice.item)) {
+    if (choice.type === 'item' && choice.item.consumable !== false && !this.consumeItemStock(choice.item)) {
       this.log(`${choice.item.name ?? 'アイテム'} の使用に失敗した。`);
       return false;
     }
+    let results;
+    if (action.specialCommand) {
+      const special = resolveFF5SpecialCommand({ manager: this, actor, action, targets });
+      if (!special.valid) {
+        this.log(special.reason ?? 'その行動は実行できない。', 'unavailable');
+        eventBus.emit('battle:playerTurn', { actor });
+        return false;
+      }
+      action = special.action ?? action;
+      targets = special.targets ?? targets;
+      results = special.results ?? [];
+      action._doNotRemember = special.remember === false;
+    } else {
+      results = resolveAction({ actor, action, targets, battleUnits: this.units });
+    }
     eventBus.emit('battle:actionStarted', { actor, action });
-    const results = resolveAction({ actor, action, targets, battleUnits: this.units });
     if (results.some((result) => ['insufficient-mp', 'sealed', 'invalid-target', 'unavailable'].includes(result.type))) {
       this.log('その行動は実行できない。');
       eventBus.emit('battle:playerTurn', { actor });
@@ -3985,10 +4846,27 @@ class BattleManager {
         this.log(`物理障壁が ${r.amount} ダメージを肩代わりした。残り ${r.remaining}`);
       } else if (r.type === 'field-status') {
         this.log(`${affectedUnit.name} は時の流れを見切った！`);
+      } else if (r.type === 'steal') {
+        this.log(`${r.itemName}を ぬすんだ！${r.rare ? '（レア）' : ''}`);
+      } else if (r.type === 'command-message') {
+        this.log(r.label);
+      } else if (r.type === 'jump-start') {
+        this.log(`${actor.name} は空高く跳び上がった！`);
+      } else if (r.type === 'captured' || r.type === 'hidden' || r.type === 'revealed') {
+        this.log(r.label ?? (r.type === 'hidden' ? `${actor.name}は身を隠した。` : `${actor.name}は姿を現した。`));
+      } else if (r.type === 'song-stopped') {
+        this.log(`${affectedUnit.name} の歌が中断された。`);
       }
     });
 
     this.emitActionResolved(actor, results, actionStartSequence, action);
+
+    if (!actor.isEnemy && !action._doNotRemember && !['defend'].includes(action.kind)) {
+      this.lastPartyAction = {
+        action: cloneSerializable({ ...action, mpCost: action.mpCost ?? 0 }, null),
+        targetIds: targets.map((unit) => unit.uid),
+      };
+    }
 
     const pendingBossAction = this.pendingEnemyActions.get(this.boss.uid);
     if (pendingBossAction && action.element && action.element === this.boss.weakness && results.some((result) => result.targetUid === this.boss.uid && result.type === 'damage')) {
@@ -4265,7 +5143,7 @@ function makeDescriptor(record, sourceType, ordinal, familyOrdinal) {
   const pick = (list, shift = 0) => list[(seed >>> shift) % list.length];
   const intensity = sourceType === 'magic'
     ? Math.max(1, Math.min(6, (record.level ?? Math.ceil((record.mpCost ?? 0) / 14)) || 2))
-    : Math.max(1, Math.min(6, Math.ceil((record.abp ?? 10) / 170)));
+    : 1 + ((ordinal + familyOrdinal) % 6);
   const windupMs = 170 + intensity * 38 + (seed % 47);
   const travelMs = 120 + ((seed >>> 5) % 190);
   const impactMs = 110 + intensity * 26 + ((seed >>> 11) % 71);
@@ -4433,7 +5311,6 @@ function resolveBattleEffectDescriptor(actionOrId) {
       effect: action.effect ?? nested.effect ?? action.kind ?? '未来の戦闘コマンド',
       target: action.target ?? nested.target ?? 'one_enemy',
       type: 'command',
-      abp: 0,
     }, 'ability', hash32(String(fallbackKey)), hash32(String(fallbackKey)) % 128));
   }
   return runtimeDescriptorCache.get(fallbackKey);
@@ -4447,6 +5324,158 @@ const battleEffectRegistryStats = Object.freeze({
   total: Object.keys(battleEffectDescriptors).length,
 });
 
+// ---- src/ui/SpellArtDirector.js ----
+/**
+ * Hand-authored art direction for every spell in the battle database.
+ * A blueprint controls an additional lightweight pixel-art layer; it is not
+ * used for battle logic.  The combinations are semantic (flames rise, gravity
+ * implodes, time rewinds) instead of hashes derived from record order.
+ */
+const art = (motif, motion, layers, rotation, spread, scale, impact, variant) => Object.freeze({ motif, motion, layers, rotation, spread, scale, impact, variant });
+
+const SPELL_ART_BLUEPRINTS = Object.freeze({
+  magic_cure: art('life-rune', 'rise', 4, 18, 56, 0.84, 'soft-ring', 1),
+  magic_libra: art('scan-grid', 'sweep', 5, 0, 68, 0.92, 'reticle', 2),
+  magic_poisona: art('cleanse-drop', 'expand', 4, -16, 52, 0.78, 'dissolve', 3),
+  magic_silence: art('seal-glyph', 'snap', 5, 45, 48, 0.82, 'mute-ring', 4),
+  magic_protect: art('barrier', 'assemble', 6, 30, 64, 0.96, 'hex-lock', 5),
+  magic_mini: art('status-glyph', 'implode', 5, -25, 74, 0.72, 'shrink-star', 6),
+  magic_cura: art('life-rune', 'orbit', 6, 36, 72, 1.02, 'double-ring', 7),
+  magic_raise: art('soul-wing', 'rise', 7, 0, 66, 1.08, 'halo-return', 8),
+  magic_confuse: art('status-glyph', 'spiral', 6, 72, 58, 0.88, 'broken-orbit', 9),
+  magic_blink: art('afterimage', 'split', 6, 20, 76, 1.04, 'mirror-pop', 10),
+  magic_shell: art('barrier', 'orbit', 7, 60, 70, 1.08, 'prism-lock', 11),
+  magic_esuna: art('cleanse-drop', 'rain', 7, -35, 82, 1.12, 'prism-dissolve', 12),
+  magic_curaga: art('life-rune', 'bloom', 8, 54, 92, 1.24, 'radiant-bloom', 13),
+  magic_reflect: art('mirror', 'assemble', 7, 90, 78, 1.12, 'mirror-lock', 14),
+  magic_berserk: art('status-glyph', 'pulse', 6, 12, 74, 1.08, 'rage-burst', 15),
+  magic_arise: art('soul-wing', 'ascend', 8, 22, 96, 1.32, 'sun-halo', 16),
+  magic_holy: art('holy-cross', 'descend', 8, 0, 104, 1.42, 'pillar', 17),
+  magic_dispel: art('seal-glyph', 'unweave', 7, -50, 88, 1.14, 'shatter-ring', 18),
+
+  magic_fire: art('flame', 'rise', 4, -18, 52, 0.82, 'ember-pop', 19),
+  magic_blizzard: art('ice-shard', 'rain', 5, 12, 58, 0.86, 'frost-crack', 20),
+  magic_thunder: art('lightning', 'descend', 4, -8, 50, 0.88, 'arc-pop', 21),
+  magic_poison: art('venom-orb', 'seep', 5, 30, 60, 0.86, 'toxic-ring', 22),
+  magic_sleep: art('moon-mist', 'drift', 5, -24, 70, 0.9, 'drowse-wave', 23),
+  magic_toad: art('status-glyph', 'hop', 5, 40, 62, 0.84, 'ripple-pop', 24),
+  magic_fira: art('flame', 'coil', 6, 25, 70, 1.04, 'fire-ring', 25),
+  magic_blizzara: art('ice-shard', 'erupt', 6, -30, 76, 1.08, 'ice-crown', 26),
+  magic_thundara: art('lightning', 'branch', 6, 18, 72, 1.08, 'forked-arc', 27),
+  magic_drain: art('siphon', 'return', 6, -45, 76, 1.02, 'bloodless-pulse', 28),
+  magic_break: art('stone', 'crystallize', 7, 15, 68, 1.1, 'stone-lock', 29),
+  magic_bio: art('venom-orb', 'helix', 7, 56, 82, 1.12, 'bio-splash', 30),
+  magic_firaga: art('flame', 'maelstrom', 8, 42, 98, 1.34, 'inferno-bloom', 31),
+  magic_blizzaga: art('ice-shard', 'avalanche', 8, -62, 102, 1.36, 'glacier-break', 32),
+  magic_thundaga: art('lightning', 'storm', 8, 70, 96, 1.38, 'thunder-cage', 33),
+  magic_flare: art('star-core', 'collapse', 8, 135, 108, 1.48, 'white-nova', 34),
+  magic_death: art('death-sigil', 'descend', 7, 180, 84, 1.2, 'soul-cut', 35),
+  magic_osmose: art('siphon', 'double-return', 7, -90, 86, 1.08, 'mana-pulse', 36),
+
+  magic_speed: art('clock', 'focus', 4, 20, 48, 0.8, 'time-lock', 37),
+  magic_slow: art('clock', 'drag', 5, -30, 58, 0.88, 'slow-ring', 38),
+  magic_regen: art('life-rune', 'heartbeat', 5, 45, 60, 0.92, 'green-pulse', 39),
+  magic_mute: art('seal-glyph', 'field-expand', 6, 0, 110, 1.2, 'silent-field', 40),
+  magic_haste: art('clock', 'accelerate', 6, 65, 68, 1.02, 'speed-lines', 41),
+  magic_float: art('wind-ring', 'lift', 6, -18, 74, 1.06, 'air-cushion', 42),
+  magic_gravity: art('gravity-well', 'implode', 6, 90, 72, 1.08, 'space-dent', 43),
+  magic_stop: art('clock', 'freeze', 7, 0, 78, 1.12, 'glass-stop', 44),
+  magic_teleport: art('portal', 'fold', 7, 40, 90, 1.18, 'iris-close', 45),
+  magic_comet: art('meteor', 'diagonal-fall', 6, -35, 96, 1.14, 'crater-pop', 46),
+  magic_slowga: art('clock', 'field-drag', 7, -70, 112, 1.22, 'slow-field', 47),
+  magic_return: art('hourglass', 'rewind', 8, 180, 118, 1.28, 'timeline-snap', 48),
+  magic_graviga: art('gravity-well', 'collapse', 8, 145, 102, 1.34, 'black-lens', 49),
+  magic_hastega: art('clock', 'field-accelerate', 8, 95, 116, 1.28, 'speed-field', 50),
+  magic_old: art('hourglass', 'drain', 6, -95, 76, 1.04, 'age-dust', 51),
+  magic_meteor: art('meteor', 'meteor-rain', 8, 25, 126, 1.42, 'multi-crater', 52),
+  magic_quick: art('clock', 'time-stop', 8, 270, 122, 1.38, 'double-turn', 53),
+  magic_banish: art('portal', 'erase', 8, -140, 96, 1.3, 'void-iris', 54),
+
+  magic_chocobo: art('summon-feather', 'charge', 6, -18, 86, 1.08, 'beak-comet', 55),
+  magic_sylph: art('summon-feather', 'twin-return', 6, 40, 90, 1.1, 'healing-wing', 56),
+  magic_remora: art('chain', 'bind', 6, 70, 72, 1.02, 'chain-lock', 57),
+  magic_shiva: art('ice-crown', 'crystallize', 8, -40, 108, 1.34, 'diamond-dust', 58),
+  magic_ramuh: art('staff-bolt', 'sky-strike', 8, 12, 110, 1.34, 'judgment-arc', 59),
+  magic_ifrit: art('horned-flame', 'eruption', 8, 32, 112, 1.36, 'hellfire', 60),
+  magic_titan: art('mountain-fist', 'heave', 8, -22, 120, 1.42, 'earth-shock', 61),
+  magic_golem: art('guardian-slab', 'assemble', 8, 0, 118, 1.36, 'stone-wall', 62),
+  magic_catoblepas: art('gaze-eye', 'focus', 7, 110, 88, 1.18, 'petrify-gaze', 63),
+  magic_carbuncle: art('prism-jewel', 'facet-bloom', 8, 45, 120, 1.38, 'reflect-field', 64),
+  magic_syldra: art('tidal-wing', 'serpentine', 8, -55, 124, 1.4, 'wind-tide', 65),
+  magic_odin: art('spear-wheel', 'cleave', 8, 90, 118, 1.42, 'zantetsu-line', 66),
+  magic_phoenix: art('rebirth-wing', 'ascend', 8, 18, 132, 1.48, 'rebirth-flare', 67),
+  magic_leviathan: art('abyss-spiral', 'tidal-rise', 8, -100, 136, 1.5, 'tsunami', 68),
+  magic_bahamut: art('megaflare', 'beam-charge', 8, 0, 142, 1.56, 'mega-flare', 69),
+
+  magic_goblin_punch: art('impact-fist', 'straight', 4, 8, 46, 0.8, 'comic-hit', 70),
+  magic_roulette: art('death-sigil', 'roulette', 7, 360, 108, 1.18, 'random-cut', 71),
+  magic_self_destruct: art('star-core', 'caster-collapse', 8, 0, 126, 1.42, 'sacrifice-burst', 72),
+  magic_vampire: art('siphon', 'fang-return', 6, -32, 78, 1.02, 'scarlet-thread', 73),
+  magic_question_marks: art('broken-glyph', 'stutter', 5, 77, 66, 0.96, 'unknown-hit', 74),
+  magic_magic_hammer: art('mana-hammer', 'swing', 6, -55, 74, 1.06, 'mana-crack', 75),
+  magic_moon_flute: art('moon-mist', 'crescendo', 7, 22, 112, 1.2, 'lunar-wave', 76),
+  magic_aero: art('wind-ring', 'slash', 4, -28, 58, 0.84, 'air-cut', 77),
+  magic_flame_thrower: art('flame-jet', 'sweep', 6, 14, 88, 1.08, 'burn-line', 78),
+  magic_lilliputian_lyric: art('music-note', 'shrink-song', 5, 38, 72, 0.9, 'tiny-note', 79),
+  magic_pond_s_chorus: art('music-note', 'hop-song', 5, -42, 76, 0.92, 'pond-ripple', 80),
+  magic_mind_blast: art('mind-eye', 'pulse', 7, 90, 86, 1.14, 'neural-break', 81),
+  magic_flash: art('light-burst', 'screen-flash', 7, 0, 124, 1.3, 'blind-star', 82),
+  magic_missile: art('target-reticle', 'lock-drop', 7, 45, 84, 1.16, 'quarter-break', 83),
+  magic_level_4_graviga: art('number-sigil', 'fourfold-collapse', 8, 144, 116, 1.28, 'level-four', 84),
+  magic_time_slip: art('hourglass', 'sleep-rewind', 7, -120, 92, 1.16, 'dream-age', 85),
+  magic_aera: art('wind-ring', 'cross-slash', 6, 32, 82, 1.06, 'air-cross', 86),
+  magic_doom: art('death-sigil', 'countdown', 7, 0, 88, 1.18, 'doom-clock', 87),
+  magic_level_2_old: art('number-sigil', 'double-age', 7, 72, 106, 1.2, 'level-two', 88),
+  magic_transfusion: art('soul-wing', 'caster-to-ally', 8, 28, 110, 1.3, 'life-transfer', 89),
+  magic_level_3_flare: art('number-star', 'triple-collapse', 8, 108, 120, 1.38, 'level-three-nova', 90),
+  magic_off_guard: art('broken-shield', 'unweave', 6, -24, 76, 1.04, 'armor-crack', 91),
+  magic_death_claw: art('death-claw', 'rake', 7, 35, 88, 1.2, 'critical-grip', 92),
+  magic_level_5_death: art('number-sigil', 'fivefold-judgment', 8, 180, 124, 1.42, 'level-five-death', 93),
+  magic_aeroga: art('wind-ring', 'tornado', 8, -160, 104, 1.32, 'vacuum-cyclone', 94),
+  magic_1000_needles: art('needle-fan', 'barrage', 8, 15, 112, 1.24, 'thousand-hit', 95),
+  magic_dark_spark: art('dark-lens', 'halve', 7, 80, 84, 1.14, 'level-break', 96),
+  magic_white_wind: art('white-feather', 'party-sweep', 8, -20, 126, 1.34, 'white-heal', 97),
+  magic_aqua_breath: art('water-wave', 'breath-surge', 8, 12, 132, 1.42, 'desert-tide', 98),
+  magic_mighty_guard: art('triple-shield', 'field-assemble', 8, 60, 138, 1.46, 'mighty-lock', 99),
+});
+
+function spellArtForAction(action = {}) {
+  const ids = [action.visualId, action.sourceId, action.id]
+    .filter(Boolean)
+    .flatMap((id) => [String(id), String(id).replace(/^dual-/, '').replace(/^call-/, '')]);
+  for (const id of ids) if (SPELL_ART_BLUEPRINTS[id]) return SPELL_ART_BLUEPRINTS[id];
+  return null;
+}
+
+function createSpellArtElement(action = {}) {
+  const blueprint = spellArtForAction(action);
+  if (!blueprint || typeof document === 'undefined') return null;
+  const layer = document.createElement('span');
+  layer.className = `fx-spell-art spell-motif-${blueprint.motif} spell-motion-${blueprint.motion} spell-impact-${blueprint.impact}`;
+  layer.dataset.spellArt = String(action.sourceId ?? action.id ?? 'spell');
+  layer.style.setProperty('--spell-layers', String(blueprint.layers));
+  layer.style.setProperty('--spell-rotation', `${blueprint.rotation}deg`);
+  layer.style.setProperty('--spell-rotation-negative', `${-blueprint.rotation}deg`);
+  layer.style.setProperty('--spell-rotation-quarter-negative', `${-blueprint.rotation * 0.25}deg`);
+  layer.style.setProperty('--spell-spread', `${blueprint.spread}px`);
+  layer.style.setProperty('--spell-scale', String(blueprint.scale));
+  layer.style.setProperty('--spell-scale-pop', String(blueprint.scale * 1.16));
+  layer.style.setProperty('--spell-variant', String(blueprint.variant));
+  for (let index = 0; index < blueprint.layers; index += 1) {
+    const piece = document.createElement('i');
+    piece.style.setProperty('--spell-piece', String(index));
+    piece.style.setProperty('--spell-piece-angle', `${blueprint.rotation + (360 / blueprint.layers) * index}deg`);
+    piece.style.setProperty('--spell-piece-angle-negative', `${-(blueprint.rotation + (360 / blueprint.layers) * index)}deg`);
+    piece.style.setProperty('--spell-piece-angle-plus', `${blueprint.rotation + (360 / blueprint.layers) * index + 80}deg`);
+    piece.style.setProperty('--spell-radius', `${-blueprint.spread * 0.48}px`);
+    piece.style.setProperty('--spell-radius-near', `${-blueprint.spread * 0.08}px`);
+    piece.style.setProperty('--spell-piece-delay', `${index * -47}ms`);
+    layer.appendChild(piece);
+  }
+  layer.setAttribute('aria-hidden', 'true');
+  return layer;
+}
+
 // ---- src/ui/BattleUI.js ----
 function hpBarClass(unit) {
   const ratio = unit.hpRatio();
@@ -4458,8 +5487,8 @@ function hpBarClass(unit) {
 const statusNamesJa = STATUS_LABELS_JA;
 
 const targetNamesJa = Object.freeze({
-  self: '自分', 'single-enemy': '敵単体', one_enemy: '敵単体', enemy_group: '敵全体', all_enemies: '敵全体', one_or_all_enemies: '敵単体/全体',
-  'single-ally': '味方単体', one_ally: '味方単体', all_allies: '味方全体', party: '味方全体', one_or_all_allies: '味方単体/全体',
+  self: '自分', one_target: '単体', 'single-enemy': '敵単体', one_enemy: '敵単体', enemy_group: '敵全体', all_enemies: '敵全体', one_or_all_enemies: '敵単体/全体',
+  'single-ally': '味方単体', one_ally: '味方単体', 'single-any': '単体', all_allies: '味方全体', party: '味方全体', one_or_all_allies: '味方単体/全体',
   all_units: '全体', random_unit: 'ランダム', enemy_group_and_ally: '敵全体＋味方', enemy_and_party: '敵味方全体',
   battle: '戦場',
 });
@@ -4560,6 +5589,7 @@ class BattleUI {
     this.effectTimer = null;
     this.activeEffectDeadline = 0;
     this.activeAbilityMenu = null;
+    this.pendingDualcast = null;
 
     this.submenuListEl?.addEventListener('scroll', () => this.rememberAbilityMenuPosition(), { passive: true });
 
@@ -4609,9 +5639,22 @@ class BattleUI {
       this.closeActionWindows();
       this.renderCommandListIdle();
       if (actor?.isEnemy) this.clearTelegraph();
-      this.playActionPulse(actor, results, action);
-      const effectDescriptor = action?.id || action?.sourceId || action?.visualId || action?.name
-        ? resolveBattleEffectDescriptor(action)
+      const dualVisuals = action?.specialCommand === 'dualcast'
+        ? (action.dualSpells ?? []).map((spell, castIndex) => ({
+          action: spell,
+          results: results.filter((result) => result.castIndex === castIndex),
+        })).filter((cast) => cast.results.length)
+        : [];
+      if (dualVisuals.length) {
+        // Dualcast is two real casts, not one generic "dual magic" flash.
+        // Queue both spell-specific drawings in the order selected.
+        dualVisuals.forEach((cast) => this.playActionPulse(actor, cast.results, cast.action));
+      } else {
+        this.playActionPulse(actor, results, action);
+      }
+      const reactionAction = dualVisuals[0]?.action ?? action;
+      const effectDescriptor = reactionAction?.id || reactionAction?.sourceId || reactionAction?.visualId || reactionAction?.name
+        ? resolveBattleEffectDescriptor(reactionAction)
         : null;
       results.forEach((r) => {
         const el = document.querySelector(`[data-uid="${r.targetUid}"]`);
@@ -4901,7 +5944,10 @@ class BattleUI {
     this.submenuHeadingEl.textContent = heading;
     this.submenuListEl.innerHTML = '';
 
-    const cancel = this.createChoice('もどる', () => this.closeSubmenu(), { accent: true });
+    const cancel = this.createChoice('もどる', () => {
+      this.pendingDualcast = null;
+      this.closeSubmenu();
+    }, { accent: true });
     cancel.classList.add('submenu-back');
     this.submenuListEl.appendChild(cancel);
 
@@ -4923,13 +5969,21 @@ class BattleUI {
       const itemUsable = itemState?.usable ?? (kind === 'item' && typeof this.battleManager?.canUseItem === 'function'
         ? this.battleManager.canUseItem(entry)
         : true);
+      const requiredItemIds = [entry.requiredItemId, ...(entry.ingredients ?? [])].filter(Boolean);
+      const requiredCounts = requiredItemIds.reduce((map, id) => map.set(id, (map.get(id) ?? 0) + 1), new Map());
+      const missingRequiredItem = [...requiredCounts].some(([id, amount]) => this.battleManager.getItemStock(id) < amount);
+      const captureUnavailable = (entry.requiresCapture && !actor.capturedMonster)
+        || (entry.requiresNoCapture && Boolean(actor.capturedMonster));
+      const requirementLabel = requiredItemIds.length
+        ? ` / 素材 ${[...requiredCounts].map(([id, amount]) => `${id.replace('item_', '')}×${amount}`).join('+')}`
+        : '';
       const disabledReason = entry.disabledReason
         ?? itemState?.disabledReason
         ?? itemState?.reason
         ?? (itemStock === 0 ? '在庫がない。' : '');
       const stockLabel = itemStock == null ? '' : ` ×${Number.isFinite(itemStock) ? itemStock : '∞'}`;
       const disabled = (['spell', 'ability', 'crystal'].includes(kind) && actualMpCost && actor.mp < actualMpCost)
-        || itemStock === 0 || itemUsable === false;
+        || itemStock === 0 || itemUsable === false || missingRequiredItem || captureUnavailable || Boolean(entry.disabledReason);
       const li = this.createChoice(
         `${entry.name}${costLabel}${stockLabel}`,
         () => {
@@ -4944,7 +5998,7 @@ class BattleUI {
           this.pendingSpellOrItem = entry;
           this.promptTarget(entry, kind, actor);
         },
-        { disabled, detail: disabledReason || this.entryDetail(entry, kind) }
+        { disabled, detail: missingRequiredItem ? `必要な素材がない${requirementLabel}` : captureUnavailable ? (entry.requiresCapture ? 'とらえたモンスターがいない' : '先に「はなつ」を使用') : disabledReason || `${this.entryDetail(entry, kind)}${requirementLabel}` }
       );
       li.querySelector('button')?.setAttribute('data-entry-id', entry.id ?? entry.sourceId ?? entry.name);
       this.submenuListEl.appendChild(li);
@@ -4975,19 +6029,24 @@ class BattleUI {
     );
   }
 
-  closeActionWindows() {
+  closeActionWindows({ preserveDualcast = false } = {}) {
     this.closeSubmenu();
     this.closeTargetWindow();
     this.pendingCommandType = null;
     this.pendingSpellOrItem = null;
+    if (!preserveDualcast) this.pendingDualcast = null;
   }
 
   promptTarget(entry, kind, actor) {
+    const anyTarget = entry.target === 'single-any';
     const allyTarget = ['single-ally', 'one_ally', 'one_or_all_allies', 'all_allies', 'party', 'enemy_group_and_ally'].includes(entry.target);
     const automaticTarget = ['all_allies', 'all_enemies', 'all_units', 'party', 'enemy_group', 'enemy_and_party', 'random_unit'].includes(entry.target);
-    const reviveAction = entry.operations?.some((operation) => operation.op === 'revive');
+    const reviveAction = ['resurrection', 'reincarnate', 'phoenix-down', 'kiss-of-life'].includes(entry.mixEffect)
+      || entry.operations?.some((operation) => operation.op === 'revive');
     const targets = entry.target === 'self'
       ? [actor]
+      : anyTarget
+        ? [...this.battleManager.party.filter((partyUnit) => partyUnit.isAlive()), this.battleManager.boss].filter((unit) => unit?.isAlive())
       : allyTarget
         ? this.battleManager.party.filter((partyUnit) => reviveAction ? !partyUnit.isAlive() : partyUnit.isAlive())
         : [this.battleManager.boss];
@@ -5024,6 +6083,36 @@ class BattleUI {
   }
 
   finalizeAction(entry, kind, target) {
+    if (kind === 'ability' && entry.dualcastCandidate) {
+      const actor = this.battleManager?.currentActor;
+      if (!this.pendingDualcast) {
+        this.pendingDualcast = { firstSpell: entry, firstTargetUid: target?.uid ?? null, actorUid: actor?.uid };
+        this.closeTargetWindow();
+        this.closeSubmenu();
+        this.openSubmenu('れんぞくま：2つめ', getAbilityActions('ability_dualcast'), 'ability', actor);
+        return;
+      }
+      const first = this.pendingDualcast;
+      const dualAbility = {
+        id: `dualcast-${first.firstSpell.sourceId}-${entry.sourceId}`,
+        name: `${first.firstSpell.name} → ${entry.name}`,
+        actionKind: 'special-command',
+        specialCommand: 'dualcast',
+        sourceType: 'ability',
+        sourceId: 'ability_dualcast',
+        commandSourceId: 'ability_dualcast',
+        visualId: `ability_dualcast_${first.firstSpell.sourceId}_${entry.sourceId}`,
+        dualSpells: [first.firstSpell, entry],
+        dualTargetUids: [first.firstTargetUid, target?.uid ?? null],
+        mpCost: (first.firstSpell.mpCost ?? 0) + (entry.mpCost ?? 0),
+        ctbCost: 1.25,
+        target: 'self',
+      };
+      this.pendingDualcast = null;
+      this.closeActionWindows();
+      this.battleManager.submitPlayerAction({ type: 'ability', ability: dualAbility, ctbCost: dualAbility.ctbCost }, actor);
+      return;
+    }
     this.closeActionWindows();
     if (kind === 'spell') {
       this.battleManager.submitPlayerAction({ type: 'magic', spell: entry, ctbCost: entry.ctbCost }, target);
@@ -5239,9 +6328,10 @@ class BattleUI {
       songWave.className = `fx-song-wave song-${safeToken(descriptor.songPattern)}`;
       songWave.setAttribute('aria-hidden', 'true');
     }
+    const spellArt = createSpellArtElement(action);
     const particles = document.createElement('span');
     particles.className = 'fx-particles';
-    const reservedAnimatedNodes = Number(Boolean(commandLayer)) + Number(Boolean(summonEmblem)) + Number(Boolean(songWave)) + Number(Boolean(mixedImpact));
+    const reservedAnimatedNodes = Number(Boolean(commandLayer)) + Number(Boolean(summonEmblem)) + Number(Boolean(songWave)) + Number(Boolean(mixedImpact)) + Number(Boolean(spellArt));
     const particleCount = Math.max(8, Math.min(descriptor.mobileBudget.maxParticles - reservedAnimatedNodes, descriptor.particleCount));
     for (let index = 0; index < particleCount; index += 1) {
       const particle = document.createElement('i');
@@ -5254,6 +6344,7 @@ class BattleUI {
     sequence.append(backdrop, title, sigil);
     if (commandLayer) sequence.appendChild(commandLayer);
     sequence.append(path, core, orbit, hit);
+    if (spellArt) sequence.appendChild(spellArt);
     if (mixedImpact) sequence.appendChild(mixedImpact);
     sequence.append(particles, glyph);
     if (summonEmblem) sequence.appendChild(summonEmblem);
@@ -5800,6 +6891,12 @@ const shardCatalog = [
   { id: 'storm', name: '紫電のかけら', ability: 'ライトニングエッジ' },
   { id: 'verdant', name: '翠風のかけら', ability: 'ウィンドカッター' },
 ];
+const defaultItemInventory = Object.freeze(Object.fromEntries(battleReadyItems.map((item) => [
+  item.id,
+  item.id === 'item_potion' ? 3
+    : ['item_magic_lamp', 'item_beastmaster_gourd'].includes(item.id) ? 1
+      : item.category === 'camp' ? 0 : 2,
+])));
 
 const defaultProfile = {
   name: 'PLAYER',
@@ -5808,6 +6905,7 @@ const defaultProfile = {
   gil: 2000,
   diamonds: 900,
   potions: 3,
+  items: { ...defaultItemInventory },
   volume: 70,
   windowHue: 220,
   shards: [{ ...shardCatalog[0], count: 1 }],
@@ -5821,9 +6919,12 @@ function loadProfile() {
       ...structuredClone(defaultProfile),
       ...saved,
       shards: Array.isArray(saved.shards) ? saved.shards : structuredClone(defaultProfile.shards),
+      items: { ...defaultItemInventory, ...(saved.items ?? {}) },
     };
     // Migrate the earlier status-bar-only color setting to the whole UI.
     merged.windowHue = Number(saved.windowHue ?? saved.statusHue ?? defaultProfile.windowHue);
+    merged.items.item_potion = Number(saved.items?.item_potion ?? saved.potions ?? merged.items.item_potion);
+    merged.potions = merged.items.item_potion;
     delete merged.statusHue;
     return merged;
   } catch {
@@ -5909,10 +7010,13 @@ function applyCloudProfile(data) {
     gil: Number(data.gil ?? profile.gil),
     diamonds: Number(data.diamonds ?? profile.diamonds),
     potions: Number(data.potions ?? profile.potions),
+    items: { ...profile.items, ...(data.items ?? {}) },
     volume: Number(data.volume ?? profile.volume),
     windowHue: Number(data.windowHue ?? profile.windowHue),
     shards: Array.isArray(data.shards) ? data.shards : profile.shards,
   };
+  profile.items.item_potion = Number(data.items?.item_potion ?? data.potions ?? profile.items.item_potion);
+  profile.potions = profile.items.item_potion;
   saveProfile({ cloud: false });
 }
 
@@ -5976,7 +7080,7 @@ function renderShop(message = '') {
     <div class="shop-card">
       <div>
         <strong>ポーション</strong>
-        <small>味方ひとりのHPを400回復</small>
+        <small>味方ひとりのHPを50回復</small>
       </div>
       <div class="shop-card-side">
         <span>所持 ${profile.potions}</span>
@@ -5991,6 +7095,7 @@ function renderShop(message = '') {
     }
     profile.gil -= 100;
     profile.potions += 1;
+    profile.items.item_potion = profile.potions;
     saveProfile();
     renderShop('ポーションを購入しました。');
   });
@@ -6424,7 +7529,10 @@ function buildPartyUnits(state) {
         hp: p.hp,
         maxMp: p.maxMp,
         mp: p.mp,
-        atk: p.baseAtk + equipmentBonuses.attack,
+	        level: p.level,
+	        atk: p.baseAtk + equipmentBonuses.attack,
+	        strength: p.baseAtk,
+	        vitality: p.baseDef,
         def: p.baseDef + equipmentBonuses.defense,
         magicDef: p.baseMagicDef + equipmentBonuses.magicDefense,
         magic: p.baseMagic + equipmentBonuses.magic,
@@ -6432,7 +7540,9 @@ function buildPartyUnits(state) {
         evasion: equipmentBonuses.evasion,
         weaponElement: equipmentBonuses.weaponElement,
         weaponAccuracy: equipmentBonuses.weaponAccuracy,
-        weaponSpecial: equipmentBonuses.weaponSpecial,
+	        weaponSpecial: equipmentBonuses.weaponSpecial,
+	        weaponAttack: equipmentBonuses.weaponAttack,
+	        weaponType: equipmentBonuses.weaponType,
         equipmentEffects: equipmentBonuses,
         weaponId: p.weaponId,
         baseAtk: p.baseAtk,
@@ -6465,6 +7575,7 @@ function buildBossUnit(bossConfig) {
     maxMp: bossConfig.maxMp,
     level: bossConfig.level,
     atk: bossConfig.atk,
+    monsterM: bossConfig.monsterM,
     def: bossConfig.def,
     magicDef: bossConfig.magicDef,
     evasion: bossConfig.evasion,
@@ -6547,13 +7658,30 @@ function beginCourseSetup() {
 }
 
 function profileItemStock(itemId) {
-  if (['potion', 'item_potion'].includes(itemId)) return profile.potions;
-  return 0;
+  const normalized = itemId === 'potion' ? 'item_potion' : itemId;
+  return Math.max(0, Number(profile.items?.[normalized] ?? 0));
 }
 
 function consumeProfileItem(itemId, amount = 1) {
-  if (!['potion', 'item_potion'].includes(itemId) || profile.potions < amount) return false;
-  profile.potions -= amount;
+  const normalized = itemId === 'potion' ? 'item_potion' : itemId;
+  if (profileItemStock(normalized) < amount) return false;
+  profile.items[normalized] -= amount;
+  profile.potions = profile.items.item_potion;
+  saveProfile();
+  return true;
+}
+
+function addProfileItem(itemId, amount = 1) {
+  const normalized = itemId === 'potion' ? 'item_potion' : itemId;
+  profile.items[normalized] = profileItemStock(normalized) + Math.max(0, amount);
+  profile.potions = profile.items.item_potion;
+  saveProfile();
+  return true;
+}
+
+function spendProfileGil(amount) {
+  if (profile.gil < amount) return false;
+  profile.gil -= amount;
   saveProfile();
   return true;
 }
@@ -6570,6 +7698,9 @@ function startBossBattle(restoredBattle = null) {
   const battleOptions = {
     getItemStock: profileItemStock,
     consumeItem: consumeProfileItem,
+    addItemStock: addProfileItem,
+    getGil: () => profile.gil,
+    spendGil: spendProfileGil,
   };
   const battleManager = restoredBattle
     ? BattleManager.fromSnapshot(restoredBattle, battleOptions)

@@ -7,6 +7,7 @@ import { getBattleEffectDescriptor, resolveBattleEffectDescriptor } from './Batt
 import { MessageWindow } from './MessageWindow.js';
 import { STATUS_LABELS_JA } from '../battle/StatusEngine.js';
 import { getAbilityListPosition, saveAbilityListPosition } from '../core/AbilityPosition.js';
+import { createSpellArtElement } from './SpellArtDirector.js';
 
 function hpBarClass(unit) {
   const ratio = unit.hpRatio();
@@ -18,8 +19,8 @@ function hpBarClass(unit) {
 const statusNamesJa = STATUS_LABELS_JA;
 
 const targetNamesJa = Object.freeze({
-  self: '自分', 'single-enemy': '敵単体', one_enemy: '敵単体', enemy_group: '敵全体', all_enemies: '敵全体', one_or_all_enemies: '敵単体/全体',
-  'single-ally': '味方単体', one_ally: '味方単体', all_allies: '味方全体', party: '味方全体', one_or_all_allies: '味方単体/全体',
+  self: '自分', one_target: '単体', 'single-enemy': '敵単体', one_enemy: '敵単体', enemy_group: '敵全体', all_enemies: '敵全体', one_or_all_enemies: '敵単体/全体',
+  'single-ally': '味方単体', one_ally: '味方単体', 'single-any': '単体', all_allies: '味方全体', party: '味方全体', one_or_all_allies: '味方単体/全体',
   all_units: '全体', random_unit: 'ランダム', enemy_group_and_ally: '敵全体＋味方', enemy_and_party: '敵味方全体',
   battle: '戦場',
 });
@@ -120,6 +121,7 @@ export class BattleUI {
     this.effectTimer = null;
     this.activeEffectDeadline = 0;
     this.activeAbilityMenu = null;
+    this.pendingDualcast = null;
 
     this.submenuListEl?.addEventListener('scroll', () => this.rememberAbilityMenuPosition(), { passive: true });
 
@@ -169,9 +171,22 @@ export class BattleUI {
       this.closeActionWindows();
       this.renderCommandListIdle();
       if (actor?.isEnemy) this.clearTelegraph();
-      this.playActionPulse(actor, results, action);
-      const effectDescriptor = action?.id || action?.sourceId || action?.visualId || action?.name
-        ? resolveBattleEffectDescriptor(action)
+      const dualVisuals = action?.specialCommand === 'dualcast'
+        ? (action.dualSpells ?? []).map((spell, castIndex) => ({
+          action: spell,
+          results: results.filter((result) => result.castIndex === castIndex),
+        })).filter((cast) => cast.results.length)
+        : [];
+      if (dualVisuals.length) {
+        // Dualcast is two real casts, not one generic "dual magic" flash.
+        // Queue both spell-specific drawings in the order selected.
+        dualVisuals.forEach((cast) => this.playActionPulse(actor, cast.results, cast.action));
+      } else {
+        this.playActionPulse(actor, results, action);
+      }
+      const reactionAction = dualVisuals[0]?.action ?? action;
+      const effectDescriptor = reactionAction?.id || reactionAction?.sourceId || reactionAction?.visualId || reactionAction?.name
+        ? resolveBattleEffectDescriptor(reactionAction)
         : null;
       results.forEach((r) => {
         const el = document.querySelector(`[data-uid="${r.targetUid}"]`);
@@ -461,7 +476,10 @@ export class BattleUI {
     this.submenuHeadingEl.textContent = heading;
     this.submenuListEl.innerHTML = '';
 
-    const cancel = this.createChoice('もどる', () => this.closeSubmenu(), { accent: true });
+    const cancel = this.createChoice('もどる', () => {
+      this.pendingDualcast = null;
+      this.closeSubmenu();
+    }, { accent: true });
     cancel.classList.add('submenu-back');
     this.submenuListEl.appendChild(cancel);
 
@@ -483,13 +501,21 @@ export class BattleUI {
       const itemUsable = itemState?.usable ?? (kind === 'item' && typeof this.battleManager?.canUseItem === 'function'
         ? this.battleManager.canUseItem(entry)
         : true);
+      const requiredItemIds = [entry.requiredItemId, ...(entry.ingredients ?? [])].filter(Boolean);
+      const requiredCounts = requiredItemIds.reduce((map, id) => map.set(id, (map.get(id) ?? 0) + 1), new Map());
+      const missingRequiredItem = [...requiredCounts].some(([id, amount]) => this.battleManager.getItemStock(id) < amount);
+      const captureUnavailable = (entry.requiresCapture && !actor.capturedMonster)
+        || (entry.requiresNoCapture && Boolean(actor.capturedMonster));
+      const requirementLabel = requiredItemIds.length
+        ? ` / 素材 ${[...requiredCounts].map(([id, amount]) => `${id.replace('item_', '')}×${amount}`).join('+')}`
+        : '';
       const disabledReason = entry.disabledReason
         ?? itemState?.disabledReason
         ?? itemState?.reason
         ?? (itemStock === 0 ? '在庫がない。' : '');
       const stockLabel = itemStock == null ? '' : ` ×${Number.isFinite(itemStock) ? itemStock : '∞'}`;
       const disabled = (['spell', 'ability', 'crystal'].includes(kind) && actualMpCost && actor.mp < actualMpCost)
-        || itemStock === 0 || itemUsable === false;
+        || itemStock === 0 || itemUsable === false || missingRequiredItem || captureUnavailable || Boolean(entry.disabledReason);
       const li = this.createChoice(
         `${entry.name}${costLabel}${stockLabel}`,
         () => {
@@ -504,7 +530,7 @@ export class BattleUI {
           this.pendingSpellOrItem = entry;
           this.promptTarget(entry, kind, actor);
         },
-        { disabled, detail: disabledReason || this.entryDetail(entry, kind) }
+        { disabled, detail: missingRequiredItem ? `必要な素材がない${requirementLabel}` : captureUnavailable ? (entry.requiresCapture ? 'とらえたモンスターがいない' : '先に「はなつ」を使用') : disabledReason || `${this.entryDetail(entry, kind)}${requirementLabel}` }
       );
       li.querySelector('button')?.setAttribute('data-entry-id', entry.id ?? entry.sourceId ?? entry.name);
       this.submenuListEl.appendChild(li);
@@ -535,19 +561,24 @@ export class BattleUI {
     );
   }
 
-  closeActionWindows() {
+  closeActionWindows({ preserveDualcast = false } = {}) {
     this.closeSubmenu();
     this.closeTargetWindow();
     this.pendingCommandType = null;
     this.pendingSpellOrItem = null;
+    if (!preserveDualcast) this.pendingDualcast = null;
   }
 
   promptTarget(entry, kind, actor) {
+    const anyTarget = entry.target === 'single-any';
     const allyTarget = ['single-ally', 'one_ally', 'one_or_all_allies', 'all_allies', 'party', 'enemy_group_and_ally'].includes(entry.target);
     const automaticTarget = ['all_allies', 'all_enemies', 'all_units', 'party', 'enemy_group', 'enemy_and_party', 'random_unit'].includes(entry.target);
-    const reviveAction = entry.operations?.some((operation) => operation.op === 'revive');
+    const reviveAction = ['resurrection', 'reincarnate', 'phoenix-down', 'kiss-of-life'].includes(entry.mixEffect)
+      || entry.operations?.some((operation) => operation.op === 'revive');
     const targets = entry.target === 'self'
       ? [actor]
+      : anyTarget
+        ? [...this.battleManager.party.filter((partyUnit) => partyUnit.isAlive()), this.battleManager.boss].filter((unit) => unit?.isAlive())
       : allyTarget
         ? this.battleManager.party.filter((partyUnit) => reviveAction ? !partyUnit.isAlive() : partyUnit.isAlive())
         : [this.battleManager.boss];
@@ -584,6 +615,36 @@ export class BattleUI {
   }
 
   finalizeAction(entry, kind, target) {
+    if (kind === 'ability' && entry.dualcastCandidate) {
+      const actor = this.battleManager?.currentActor;
+      if (!this.pendingDualcast) {
+        this.pendingDualcast = { firstSpell: entry, firstTargetUid: target?.uid ?? null, actorUid: actor?.uid };
+        this.closeTargetWindow();
+        this.closeSubmenu();
+        this.openSubmenu('れんぞくま：2つめ', getAbilityActions('ability_dualcast'), 'ability', actor);
+        return;
+      }
+      const first = this.pendingDualcast;
+      const dualAbility = {
+        id: `dualcast-${first.firstSpell.sourceId}-${entry.sourceId}`,
+        name: `${first.firstSpell.name} → ${entry.name}`,
+        actionKind: 'special-command',
+        specialCommand: 'dualcast',
+        sourceType: 'ability',
+        sourceId: 'ability_dualcast',
+        commandSourceId: 'ability_dualcast',
+        visualId: `ability_dualcast_${first.firstSpell.sourceId}_${entry.sourceId}`,
+        dualSpells: [first.firstSpell, entry],
+        dualTargetUids: [first.firstTargetUid, target?.uid ?? null],
+        mpCost: (first.firstSpell.mpCost ?? 0) + (entry.mpCost ?? 0),
+        ctbCost: 1.25,
+        target: 'self',
+      };
+      this.pendingDualcast = null;
+      this.closeActionWindows();
+      this.battleManager.submitPlayerAction({ type: 'ability', ability: dualAbility, ctbCost: dualAbility.ctbCost }, actor);
+      return;
+    }
     this.closeActionWindows();
     if (kind === 'spell') {
       this.battleManager.submitPlayerAction({ type: 'magic', spell: entry, ctbCost: entry.ctbCost }, target);
@@ -799,9 +860,10 @@ export class BattleUI {
       songWave.className = `fx-song-wave song-${safeToken(descriptor.songPattern)}`;
       songWave.setAttribute('aria-hidden', 'true');
     }
+    const spellArt = createSpellArtElement(action);
     const particles = document.createElement('span');
     particles.className = 'fx-particles';
-    const reservedAnimatedNodes = Number(Boolean(commandLayer)) + Number(Boolean(summonEmblem)) + Number(Boolean(songWave)) + Number(Boolean(mixedImpact));
+    const reservedAnimatedNodes = Number(Boolean(commandLayer)) + Number(Boolean(summonEmblem)) + Number(Boolean(songWave)) + Number(Boolean(mixedImpact)) + Number(Boolean(spellArt));
     const particleCount = Math.max(8, Math.min(descriptor.mobileBudget.maxParticles - reservedAnimatedNodes, descriptor.particleCount));
     for (let index = 0; index < particleCount; index += 1) {
       const particle = document.createElement('i');
@@ -814,6 +876,7 @@ export class BattleUI {
     sequence.append(backdrop, title, sigil);
     if (commandLayer) sequence.appendChild(commandLayer);
     sequence.append(path, core, orbit, hit);
+    if (spellArt) sequence.appendChild(spellArt);
     if (mixedImpact) sequence.appendChild(mixedImpact);
     sequence.append(particles, glyph);
     if (summonEmblem) sequence.appendChild(summonEmblem);

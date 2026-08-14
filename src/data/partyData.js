@@ -8,6 +8,7 @@ export const partyData = [
   {
     id: 'p1',
     name: 'バッツ',
+    level: 50,
     role: '前衛',
     maxHp: 1200,
     maxMp: 300,
@@ -31,6 +32,7 @@ export const partyData = [
   {
     id: 'p2',
     name: 'タバサ',
+    level: 50,
     role: '後衛',
     maxHp: 950,
     maxMp: 450,
@@ -55,6 +57,7 @@ export const partyData = [
   {
     id: 'p3',
     name: 'ガラフ',
+    level: 50,
     role: '前衛',
     maxHp: 1400,
     maxMp: 200,
@@ -78,6 +81,7 @@ export const partyData = [
   {
     id: 'p4',
     name: 'ファリス',
+    level: 50,
     role: '後衛',
     maxHp: 1000,
     maxMp: 350,

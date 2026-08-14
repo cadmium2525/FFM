@@ -55,6 +55,12 @@ const shardCatalog = [
   { id: 'storm', name: '紫電のかけら', ability: 'ライトニングエッジ' },
   { id: 'verdant', name: '翠風のかけら', ability: 'ウィンドカッター' },
 ];
+const defaultItemInventory = Object.freeze(Object.fromEntries(battleReadyItems.map((item) => [
+  item.id,
+  item.id === 'item_potion' ? 3
+    : ['item_magic_lamp', 'item_beastmaster_gourd'].includes(item.id) ? 1
+      : item.category === 'camp' ? 0 : 2,
+])));
 
 const defaultProfile = {
   name: 'PLAYER',
@@ -63,6 +69,7 @@ const defaultProfile = {
   gil: 2000,
   diamonds: 900,
   potions: 3,
+  items: { ...defaultItemInventory },
   volume: 70,
   windowHue: 220,
   shards: [{ ...shardCatalog[0], count: 1 }],
@@ -76,9 +83,12 @@ function loadProfile() {
       ...structuredClone(defaultProfile),
       ...saved,
       shards: Array.isArray(saved.shards) ? saved.shards : structuredClone(defaultProfile.shards),
+      items: { ...defaultItemInventory, ...(saved.items ?? {}) },
     };
     // Migrate the earlier status-bar-only color setting to the whole UI.
     merged.windowHue = Number(saved.windowHue ?? saved.statusHue ?? defaultProfile.windowHue);
+    merged.items.item_potion = Number(saved.items?.item_potion ?? saved.potions ?? merged.items.item_potion);
+    merged.potions = merged.items.item_potion;
     delete merged.statusHue;
     return merged;
   } catch {
@@ -164,10 +174,13 @@ function applyCloudProfile(data) {
     gil: Number(data.gil ?? profile.gil),
     diamonds: Number(data.diamonds ?? profile.diamonds),
     potions: Number(data.potions ?? profile.potions),
+    items: { ...profile.items, ...(data.items ?? {}) },
     volume: Number(data.volume ?? profile.volume),
     windowHue: Number(data.windowHue ?? profile.windowHue),
     shards: Array.isArray(data.shards) ? data.shards : profile.shards,
   };
+  profile.items.item_potion = Number(data.items?.item_potion ?? data.potions ?? profile.items.item_potion);
+  profile.potions = profile.items.item_potion;
   saveProfile({ cloud: false });
 }
 
@@ -231,7 +244,7 @@ function renderShop(message = '') {
     <div class="shop-card">
       <div>
         <strong>ポーション</strong>
-        <small>味方ひとりのHPを400回復</small>
+        <small>味方ひとりのHPを50回復</small>
       </div>
       <div class="shop-card-side">
         <span>所持 ${profile.potions}</span>
@@ -246,6 +259,7 @@ function renderShop(message = '') {
     }
     profile.gil -= 100;
     profile.potions += 1;
+    profile.items.item_potion = profile.potions;
     saveProfile();
     renderShop('ポーションを購入しました。');
   });
@@ -679,7 +693,10 @@ function buildPartyUnits(state) {
         hp: p.hp,
         maxMp: p.maxMp,
         mp: p.mp,
-        atk: p.baseAtk + equipmentBonuses.attack,
+	        level: p.level,
+	        atk: p.baseAtk + equipmentBonuses.attack,
+	        strength: p.baseAtk,
+	        vitality: p.baseDef,
         def: p.baseDef + equipmentBonuses.defense,
         magicDef: p.baseMagicDef + equipmentBonuses.magicDefense,
         magic: p.baseMagic + equipmentBonuses.magic,
@@ -687,7 +704,9 @@ function buildPartyUnits(state) {
         evasion: equipmentBonuses.evasion,
         weaponElement: equipmentBonuses.weaponElement,
         weaponAccuracy: equipmentBonuses.weaponAccuracy,
-        weaponSpecial: equipmentBonuses.weaponSpecial,
+	        weaponSpecial: equipmentBonuses.weaponSpecial,
+	        weaponAttack: equipmentBonuses.weaponAttack,
+	        weaponType: equipmentBonuses.weaponType,
         equipmentEffects: equipmentBonuses,
         weaponId: p.weaponId,
         baseAtk: p.baseAtk,
@@ -720,6 +739,7 @@ function buildBossUnit(bossConfig) {
     maxMp: bossConfig.maxMp,
     level: bossConfig.level,
     atk: bossConfig.atk,
+    monsterM: bossConfig.monsterM,
     def: bossConfig.def,
     magicDef: bossConfig.magicDef,
     evasion: bossConfig.evasion,
@@ -802,13 +822,30 @@ function beginCourseSetup() {
 }
 
 function profileItemStock(itemId) {
-  if (['potion', 'item_potion'].includes(itemId)) return profile.potions;
-  return 0;
+  const normalized = itemId === 'potion' ? 'item_potion' : itemId;
+  return Math.max(0, Number(profile.items?.[normalized] ?? 0));
 }
 
 function consumeProfileItem(itemId, amount = 1) {
-  if (!['potion', 'item_potion'].includes(itemId) || profile.potions < amount) return false;
-  profile.potions -= amount;
+  const normalized = itemId === 'potion' ? 'item_potion' : itemId;
+  if (profileItemStock(normalized) < amount) return false;
+  profile.items[normalized] -= amount;
+  profile.potions = profile.items.item_potion;
+  saveProfile();
+  return true;
+}
+
+function addProfileItem(itemId, amount = 1) {
+  const normalized = itemId === 'potion' ? 'item_potion' : itemId;
+  profile.items[normalized] = profileItemStock(normalized) + Math.max(0, amount);
+  profile.potions = profile.items.item_potion;
+  saveProfile();
+  return true;
+}
+
+function spendProfileGil(amount) {
+  if (profile.gil < amount) return false;
+  profile.gil -= amount;
   saveProfile();
   return true;
 }
@@ -825,6 +862,9 @@ function startBossBattle(restoredBattle = null) {
   const battleOptions = {
     getItemStock: profileItemStock,
     consumeItem: consumeProfileItem,
+    addItemStock: addProfileItem,
+    getGil: () => profile.gil,
+    spendGil: spendProfileGil,
   };
   const battleManager = restoredBattle
     ? BattleManager.fromSnapshot(restoredBattle, battleOptions)

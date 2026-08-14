@@ -14,6 +14,10 @@ function publicProfile(profile, loginId, loginIdKey, createdAt, updatedAt) {
     gil: Math.max(0, Math.trunc(profile.gil || 0)),
     diamonds: Math.max(0, Math.trunc(profile.diamonds || 0)),
     potions: Math.max(0, Math.trunc(profile.potions || 0)),
+    items: Object.fromEntries(Object.entries(profile.items ?? {}).map(([id, count]) => [
+      String(id).slice(0, 64),
+      Math.max(0, Math.min(99, Math.trunc(Number(count) || 0))),
+    ])),
     volume: Math.min(100, Math.max(0, Math.trunc(profile.volume ?? 70))),
     windowHue: Math.min(359, Math.max(0, Math.trunc(profile.windowHue ?? 220))),
     shards: Array.isArray(profile.shards)

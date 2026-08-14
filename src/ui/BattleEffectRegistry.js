@@ -242,7 +242,7 @@ function makeDescriptor(record, sourceType, ordinal, familyOrdinal) {
   const pick = (list, shift = 0) => list[(seed >>> shift) % list.length];
   const intensity = sourceType === 'magic'
     ? Math.max(1, Math.min(6, (record.level ?? Math.ceil((record.mpCost ?? 0) / 14)) || 2))
-    : Math.max(1, Math.min(6, Math.ceil((record.abp ?? 10) / 170)));
+    : 1 + ((ordinal + familyOrdinal) % 6);
   const windupMs = 170 + intensity * 38 + (seed % 47);
   const travelMs = 120 + ((seed >>> 5) % 190);
   const impactMs = 110 + intensity * 26 + ((seed >>> 11) % 71);
@@ -410,7 +410,6 @@ export function resolveBattleEffectDescriptor(actionOrId) {
       effect: action.effect ?? nested.effect ?? action.kind ?? '未来の戦闘コマンド',
       target: action.target ?? nested.target ?? 'one_enemy',
       type: 'command',
-      abp: 0,
     }, 'ability', hash32(String(fallbackKey)), hash32(String(fallbackKey)) % 128));
   }
   return runtimeDescriptorCache.get(fallbackKey);

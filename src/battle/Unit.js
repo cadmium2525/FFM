@@ -22,6 +22,9 @@ export class Unit {
     this.mp = config.mp ?? this.maxMp;
 
     this.atk = config.atk ?? 10;
+    this.monsterM = config.monsterM ?? (this.isEnemy ? Math.max(1, Math.round(this.atk / 10)) : null);
+    this.strength = config.strength ?? config.baseAtk ?? this.atk;
+    this.vitality = config.vitality ?? config.baseDef ?? config.def ?? 10;
     this.def = config.def ?? 10;
     this.magicDef = config.magicDef ?? Math.round(this.def * 0.5);
     this.magic = config.magic ?? 10;
@@ -34,12 +37,16 @@ export class Unit {
     this.weaponAccuracy = config.weaponAccuracy ?? 100;
     this.weaponSpecial = config.weaponSpecial ?? null;
     this.weaponId = config.weaponId ?? 'w_neutral';
+    this.equipmentEffects = config.equipmentEffects ?? {};
+    this.weaponAttack = config.weaponAttack ?? this.equipmentEffects?.weaponAttack ?? 0;
+    this.weaponType = config.weaponType ?? this.equipmentEffects?.weaponType ?? 'sword';
+    this.hasBrawl = Boolean(config.hasBrawl);
     this.baseAtk = config.baseAtk ?? this.atk;
     this.baseDef = config.baseDef ?? this.def;
     this.baseMagicDef = config.baseMagicDef ?? this.magicDef;
     this.baseMagic = config.baseMagic ?? this.magic;
     this.baseAgility = config.baseAgility ?? this.agility;
-    this.equipmentEffects = config.equipmentEffects ?? {};    this.mpCostMultiplier = this.equipmentEffects.mpCostMultiplier ?? 1;
+    this.mpCostMultiplier = this.equipmentEffects.mpCostMultiplier ?? 1;
     this.physicalDamageMultiplier = this.equipmentEffects.physicalDamageMultiplier ?? 1;
     this.imageHits = this.equipmentEffects.initialImageHits ?? 0;
     this.nextAttackMultiplier = 1;
@@ -53,6 +60,8 @@ export class Unit {
       ...(this.equipmentEffects.statusImmunities ?? []),
     ]);
     this.statusResistance = Math.min(0.9, Math.max(0, config.statusResistance ?? this.equipmentEffects.statusResistance ?? 0));
+    this.temporaryNullElements = new Set(config.temporaryNullElements ?? []);
+    this.elementalPower = Boolean(config.elementalPower);
     this.level = config.level ?? 1;
     this.equippedAbilitySet = config.equippedAbilitySet ?? 'たたかう型';
     this.equipment = config.equipment ?? {
@@ -74,6 +83,12 @@ export class Unit {
     this.heavy = config.heavy ?? this.creatureTypes.has('boss');
     this.isUndead = config.isUndead ?? this.equipmentEffects.undeadProperties ?? this.creatureTypes.has('undead');
     this.removedFromBattle = false;
+    this.hidden = Boolean(config.hidden);
+    this.pendingJump = config.pendingJump ?? null;
+    this.capturedMonster = config.capturedMonster ?? null;
+    this.singing = config.singing ?? null;
+    this.weaponSpellblade = config.weaponSpellblade ?? null;
+    this.stolen = Boolean(config.stolen);
 
     // CTB state
     this.ctValue = config.ctValue ?? Math.random() * 200 + (this.equipmentEffects.initialCtBonus ?? 0); // slight stagger at battle start

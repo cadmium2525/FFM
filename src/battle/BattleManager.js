@@ -3,8 +3,9 @@ import { resolveAction } from './ActionResolver.js';
 import { attackAction, defendAction, itemActions, magicSets } from '../data/abilityData.js';
 import { eventBus } from '../core/EventBus.js';
 import { isIncapacitated, statusLabels } from './StatusEngine.js';
-import { bossActionsFor, bossPhaseIndex, counterPoolFor } from './BossActionProfiles.js';
+import { bossActionsFor, bossPhaseIndex, counterPoolFor, nextBossActionFor } from './BossActionProfiles.js';
 import { Unit } from './Unit.js';
+import { resolveFF5SpecialCommand } from './FF5CommandSystem.js';
 
 const ENEMY_TURN_DELAY_MS = 900;
 const AUTO_ADVANCE_DELAY_MS = 550;
@@ -33,6 +34,7 @@ function snapshotUnit(unit) {
     maxMp: unit.maxMp,
     mp: unit.mp,
     atk: unit.atk,
+    monsterM: unit.monsterM,
     def: unit.def,
     magicDef: unit.magicDef,
     magic: unit.magic,
@@ -44,6 +46,11 @@ function snapshotUnit(unit) {
     weaponAccuracy: unit.weaponAccuracy,
     weaponSpecial: unit.weaponSpecial,
     weaponId: unit.weaponId,
+    weaponAttack: unit.weaponAttack,
+    weaponType: unit.weaponType,
+    hasBrawl: unit.hasBrawl,
+    strength: unit.strength,
+    vitality: unit.vitality,
     baseAtk: unit.baseAtk,
     baseDef: unit.baseDef,
     baseMagicDef: unit.baseMagicDef,
@@ -60,6 +67,8 @@ function snapshotUnit(unit) {
     permanentStatuses: [...(unit.permanentStatuses ?? [])],
     statusImmunities: [...unit.statusImmunities],
     statusResistance: unit.statusResistance,
+    temporaryNullElements: [...(unit.temporaryNullElements ?? [])],
+    elementalPower: Boolean(unit.elementalPower),
     level: unit.level,
     equippedAbilitySet: unit.equippedAbilitySet,
     equipment: cloneSerializable(unit.equipment, {}),
@@ -73,6 +82,12 @@ function snapshotUnit(unit) {
     heavy: unit.heavy,
     isUndead: unit.isUndead,
     removedFromBattle: unit.removedFromBattle,
+    hidden: unit.hidden,
+    pendingJump: cloneSerializable(unit.pendingJump, null),
+    capturedMonster: cloneSerializable(unit.capturedMonster, null),
+    singing: cloneSerializable(unit.singing, null),
+    weaponSpellblade: cloneSerializable(unit.weaponSpellblade, null),
+    stolen: unit.stolen,
     ctValue: unit.ctValue,
     defending: unit.defending,
     magicList: cloneSerializable(unit.magicList, []),
@@ -88,6 +103,8 @@ function restoreUnit(snapshot) {
     statusDurations: snapshot.statusDurations ?? [],
     permanentStatuses: snapshot.permanentStatuses ?? [],
     statusImmunities: snapshot.statusImmunities ?? [],
+    temporaryNullElements: snapshot.temporaryNullElements ?? [],
+    elementalPower: Boolean(snapshot.elementalPower),
     creatureTypes: snapshot.creatureTypes ?? [],
     magicList: cloneSerializable(snapshot.magicList, []),
   });
@@ -120,6 +137,12 @@ export class BattleManager {
     this.presentationHoldUntil = 0;
     this.itemStockProvider = options.getItemStock ?? (() => Infinity);
     this.itemConsumer = options.consumeItem ?? (() => true);
+    this.itemAdder = options.addItemStock ?? (() => true);
+    this.gilProvider = options.getGil ?? (() => 0);
+    this.gilConsumer = options.spendGil ?? (() => false);
+    this.lastPartyAction = null;
+    this.magicLampUse = 0;
+    this.enemyActionCursor = 0;
   }
 
   createSnapshot() {
@@ -138,6 +161,17 @@ export class BattleManager {
         this.units.findIndex((unit) => unit.uid === uid),
         cloneSerializable(action, null),
       ]).filter(([index, action]) => index >= 0 && action),
+      // Unit uids are recreated while restoring a suspended battle. Persist
+      // target indexes as the stable reference so Mimic keeps the exact
+      // original targets after a task-kill/resume cycle.
+      lastPartyAction: this.lastPartyAction ? {
+        action: cloneSerializable(this.lastPartyAction.action, null),
+        targetIndexes: (this.lastPartyAction.targetIds ?? [])
+          .map((uid) => this.units.findIndex((unit) => unit.uid === uid))
+          .filter((index) => index >= 0),
+      } : null,
+      magicLampUse: this.magicLampUse,
+      enemyActionCursor: this.enemyActionCursor,
     };
   }
 
@@ -164,6 +198,14 @@ export class BattleManager {
       const unit = units[index];
       return unit && action ? [[unit.uid, action]] : [];
     }));
+    manager.lastPartyAction = snapshot.lastPartyAction ? {
+      action: cloneSerializable(snapshot.lastPartyAction.action, null),
+      targetIds: (snapshot.lastPartyAction.targetIndexes ?? [])
+        .map((index) => units[index]?.uid)
+        .filter(Boolean),
+    } : null;
+    manager.magicLampUse = Math.max(0, Number(snapshot.magicLampUse) || 0);
+    manager.enemyActionCursor = Math.max(0, Number(snapshot.enemyActionCursor) || 0);
     return manager;
   }
 
@@ -229,6 +271,14 @@ export class BattleManager {
       preview: this.ctb.previewQueue(8),
     });
   }
+
+  addItemStock(itemOrId, amount = 1) {
+    return this.itemAdder(this.itemId(itemOrId), amount, itemOrId) !== false;
+  }
+
+  getGil() { return Math.max(0, Math.floor(Number(this.gilProvider()) || 0)); }
+
+  spendGil(amount) { return this.gilConsumer(Math.max(0, Math.floor(amount))) !== false; }
 
   revealBossIntel(action, target = this.boss) {
     if (!target || target.uid !== this.boss.uid || action?.kind !== 'scan') return false;
@@ -337,12 +387,26 @@ export class BattleManager {
     actor.defending = false;
     actor.physicalDamageMultiplier = actor.equipmentEffects?.physicalDamageMultiplier ?? 1;
 
-    if (isIncapacitated(actor)) {
+    if (actor.pendingJump) {
+      this.resolveJumpLanding(actor);
+    } else if (isIncapacitated(actor)) {
       this.log(`${actor.name} は動けない！`);
       this.ctb.consumeTurn(actor, 0.45);
       this.currentActor = null;
       this.broadcastState();
       this.scheduleNextTurn(260);
+    } else if (actor.singing) {
+      const actionStartSequence = this.logSequence;
+      const action = { ...actor.singing, specialCommand: 'sing' };
+      eventBus.emit('battle:actionStarted', { actor, action });
+      this.log(`${actor.name} は ${action.name}を歌い続けている。`);
+      const special = resolveFF5SpecialCommand({ manager: this, actor, action, targets: this.party });
+      const results = special.results ?? [];
+      this.emitActionResolved(actor, results, actionStartSequence, action);
+      this.ctb.consumeTurn(actor, action.ctbCost ?? 1.15);
+      this.currentActor = null;
+      this.broadcastState();
+      if (!this.checkBattleEnd()) this.scheduleNextTurn();
     } else if (actor.statuses.has('berserk') || actor.statuses.has('confuse')) {
       this.broadcastState();
       setTimeout(() => this.forcedAct(actor), 360);
@@ -356,9 +420,29 @@ export class BattleManager {
     }
   }
 
+  resolveJumpLanding(actor) {
+    const pending = actor.pendingJump;
+    actor.pendingJump = null;
+    actor.hidden = false;
+    const target = this.units.find((unit) => unit.uid === pending?.targetUid && unit.isAlive())
+      ?? this.units.find((unit) => unit.isAlive() && unit.isEnemy !== actor.isEnemy);
+    if (!target) { this.currentActor = null; this.scheduleNextTurn(); return; }
+    const actionStartSequence = this.logSequence;
+    const action = { ...pending.action, name: 'ジャンプ' };
+    eventBus.emit('battle:actionStarted', { actor, action });
+    this.log(`${actor.name} の ジャンプ！`);
+    const results = resolveAction({ actor, action, targets: [target], battleUnits: this.units });
+    results.filter((result) => result.type === 'damage').forEach((result) => this.log(`${target.name} に ${result.amount} の ダメージ！`));
+    this.emitActionResolved(actor, results, actionStartSequence, action);
+    this.ctb.consumeTurn(actor, 1);
+    this.currentActor = null;
+    this.broadcastState();
+    if (!this.checkBattleEnd()) this.scheduleNextTurn();
+  }
+
   forcedAct(actor) {
     const confused = actor.statuses.has('confuse');
-    const candidates = this.units.filter((unit) => unit.isAlive() && !unit.removedFromBattle && (confused || unit.isEnemy !== actor.isEnemy));
+    const candidates = this.units.filter((unit) => unit.isAlive() && !unit.hidden && !unit.removedFromBattle && (confused || unit.isEnemy !== actor.isEnemy));
     const target = candidates[Math.floor(Math.random() * candidates.length)];
     if (!target) return this.scheduleNextTurn();
     eventBus.emit('battle:actionStarted', { actor, action: { kind: 'physical-attack', name: 'こうげき' } });
@@ -374,7 +458,7 @@ export class BattleManager {
 
   /** Simple AI: picks a target based on the boss's `ai` behaviour tag. */
   pickEnemyTarget() {
-    const aliveParty = this.party.filter((p) => p.isAlive());
+    const aliveParty = this.party.filter((p) => p.isAlive() && !p.hidden && !p.removedFromBattle);
     if (aliveParty.length === 0) return null;
 
     switch (this.boss.ai) {
@@ -392,16 +476,19 @@ export class BattleManager {
     if (this.finished) return;
     const target = this.pickEnemyTarget();
     if (!target) {
-      this.checkBattleEnd();
+      this.log(`${actor.name} は攻撃対象を見失った。`);
+      this.ctb.consumeTurn(actor, 1);
+      this.currentActor = null;
+      this.broadcastState();
+      if (!this.checkBattleEnd()) this.scheduleNextTurn();
       return;
     }
 
     const actionStartSequence = this.logSequence;
     const pendingAction = this.pendingEnemyActions.get(actor.uid);
     if (pendingAction) this.pendingEnemyActions.delete(actor.uid);
-    const usableAiActions = bossActionsFor(actor).filter((action) => actor.canAffordMp(action.mpCost ?? 0));
-    const weightedActions = usableAiActions.flatMap((action) => Array(Math.max(1, action.weight ?? 1)).fill(action));
-    const chosenAction = pendingAction ?? (weightedActions.length ? weightedActions[Math.floor(Math.random() * weightedActions.length)] : { kind: 'physical-attack' });
+    const scriptedAction = nextBossActionFor(actor, this.enemyActionCursor);
+    const chosenAction = pendingAction ?? (actor.canAffordMp(scriptedAction.mpCost ?? 0) ? scriptedAction : { id: 'enemy-attack', name: 'こうげき', kind: 'physical-attack' });
     if (chosenAction.telegraph && !pendingAction) {
       const preparedAction = { ...chosenAction, telegraph: null };
       this.pendingEnemyActions.set(actor.uid, preparedAction);
@@ -414,7 +501,7 @@ export class BattleManager {
       return;
     }
     const targets = chosenAction.target === 'all_enemies'
-      ? this.party.filter((unit) => unit.isAlive())
+      ? this.party.filter((unit) => unit.isAlive() && !unit.hidden && !unit.removedFromBattle)
       : [target];
     eventBus.emit('battle:actionStarted', { actor, action: chosenAction });
     this.log(`${actor.name} の ${chosenAction.name ?? 'こうげき'}！`, chosenAction.power >= 2 ? 'danger' : 'action');
@@ -434,6 +521,7 @@ export class BattleManager {
     });
 
     this.emitActionResolved(actor, results, actionStartSequence, chosenAction);
+    this.enemyActionCursor += 1;
     this.ctb.consumeTurn(actor, chosenAction.ctbCost ?? attackAction.ctbCost);
     this.currentActor = null;
     this.broadcastState();
@@ -459,7 +547,7 @@ export class BattleManager {
 
     const times = counterConfig.times ?? 1;
     for (let i = 0; i < times; i += 1) {
-      const aliveParty = this.party.filter((unit) => unit.isAlive() && !unit.removedFromBattle);
+      const aliveParty = this.party.filter((unit) => unit.isAlive() && !unit.hidden && !unit.removedFromBattle);
       if (!aliveParty.length || !this.boss.isAlive()) break;
       const counterAction = pool[Math.floor(Math.random() * pool.length)];
       const focusTarget = aliveParty.includes(originalActor) ? originalActor : aliveParty[Math.floor(Math.random() * aliveParty.length)];
@@ -493,7 +581,10 @@ export class BattleManager {
     let targets;
     const resolveTargets = (targetId, fallback) => {
       if (targetId === 'self') return [actor];
-      if (['all_allies', 'party'].includes(targetId)) return this.party.filter((unit) => unit.isAlive());
+      if (['all_allies', 'party'].includes(targetId)) {
+        const revive = (choice.spell?.operations ?? choice.ability?.operations ?? choice.item?.operations ?? []).some((operation) => operation.op === 'revive');
+        return this.party.filter((unit) => revive ? !unit.isAlive() : unit.isAlive());
+      }
       if (['all_enemies', 'enemy_group'].includes(targetId)) return this.units.filter((unit) => unit.isAlive() && unit.isEnemy !== actor.isEnemy);
       if (targetId === 'all_units' || targetId === 'enemy_and_party') return this.units.filter((unit) => unit.isAlive());
       if (targetId === 'enemy_group_and_ally') return [this.boss, fallback ?? actor];
@@ -547,7 +638,17 @@ export class BattleManager {
         action = (choice.item.operations ?? choice.item.battle?.operations)?.length
           ? { ...choice.item, operations: choice.item.operations ?? choice.item.battle.operations, kind: choice.item.actionKind ?? 'scripted' }
           : { kind: 'heal', healAmount: choice.item.healAmount };
-        targets = [targetUnit ?? actor];
+        targets = resolveTargets(choice.item.target ?? choice.item.battle?.target?.id, targetUnit ?? actor);
+        if (choice.item.sourceId === 'item_magic_lamp' || choice.item.id === 'item_magic_lamp') {
+          const lampOrder = ['magic_bahamut', 'magic_leviathan', 'magic_phoenix', 'magic_odin', 'magic_syldra', 'magic_carbuncle', 'magic_catoblepas', 'magic_golem', 'magic_titan', 'magic_ifrit', 'magic_ramuh', 'magic_shiva', 'magic_remora', 'magic_sylph', 'magic_chocobo'];
+          const summonId = lampOrder[Math.min(this.magicLampUse, lampOrder.length - 1)];
+          const summon = Object.values(magicSets).flat().find((spell) => spell.sourceId === summonId);
+          if (summon) {
+            this.magicLampUse += 1;
+            action = { ...summon, kind: summon.actionKind, mpCost: 0, name: `${choice.item.name}：${summon.name}` };
+            targets = resolveTargets(summon.target, this.boss);
+          }
+        }
         this.log(`${actor.name} は ${choice.item.name} を つかった！`);
         break;
       case 'defend':
@@ -594,12 +695,26 @@ export class BattleManager {
       });
     }
 
-    if (choice.type === 'item' && !this.consumeItemStock(choice.item)) {
+    if (choice.type === 'item' && choice.item.consumable !== false && !this.consumeItemStock(choice.item)) {
       this.log(`${choice.item.name ?? 'アイテム'} の使用に失敗した。`);
       return false;
     }
+    let results;
+    if (action.specialCommand) {
+      const special = resolveFF5SpecialCommand({ manager: this, actor, action, targets });
+      if (!special.valid) {
+        this.log(special.reason ?? 'その行動は実行できない。', 'unavailable');
+        eventBus.emit('battle:playerTurn', { actor });
+        return false;
+      }
+      action = special.action ?? action;
+      targets = special.targets ?? targets;
+      results = special.results ?? [];
+      action._doNotRemember = special.remember === false;
+    } else {
+      results = resolveAction({ actor, action, targets, battleUnits: this.units });
+    }
     eventBus.emit('battle:actionStarted', { actor, action });
-    const results = resolveAction({ actor, action, targets, battleUnits: this.units });
     if (results.some((result) => ['insufficient-mp', 'sealed', 'invalid-target', 'unavailable'].includes(result.type))) {
       this.log('その行動は実行できない。');
       eventBus.emit('battle:playerTurn', { actor });
@@ -657,10 +772,27 @@ export class BattleManager {
         this.log(`物理障壁が ${r.amount} ダメージを肩代わりした。残り ${r.remaining}`);
       } else if (r.type === 'field-status') {
         this.log(`${affectedUnit.name} は時の流れを見切った！`);
+      } else if (r.type === 'steal') {
+        this.log(`${r.itemName}を ぬすんだ！${r.rare ? '（レア）' : ''}`);
+      } else if (r.type === 'command-message') {
+        this.log(r.label);
+      } else if (r.type === 'jump-start') {
+        this.log(`${actor.name} は空高く跳び上がった！`);
+      } else if (r.type === 'captured' || r.type === 'hidden' || r.type === 'revealed') {
+        this.log(r.label ?? (r.type === 'hidden' ? `${actor.name}は身を隠した。` : `${actor.name}は姿を現した。`));
+      } else if (r.type === 'song-stopped') {
+        this.log(`${affectedUnit.name} の歌が中断された。`);
       }
     });
 
     this.emitActionResolved(actor, results, actionStartSequence, action);
+
+    if (!actor.isEnemy && !action._doNotRemember && !['defend'].includes(action.kind)) {
+      this.lastPartyAction = {
+        action: cloneSerializable({ ...action, mpCost: action.mpCost ?? 0 }, null),
+        targetIds: targets.map((unit) => unit.uid),
+      };
+    }
 
     const pendingBossAction = this.pendingEnemyActions.get(this.boss.uid);
     if (pendingBossAction && action.element && action.element === this.boss.weakness && results.some((result) => result.targetUid === this.boss.uid && result.type === 'damage')) {

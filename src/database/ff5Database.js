@@ -21,6 +21,7 @@ export const ff5DatabaseMeta = Object.freeze({
   locale: 'ja-JP',
   updatedAt: '2026-08-11',
   policy: 'FF5のゲーム上の事実を本作向けに正規化。説明文は独自に要約し、版差は別レコードで管理する。',
+  progression: 'all_commands_available_no_abp',
   expectedCounts: { weapons: 107, armor: 79, whiteMagic: 18, blackMagic: 18, timeMagic: 18, summonMagic: 15, blueMagic: 30, songs: 8 },
 });
 
@@ -165,7 +166,8 @@ export const ff5Magic = Object.freeze(magicRows.map(([school, level, nameEn, nam
 })));
 
 const jobAbilityRows = [
-  // job, English, Japanese, type, ABP, effect
+  // job, English, Japanese, type, historical ABP reference, effect.
+  // referenceAbp is archival metadata only; this boss-rush has no ABP gates.
   ['knight','Cover','かばう','passive',10,'瀕死の味方への単体物理攻撃を肩代わり'],
   ['knight','Guard','まもり','command',30,'直接物理攻撃を無効化'],
   ['knight','Two-Handed','りょうてもち','passive',50,'対応する片手武器を両手で持ち攻撃力を高める'],
@@ -242,14 +244,16 @@ const jobAbilityRows = [
   ['mime','Mimic','ものまね','command',999,'直前の味方行動をコストなしで再現'],
 ];
 
-export const ff5JobAbilities = Object.freeze(jobAbilityRows.map(([job, nameEn, nameJa, type, abp, effect]) => Object.freeze({
+export const ff5JobAbilities = Object.freeze(jobAbilityRows.map(([job, nameEn, nameJa, type, referenceAbp, effect]) => Object.freeze({
   id: `ability_${slug(nameEn)}`,
   sourceVersion: SOURCE_VERSION,
   job,
   nameJa,
   nameEn,
   type,
-  abp,
+  // Historical reference only. FFM never gates commands or visuals by ABP.
+  referenceAbp,
+  unlockRequirement: null,
   effect,
   implemented: false,
 })));
@@ -309,7 +313,9 @@ export const ff5Items = Object.freeze(itemRows.map(([nameEn, nameJa, category, b
   effect,
   consumable: !['key_battle'].includes(category),
   shopAvailable,
-  implemented: nameEn === 'Potion',
+  // All records are routed: direct-use items execute from Item; Mix/Drink/
+  // Throw materials are visible with their correct command requirement.
+  implemented: true,
 })));
 
 const weaponRows = [

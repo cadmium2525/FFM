@@ -6,19 +6,14 @@
  */
 
 import { CURABLE_STATUSES, POSITIVE_STATUSES, normalizeElement } from './StatusEngine.js';
-
-const VARIANCE = 0.12; // readable tactical outcomes without feeling deterministic
-
-function randomVariance(base) {
-  const factor = 1 + (Math.random() * 2 - 1) * VARIANCE;
-  return base * factor;
-}
+import { ff5MagicDamage, ff5MagicHeal, ff5MonsterDamage, ff5PhysicalDamage, ff5PhysicalHit, ff5ThrowDamage } from './FF5FormulaEngine.js';
 
 export function equipmentElementState(defender, element) {
   const effects = defender.equipmentEffects ?? {};
   if (!element) return 'normal';
   element = normalizeElement(element);
   if (effects.absorbs?.includes(element)) return 'absorb';
+  if (defender.temporaryNullElements?.has(element)) return 'null';
   if (effects.nullElements?.includes(element)) return 'null';
   if (effects.weaknesses?.includes(element) || defender.weakness === element) return 'weak';
   if (effects.resistances?.includes(element) || defender.resist === element) return 'resist';
@@ -27,52 +22,45 @@ export function equipmentElementState(defender, element) {
 
 /** Physical attack damage: ATK vs DEF, with weapon and armor effects. */
 export function resolvePhysicalDamage(attacker, defender, action = {}) {
-  if (attacker.weaponSpecial === 'always_1_damage') return 1;
-  let multiplier = (action.power ?? 1) * (action.attackMultiplier ?? 1);
-  if (attacker.row === 'back' && !action.ranged && !attacker.equipmentEffects?.backRowFullDamage) multiplier *= 0.55;
-  if (defender.row === 'back' && !action.ranged) multiplier *= 0.55;
-  if ((attacker.equipmentEffects?.killers ?? []).some((type) => defender.creatureTypes?.has(type))) multiplier *= 1.5;
-  const raw = Math.max(1, attacker.atk * 2.2 * multiplier - defender.def * 1.1);
-  let dmg = randomVariance(raw);
-  const elementState = equipmentElementState(defender, attacker.weaponElement);
-  if (elementState === 'weak') dmg *= 1.5;
+  const spellblade = attacker.weaponSpellblade;
+  const formulaAction = spellblade?.effect === 'flare' ? { ...action, ignoreDefense: true } : action;
+  let dmg = (attacker.isEnemy
+    ? ff5MonsterDamage(attacker, defender, action)
+    : ff5PhysicalDamage(attacker, defender, formulaAction)).damage;
+  if ((attacker.equipmentEffects?.killers ?? []).some((type) => defender.creatureTypes?.has(type))) dmg *= 2;
+  const attackElement = spellblade?.element ?? attacker.weaponElement;
+  const elementState = equipmentElementState(defender, attackElement);
+  if (elementState === 'weak') dmg *= Math.max(2, spellblade?.tier ?? 2);
   if (elementState === 'resist') dmg *= 0.5;
   if (elementState === 'null' || elementState === 'absorb') dmg = 0;
-  if (attacker.weaponSpecial === 'critical' && Math.random() < 0.12) dmg *= 2;
-  if (attacker.weaponSpecial === 'high_critical' && Math.random() < 0.25) dmg *= 2;
-  if (defender.defending || defender.statuses?.has('protect')) dmg *= defender.defending ? 0.5 : 0.75;
-  dmg *= defender.physicalDamageMultiplier ?? 1;
   return Math.max(0, Math.round(dmg));
 }
 
 /** Magic/elemental damage: MAGIC stat * spell power, weakness/resist modifiers. */
 export function resolveMagicDamage(caster, defender, spell) {
-  const boost = caster.equipmentEffects?.magicBoostElements?.includes(spell.element) ? 1.25 : 1;
-  const raw = Math.max(1, caster.magic * 2.6 * (spell.power ?? 1.0) * boost - defender.magicDef * 0.7);
-  let dmg = randomVariance(raw);
+  let dmg = ff5MagicDamage(caster, defender, spell).damage;
 
   if (spell.element) {
     const elementState = equipmentElementState(defender, spell.element);
-    if (elementState === 'weak') dmg *= 1.75;
-    if (elementState === 'resist') dmg *= 0.4;
+    if (elementState === 'weak') dmg *= 2;
+    if (elementState === 'resist') dmg *= 0.5;
     if (elementState === 'null') dmg = 0;
   }
-  if (defender.defending) dmg *= 0.7;
-  if (defender.statuses?.has('shell')) dmg *= 0.72;
   if (equipmentElementState(defender, spell.element) === 'null') return 0;
   return Math.max(0, Math.round(dmg));
 }
 
-/** Heal amount, with light randomness. */
-export function resolveHeal(amount) {
-  return Math.max(1, Math.round(randomVariance(amount)));
+/** Items are fixed; magic healing uses the same integer A×M structure as FFV. */
+export function resolveHeal(amount, caster = null, action = {}) {
+  if (action.formula === 'ff5_magic' || action.ff5Power) return ff5MagicHeal(caster, action);
+  return Math.max(1, Math.round(amount));
 }
 
 function operationToAction(operation, actor) {
   const common = { _compiledOperation: true, mpCost: 0 };
   switch (operation.op) {
-    case 'damage.magic': return { ...common, kind: 'magic-attack', power: operation.power, hits: operation.hits, element: operation.element };
-    case 'damage.physical': return { ...common, kind: 'physical-attack', power: operation.power, sameLevelMultiplier: operation.sameLevelMultiplier };
+    case 'damage.magic': return { ...common, kind: 'magic-attack', power: operation.power, ff5Power: operation.ff5Power, formula: operation.formula, hits: operation.hits, element: operation.element };
+    case 'damage.physical': return { ...common, kind: 'physical-attack', power: operation.power, sameLevelMultiplier: operation.sameLevelMultiplier, commandFormula: operation.commandFormula };
     case 'damage.fixed': return { ...common, kind: 'fixed-damage', fixedDamage: operation.amount };
     case 'damage.caster_hp': return { ...common, kind: 'fixed-damage', fixedDamage: actor.hp, sacrificeCaster: operation.sacrificeCaster };
     case 'damage.missing_hp': return { ...common, kind: 'fixed-damage', fixedDamage: actor.maxHp - actor.hp };
@@ -82,7 +70,7 @@ function operationToAction(operation, actor) {
     case 'damage.mp_ratio': return { ...common, kind: 'mp-ratio-damage', ratio: operation.ratio };
     case 'drain.hp': return { ...common, kind: 'magic-attack', power: operation.power, drain: true };
     case 'drain.mp': return { ...common, kind: 'mp-drain', power: operation.power };
-    case 'heal.hp': return { ...common, kind: 'heal', healAmount: operation.amount };
+    case 'heal.hp': return { ...common, kind: 'heal', healAmount: operation.amount, ff5Power: operation.ff5Power, formula: operation.formula };
     case 'heal.caster_hp': return { ...common, kind: 'heal', healAmount: actor.hp };
     case 'heal.mp': return { ...common, kind: 'mp-heal-target', mpAmount: operation.amount };
     case 'restore.full': return { ...common, kind: 'full-restore' };
@@ -95,6 +83,7 @@ function operationToAction(operation, actor) {
     case 'battle.speed': return { ...common, kind: 'field-speed', multiplier: operation.multiplier, duration: operation.duration };
     case 'battle.field_status': return { ...common, kind: 'field-status', status: operation.status, duration: operation.duration };
     case 'barrier.physical': return { ...common, kind: 'barrier-physical', amountFormula: operation.amountFormula, amount: operation.amount };
+    case 'summon.odin': return { ...common, kind: 'summon-odin', ff5Power: operation.ff5Power ?? 180, formula: 'ff5_magic' };
     case 'caster.sacrifice': return { ...common, kind: 'sacrifice' };
     case 'remove.from_battle': return { ...common, kind: 'remove-from-battle' };
     case 'turn.extra': return { ...common, kind: 'extra-turn', count: operation.count };
@@ -157,9 +146,7 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
       for (let hit = 0; hit < hits; hit += 1) {
         const blockedByImage = !action.ignoreEvasion && target.imageHits > 0;
         if (blockedByImage) target.imageHits -= 1;
-        const blindPenalty = actor.statuses?.has('blind') ? 35 : 0;
-        const hitChance = Math.min(1, Math.max(0.08, ((actor.weaponAccuracy ?? 100) - blindPenalty - (action.ignoreEvasion ? 0 : target.evasion ?? 0)) / 100));
-        if (blockedByImage || Math.random() > hitChance) {
+        if (blockedByImage || !ff5PhysicalHit({ attacker: actor, defender: target, action })) {
           missedHits += 1;
           continue;
         }
@@ -188,6 +175,26 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
         actor.mp += restored;
         if (restored > 0) results.push({ type: 'mp-heal', targetUid: actor.uid, amount: restored });
       }
+      const spellbladeEffect = actor.weaponSpellblade?.effect;
+      if (dealtTotal > 0 && ['poison', 'silence', 'sleep', 'petrify'].includes(spellbladeEffect)) {
+        const blocked = target.heavy && spellbladeEffect === 'petrify';
+        const applied = !blocked && target.addStatus?.(spellbladeEffect, { chance: 1 });
+        results.push({ type: applied ? 'status' : 'status-resist', targetUid: target.uid, statuses: [spellbladeEffect] });
+      }
+      if (dealtTotal > 0 && spellbladeEffect === 'drain') {
+        const amount = actor.applyHeal(dealtTotal);
+        if (amount) results.push({ type: 'heal', targetUid: actor.uid, amount });
+      }
+      if (dealtTotal > 0 && spellbladeEffect === 'osmose') {
+        const amount = Math.min(target.mp, Math.max(1, Math.floor(dealtTotal / 8)));
+        target.spendMp(amount);
+        actor.mp = Math.min(actor.maxMp, actor.mp + amount);
+        results.push({ type: 'mp-damage', targetUid: target.uid, amount }, { type: 'mp-heal', targetUid: actor.uid, amount });
+      }
+      if (dealtTotal > 0 && target.singing) {
+        target.singing = null;
+        results.push({ type: 'song-stopped', targetUid: target.uid });
+      }
       if (dealtTotal > 0) {
         (actor.equipmentEffects?.onHitStatuses ?? []).forEach(({ status, chance }) => {
           if (status === 'ko' && target.heavy) return;
@@ -214,7 +221,7 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
         const elementState = equipmentElementState(target, action.element);
         const hits = Math.max(1, action.hits ?? 1);
         let dmg = 0;
-        for (let hit = 0; hit < hits; hit += 1) dmg += resolveMagicDamage(actor, target, action);
+        for (let hit = 0; hit < hits; hit += 1) dmg += resolveMagicDamage(actor, target, { ...action, multiTarget: targets.length > 1 });
         dmg = Math.round(dmg * (target.magicDamageMultiplier ?? 1));
         if (elementState === 'absorb') {
           const healed = target.applyHeal(dmg);
@@ -223,6 +230,10 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
           const dealt = elementState === 'null' ? 0 : target.applyDamage(dmg);
           drainedTotal += dealt;
           results.push({ type: 'damage', targetUid: target.uid, amount: dealt, hits, element: action.element, weak: elementState === 'weak', resisted: elementState === 'resist', nullified: elementState === 'null' });
+          if (dealt > 0 && target.singing) {
+            target.singing = null;
+            results.push({ type: 'song-stopped', targetUid: target.uid });
+          }
         }
       });
       if (action.drain && drainedTotal > 0) results.push({ type: 'heal', targetUid: actor.uid, amount: actor.applyHeal(drainedTotal) });
@@ -232,11 +243,11 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
       if (action.mpCost) actor.spendMp(Math.ceil(action.mpCost * (actor.mpCostMultiplier ?? 1)));
       targets.forEach((target) => {
         if (target.statuses?.has('zombie') || target.isUndead) {
-          const damaged = target.applyDamage(resolveHeal(action.healAmount));
+          const damaged = target.applyDamage(resolveHeal(action.healAmount, actor, { ...action, multiTarget: targets.length > 1 }));
           results.push({ type: 'damage', targetUid: target.uid, amount: damaged, reversed: true });
           return;
         }
-        const healed = target.applyHeal(resolveHeal(action.healAmount));
+        const healed = target.applyHeal(resolveHeal(action.healAmount, actor, { ...action, multiTarget: targets.length > 1 }));
         results.push({ type: 'heal', targetUid: target.uid, amount: healed });
       });
       break;
@@ -331,6 +342,13 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
       }));
       break;
     }
+    case 'throw-damage': {
+      targets.forEach((target) => {
+        const amount = ff5ThrowDamage(actor, target, action.throwPower ?? 1);
+        results.push({ type: 'damage', targetUid: target.uid, amount: target.applyDamage(amount), element: action.element });
+      });
+      break;
+    }
     case 'status': {
       targets.forEach((target) => {
         const appliedStatuses = [];
@@ -342,8 +360,17 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
         // status resistance, just like FF5's own accuracy formula.
         const guaranteedByWeakness = action.element && equipmentElementState(target, action.element) === 'weak';
         (action.statuses ?? []).forEach((status) => {
+          if (status === 'ko' && action.heavyImmune && target.heavy) {
+            resistedStatuses.push(status);
+            return;
+          }
+          const guaranteedBuff = target.isEnemy === actor.isEnemy && POSITIVE_STATUSES.includes(status);
           if (action.toggle && target.statuses.has(status)) target.removeStatus(status);
-          else if (target.addStatus?.(status, { duration: action.duration, chance: guaranteedByWeakness ? 1 : (action.statusChance ?? action.chance ?? 0.85), guaranteed: guaranteedByWeakness })) appliedStatuses.push(status);
+          else if (target.addStatus?.(status, {
+            duration: action.duration,
+            chance: guaranteedByWeakness || guaranteedBuff ? 1 : (action.statusChance ?? action.chance ?? 0.85),
+            guaranteed: guaranteedByWeakness || guaranteedBuff,
+          })) appliedStatuses.push(status);
           else resistedStatuses.push(status);
         });
         if (action.imageHits) target.imageHits = Math.max(target.imageHits, action.imageHits);
@@ -419,6 +446,22 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
       results.push({ type: 'effect', targetUid: targets[0]?.uid ?? actor.uid, label: action.label });
       break;
     }
+    case 'summon-odin': {
+      targets.forEach((target) => {
+        if (!target.heavy && !target.statusImmunities?.has('ko')) {
+          const applied = target.addStatus?.('ko', { chance: 1, guaranteed: true });
+          results.push({ type: applied ? 'status' : 'status-resist', targetUid: target.uid, statuses: ['ko'] });
+          return;
+        }
+        const amount = target.applyDamage(resolveMagicDamage(actor, target, action));
+        results.push({ type: 'damage', targetUid: target.uid, amount, element: null, odinFallback: 'gungnir' });
+      });
+      break;
+    }
+    case 'special-command': {
+      results.push({ type: 'effect', targetUid: targets[0]?.uid ?? actor.uid, label: action.name ?? action.specialCommand });
+      break;
+    }
     case 'defend': {
       actor.defending = true;
       results.push({ type: 'defend', targetUid: actor.uid });
@@ -449,7 +492,8 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
     case 'imbue': {
       actor.spendMp(Math.ceil((action.mpCost ?? 0) * (actor.mpCostMultiplier ?? 1)));
       actor.weaponElement = action.element;
-      results.push({ type: 'buff', targetUid: actor.uid, label: `${action.element}属性付与` });
+      actor.weaponSpellblade = { element: action.element ?? null, tier: action.spellbladeTier ?? 1, effect: action.spellbladeEffect ?? null, name: action.name };
+      results.push({ type: 'buff', targetUid: actor.uid, label: `${action.name ?? '魔法剣'}を付与` });
       break;
     }
     default:

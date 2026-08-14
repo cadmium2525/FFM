@@ -55,6 +55,7 @@ assert.equal(immune.addStatus('confuse', { force: false, random: () => 0 }), fal
 
 // Every spell action descriptor executes through the resolver without throwing.
 for (const record of battleReadyMagic) {
+  assert.ok(record.battle.operations.every((operation) => operation.op !== 'effect.script'), `${record.id} still uses a generic spell placeholder`);
   const actor = makeUnit({ id: `caster-${record.id}` });
   const ally = makeUnit({ id: 'ally', hp: 0, isEnemy: false });
   const enemy = makeUnit({ id: 'enemy', isEnemy: true, heavy: false });
@@ -65,6 +66,26 @@ for (const record of battleReadyMagic) {
 }
 
 const magicAction = (id) => magicRecordToAction(battleReadyMagic.find((record) => record.id === id));
+
+const semanticCaster = makeUnit({ level: 50, magic: 60 });
+const semanticAlly = makeUnit({ hp: 900 });
+const semanticEnemy = makeUnit({ isEnemy: true, heavy: true, statusImmunities: ['ko', 'petrify'] });
+const hpBeforeProtect = semanticAlly.hp;
+resolveAction({ actor: semanticCaster, action: { kind: magicAction('magic_protect').actionKind, ...magicAction('magic_protect') }, targets: [semanticAlly], battleUnits: [semanticCaster, semanticAlly, semanticEnemy] });
+assert.equal(semanticAlly.hp, hpBeforeProtect, 'Protect must not deal accidental damage');
+assert.equal(semanticAlly.statuses.has('protect'), true);
+const hpBeforeRegen = semanticAlly.hp;
+resolveAction({ actor: semanticCaster, action: { kind: magicAction('magic_regen').actionKind, ...magicAction('magic_regen') }, targets: [semanticAlly], battleUnits: [semanticCaster, semanticAlly, semanticEnemy] });
+assert.equal(semanticAlly.hp, hpBeforeRegen, 'Regen must not include an accidental instant heal');
+assert.equal(semanticAlly.statuses.has('regen'), true);
+const fallen = makeUnit({ hp: 0 });
+resolveAction({ actor: semanticCaster, action: { kind: magicAction('magic_arise').actionKind, ...magicAction('magic_arise') }, targets: [fallen], battleUnits: [semanticCaster, fallen] });
+assert.equal(fallen.hp, fallen.maxHp, 'Arise must revive at full HP');
+const hammerTarget = makeUnit({ isEnemy: true, mp: 200, maxMp: 200, heavy: false });
+resolveAction({ actor: semanticCaster, action: { kind: magicAction('magic_magic_hammer').actionKind, ...magicAction('magic_magic_hammer') }, targets: [hammerTarget], battleUnits: [semanticCaster, hammerTarget] });
+assert.equal(hammerTarget.mp, 100, 'Magic Hammer was applied more than once');
+const odinResults = resolveAction({ actor: semanticCaster, action: { kind: magicAction('magic_odin').actionKind, ...magicAction('magic_odin') }, targets: [semanticEnemy], battleUnits: [semanticCaster, semanticEnemy] });
+assert.ok(odinResults.some((result) => result.type === 'damage' && result.odinFallback === 'gungnir'), 'Odin must use Gungnir when instant death is invalid');
 
 // Former scripted placeholders now have explicit runtime semantics or a visible boss restriction.
 const speedAction = magicAction('magic_speed');
