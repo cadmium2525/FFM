@@ -127,7 +127,6 @@ export function calculateEquipmentBonuses(equipment = {}) {
     if (special === 'sap_sleep_immunity_mag_minus_5') result.magic -= 5;
     if (special === 'physical_evasion') result.evasion += 25;
     if (special === 'evasion_and_protect') result.evasion += 10;
-    if (special === 'auto_haste_and_status_immunity' || special === 'first_strike_and_haste') result.agility += 10;
     if (special === 'auto_image') result.initialImageHits = Math.max(result.initialImageHits, 1);
     if (special === 'half_mp_cost') result.mpCostMultiplier = 0.5;
     if (special === 'first_strike_and_haste') result.initialCtBonus = Math.max(result.initialCtBonus, 700);
@@ -147,10 +146,9 @@ export function calculateEquipmentBonuses(equipment = {}) {
       ['poison', 'blind', 'silence', 'toad', 'mini', 'petrify', 'confuse', 'paralyze', 'sleep', 'old'].forEach((status) => addUnique(result.statusImmunities, status));
       result.statusResistance = 0.35;
     }
-    if (special === 'auto_haste_and_status_immunity' || special === 'first_strike_and_haste') addUnique(result.autoStatuses, 'haste');
+    if (special === 'auto_haste_and_status_immunity') addUnique(result.autoStatuses, 'haste');
     if (special === 'auto_reflect') addUnique(result.autoStatuses, 'reflect');
     if (special === 'auto_regen_vit_plus_5') addUnique(result.autoStatuses, 'regen');
-    if (special === 'evasion_and_protect') addUnique(result.autoStatuses, 'protect');
     if (special === 'auto_doom') addUnique(result.autoStatuses, 'doom');
     if (special === 'petrify_immunity_and_magic_block') result.magicEvasion += 20;
 

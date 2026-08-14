@@ -14,6 +14,7 @@ export const bossData = [
     //   回避95 / 魔力199 / 魔法防御150）。
     maxHp: 55530,
     maxMp: 60700,
+    level: 119,
     atk: 115,
     def: 190,
     magic: 199,
@@ -51,6 +52,7 @@ export const bossData = [
     id: 'boss2',
     name: 'ガルーダ',
     maxHp: 4200,
+    level: 30,
     atk: 65,
     def: 20,
     magic: 15,
@@ -64,6 +66,7 @@ export const bossData = [
     id: 'boss3',
     name: '邪竜バハムート',
     maxHp: 6000,
+    level: 50,
     atk: 80,
     def: 30,
     magic: 40,

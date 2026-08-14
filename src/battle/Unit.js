@@ -47,6 +47,7 @@ export class Unit {
     this.physicalBarrier = Math.max(0, config.physicalBarrier ?? 0);
     this.statuses = new Set(config.statuses ?? []);
     this.statusDurations = new Map(config.statusDurations ?? []);
+    this.permanentStatuses = new Set(config.permanentStatuses ?? []);
     this.statusImmunities = new Set([
       ...(config.statusImmunities ?? []),
       ...(this.equipmentEffects.statusImmunities ?? []),
@@ -80,7 +81,18 @@ export class Unit {
 
     this.magicList = config.magicList ?? [];
 
-    (this.equipmentEffects.autoStatuses ?? []).forEach((status) => this.addStatus(status, { force: true }));
+    // Equipment auto-buffs are battle-long traits, not ordinary timed spells.
+    // Auto Doom is the deliberate exception: the Cursed Ring starts a real
+    // countdown. Mirage Vest is represented separately by imageHits, so its
+    // charges can be consumed and restored exactly by suspend saves.
+    (this.equipmentEffects.autoStatuses ?? []).forEach((status) => this.addStatus(status, {
+      force: true,
+      permanent: status !== 'doom',
+    }));
+    this.permanentStatuses.forEach((status) => {
+      this.statuses.add(status);
+      this.statusDurations.delete(status);
+    });
   }
 
   isAlive() {
@@ -122,7 +134,14 @@ export class Unit {
     return canUseMagic(this);
   }
 
-  addStatus(status, { duration, chance = 1, force = false, guaranteed = false, random = Math.random } = {}) {
+  addStatus(status, {
+    duration,
+    chance = 1,
+    force = false,
+    guaranteed = false,
+    permanent = false,
+    random = Math.random,
+  } = {}) {
     if (!status || (!force && this.statusImmunities.has(status))) return false;
     if (!force && !guaranteed && random() > Math.max(0.05, chance * (1 - this.statusResistance))) return false;
     if (status === 'ko') {
@@ -132,14 +151,21 @@ export class Unit {
     }
     if (!this.isAlive()) return false;
     this.statuses.add(status);
+    if (permanent) this.permanentStatuses.add(status);
+    if (this.permanentStatuses.has(status)) {
+      this.statusDurations.delete(status);
+      return true;
+    }
     const turns = duration ?? DEFAULT_STATUS_DURATIONS[status];
     if (turns) this.statusDurations.set(status, turns);
     return true;
   }
 
-  removeStatus(status) {
+  removeStatus(status, { force = false } = {}) {
+    if (this.permanentStatuses.has(status) && !force) return false;
     const removed = this.statuses.delete(status);
     this.statusDurations.delete(status);
+    if (force) this.permanentStatuses.delete(status);
     return removed;
   }
 

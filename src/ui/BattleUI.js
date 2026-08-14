@@ -144,6 +144,10 @@ export class BattleUI {
     });
 
     eventBus.on('battle:stateUpdate', ({ party, boss, preview }) => {
+      if (!this.battleManager?.awaitingPlayerInput) {
+        this.closeActionWindows();
+        this.renderCommandListIdle();
+      }
       this.renderEnemyField(boss);
       this.renderPartyField(party, this.battleManager?.currentActor);
       this.renderCtbList(preview);
@@ -156,7 +160,14 @@ export class BattleUI {
       this.renderCommandListForActor(actor);
     });
 
+    eventBus.on('battle:actionStarted', () => {
+      this.closeActionWindows();
+      this.renderCommandListIdle();
+    });
+
     eventBus.on('battle:actionResolved', ({ actor, action, results }) => {
+      this.closeActionWindows();
+      this.renderCommandListIdle();
       if (actor?.isEnemy) this.clearTelegraph();
       this.playActionPulse(actor, results, action);
       const effectDescriptor = action?.id || action?.sourceId || action?.visualId || action?.name
@@ -243,14 +254,20 @@ export class BattleUI {
 
     wrap.appendChild(sprite);
     const intel = document.createElement('div');
+    const intelState = this.battleManager?.bossIntel ?? {};
     const weakness = boss.weakness ? (elementNames[boss.weakness] ?? boss.weakness) : '解析不能';
+    const hpLine = intelState.hp ? `<span>HP ${boss.hp} / ${boss.maxHp}</span>` : '';
+    const weakLine = intelState.weakness ? `<span class="enemy-intel-weak">WEAK：${weakness}</span>` : '';
+    const levelLine = intelState.level ? `<span class="enemy-intel-detail">LEVEL ${boss.level}</span>` : '';
+    const unknownLine = intelState.hp ? '' : '<span class="enemy-intel-unknown">DATA UNANALYZED</span>';
     intel.className = 'enemy-intel';
     intel.innerHTML = `
       <span class="target-tag">TARGET</span>
       <strong>${boss.name}</strong>
-      <span>HP ${boss.hp} / ${boss.maxHp}</span>
-      <span class="enemy-intel-weak">WEAK：${weakness}</span>
-      <span class="enemy-intel-phase">PHASE ${this.currentPhase}</span>
+      ${unknownLine}
+      ${hpLine}
+      ${weakLine}
+      ${levelLine}
     `;
     wrap.appendChild(intel);
     this.enemyFieldEl.appendChild(wrap);
@@ -337,12 +354,22 @@ export class BattleUI {
   }
 
   renderEnemyInfo(boss) {
+    const intelState = this.battleManager?.bossIntel ?? {};
+    if (!intelState.hp) {
+      this.enemyInfoEl.innerHTML = '<div class="enemy-info-unknown">未解析<br><small>ライブラ・しらべる・みやぶるで確認</small></div>';
+      return;
+    }
     const weakText = boss.weakness ? (elementNames[boss.weakness] ?? boss.weakness) : '不明';
+    const weaknessLine = intelState.weakness ? `<div>弱点: ${weakText}</div>` : '';
+    const levelLine = intelState.level ? `<div>レベル: ${boss.level}</div>` : '';
+    const statusLine = intelState.status
+      ? `<div>状態: ${[...(boss.statuses ?? [])].map((status) => statusNamesJa[status] ?? status).join('・') || 'なし'}</div>`
+      : '';
     this.enemyInfoEl.innerHTML = `
       <div>${boss.name}</div>
       <div>HP: ${boss.hp} / ${boss.maxHp}</div>
       <div class="stat-bar-track"><div class="stat-bar-fill hp ${hpBarClass(boss)}" style="width:${Math.max(0, boss.hpRatio() * 100)}%"></div></div>
-      <div>弱点: ${weakText}</div>
+      ${levelLine}${weaknessLine}${statusLine}
     `;
   }
 
@@ -375,7 +402,7 @@ export class BattleUI {
 
   renderCommandListIdle() {
     this.commandHeadingEl.textContent = 'コマンド';
-    this.commandListEl.innerHTML = '<li style="opacity:.6">・・・待機中・・・</li>';
+    this.commandListEl.innerHTML = '';
   }
 
   renderCommandListForActor(actor) {

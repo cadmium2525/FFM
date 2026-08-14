@@ -318,7 +318,17 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
       break;
     }
     case 'scan': {
-      targets.forEach((target) => results.push({ type: 'scan', targetUid: target.uid, hp: target.hp, maxHp: target.maxHp, weakness: target.weakness }));
+      targets.forEach((target) => results.push({
+        type: 'scan',
+        targetUid: target.uid,
+        hp: target.hp,
+        maxHp: target.maxHp,
+        mp: target.mp,
+        maxMp: target.maxMp,
+        level: target.level,
+        weakness: target.weakness,
+        statuses: [...(target.statuses ?? [])],
+      }));
       break;
     }
     case 'status': {

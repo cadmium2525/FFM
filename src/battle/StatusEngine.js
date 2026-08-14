@@ -101,6 +101,10 @@ export function statusTick(unit) {
 
   const expired = [];
   unit.statusDurations?.forEach((remaining, status) => {
+    if (unit.permanentStatuses?.has(status)) {
+      unit.statusDurations.delete(status);
+      return;
+    }
     const next = remaining - 1;
     if (next <= 0) expired.push(status);
     else unit.statusDurations.set(status, next);

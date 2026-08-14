@@ -1432,6 +1432,25 @@ body {
   font-weight: 700;
 }
 
+.enemy-intel-unknown,
+.enemy-intel-detail {
+  grid-column: 2;
+  color: rgba(207, 226, 255, .68);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .09em;
+}
+
+.enemy-info-unknown {
+  color: rgba(220, 235, 255, .72);
+  line-height: 1.55;
+}
+
+.enemy-info-unknown small {
+  font-size: 8px;
+  opacity: .78;
+}
+
 #battle-screen .sprite-placeholder.boss > .label {
   display: none;
 }

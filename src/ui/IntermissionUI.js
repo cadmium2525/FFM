@@ -6,7 +6,6 @@ import {
   findEquipment,
 } from '../battle/EquipmentSystem.js';
 import { isAbilityImplemented } from '../data/abilityData.js';
-import { elementNames } from '../data/bossData.js';
 import { saveUnitLoadout } from '../core/Loadout.js';
 import { getAbilityListPosition, saveAbilityListPosition } from '../core/AbilityPosition.js';
 
@@ -193,7 +192,7 @@ export class IntermissionUI {
     this.partyUnits = partyUnits;
     this.currentIndex = 0;
     this.nextBossLabelEl.textContent = nextBoss
-      ? `つぎのボス: ${nextBoss.name} （弱点: ${nextBoss.weakness ? (elementNames[nextBoss.weakness] ?? nextBoss.weakness) : '不明'}）`
+      ? `つぎのボス: ${nextBoss.name}`
       : '';
 
     const showNav = partyUnits.length > 1;

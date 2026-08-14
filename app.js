@@ -176,7 +176,6 @@ function storageOrNull(storage) {
     return null;
   }
 }
-
 function readSuspendSave(storage) {
   try {
     const target = storageOrNull(storage);
@@ -228,7 +227,6 @@ function loadPositions() {
     return {};
   }
 }
-
 const positions = loadPositions();
 
 function keyFor(unitId, surface, abilityId = '') {
@@ -354,6 +352,10 @@ function statusTick(unit) {
 
   const expired = [];
   unit.statusDurations?.forEach((remaining, status) => {
+    if (unit.permanentStatuses?.has(status)) {
+      unit.statusDurations.delete(status);
+      return;
+    }
     const next = remaining - 1;
     if (next <= 0) expired.push(status);
     else unit.statusDurations.set(status, next);
@@ -413,6 +415,7 @@ class Unit {
     this.physicalBarrier = Math.max(0, config.physicalBarrier ?? 0);
     this.statuses = new Set(config.statuses ?? []);
     this.statusDurations = new Map(config.statusDurations ?? []);
+    this.permanentStatuses = new Set(config.permanentStatuses ?? []);
     this.statusImmunities = new Set([
       ...(config.statusImmunities ?? []),
       ...(this.equipmentEffects.statusImmunities ?? []),
@@ -446,7 +449,18 @@ class Unit {
 
     this.magicList = config.magicList ?? [];
 
-    (this.equipmentEffects.autoStatuses ?? []).forEach((status) => this.addStatus(status, { force: true }));
+    // Equipment auto-buffs are battle-long traits, not ordinary timed spells.
+    // Auto Doom is the deliberate exception: the Cursed Ring starts a real
+    // countdown. Mirage Vest is represented separately by imageHits, so its
+    // charges can be consumed and restored exactly by suspend saves.
+    (this.equipmentEffects.autoStatuses ?? []).forEach((status) => this.addStatus(status, {
+      force: true,
+      permanent: status !== 'doom',
+    }));
+    this.permanentStatuses.forEach((status) => {
+      this.statuses.add(status);
+      this.statusDurations.delete(status);
+    });
   }
 
   isAlive() {
@@ -488,7 +502,14 @@ class Unit {
     return canUseMagic(this);
   }
 
-  addStatus(status, { duration, chance = 1, force = false, guaranteed = false, random = Math.random } = {}) {
+  addStatus(status, {
+    duration,
+    chance = 1,
+    force = false,
+    guaranteed = false,
+    permanent = false,
+    random = Math.random,
+  } = {}) {
     if (!status || (!force && this.statusImmunities.has(status))) return false;
     if (!force && !guaranteed && random() > Math.max(0.05, chance * (1 - this.statusResistance))) return false;
     if (status === 'ko') {
@@ -498,14 +519,21 @@ class Unit {
     }
     if (!this.isAlive()) return false;
     this.statuses.add(status);
+    if (permanent) this.permanentStatuses.add(status);
+    if (this.permanentStatuses.has(status)) {
+      this.statusDurations.delete(status);
+      return true;
+    }
     const turns = duration ?? DEFAULT_STATUS_DURATIONS[status];
     if (turns) this.statusDurations.set(status, turns);
     return true;
   }
 
-  removeStatus(status) {
+  removeStatus(status, { force = false } = {}) {
+    if (this.permanentStatuses.has(status) && !force) return false;
     const removed = this.statuses.delete(status);
     this.statusDurations.delete(status);
+    if (force) this.permanentStatuses.delete(status);
     return removed;
   }
 
@@ -841,7 +869,17 @@ function resolveAction({ actor, action, targets, battleUnits = targets }) {
       break;
     }
     case 'scan': {
-      targets.forEach((target) => results.push({ type: 'scan', targetUid: target.uid, hp: target.hp, maxHp: target.maxHp, weakness: target.weakness }));
+      targets.forEach((target) => results.push({
+        type: 'scan',
+        targetUid: target.uid,
+        hp: target.hp,
+        maxHp: target.maxHp,
+        mp: target.mp,
+        maxMp: target.maxMp,
+        level: target.level,
+        weakness: target.weakness,
+        statuses: [...(target.statuses ?? [])],
+      }));
       break;
     }
     case 'status': {
@@ -1593,7 +1631,6 @@ function calculateEquipmentBonuses(equipment = {}) {
     if (special === 'sap_sleep_immunity_mag_minus_5') result.magic -= 5;
     if (special === 'physical_evasion') result.evasion += 25;
     if (special === 'evasion_and_protect') result.evasion += 10;
-    if (special === 'auto_haste_and_status_immunity' || special === 'first_strike_and_haste') result.agility += 10;
     if (special === 'auto_image') result.initialImageHits = Math.max(result.initialImageHits, 1);
     if (special === 'half_mp_cost') result.mpCostMultiplier = 0.5;
     if (special === 'first_strike_and_haste') result.initialCtBonus = Math.max(result.initialCtBonus, 700);
@@ -1613,10 +1650,9 @@ function calculateEquipmentBonuses(equipment = {}) {
       ['poison', 'blind', 'silence', 'toad', 'mini', 'petrify', 'confuse', 'paralyze', 'sleep', 'old'].forEach((status) => addUnique(result.statusImmunities, status));
       result.statusResistance = 0.35;
     }
-    if (special === 'auto_haste_and_status_immunity' || special === 'first_strike_and_haste') addUnique(result.autoStatuses, 'haste');
+    if (special === 'auto_haste_and_status_immunity') addUnique(result.autoStatuses, 'haste');
     if (special === 'auto_reflect') addUnique(result.autoStatuses, 'reflect');
     if (special === 'auto_regen_vit_plus_5') addUnique(result.autoStatuses, 'regen');
-    if (special === 'evasion_and_protect') addUnique(result.autoStatuses, 'protect');
     if (special === 'auto_doom') addUnique(result.autoStatuses, 'doom');
     if (special === 'petrify_immunity_and_magic_block') result.magicEvasion += 20;
 
@@ -2431,6 +2467,7 @@ const bossData = [
     //   回避95 / 魔力199 / 魔法防御150）。
     maxHp: 55530,
     maxMp: 60700,
+    level: 119,
     atk: 115,
     def: 190,
     magic: 199,
@@ -2468,6 +2505,7 @@ const bossData = [
     id: 'boss2',
     name: 'ガルーダ',
     maxHp: 4200,
+    level: 30,
     atk: 65,
     def: 20,
     magic: 15,
@@ -2481,6 +2519,7 @@ const bossData = [
     id: 'boss3',
     name: '邪竜バハムート',
     maxHp: 6000,
+    level: 50,
     atk: 80,
     def: 30,
     magic: 40,
@@ -3346,6 +3385,7 @@ function snapshotUnit(unit) {
     physicalBarrier: unit.physicalBarrier,
     statuses: [...unit.statuses],
     statusDurations: [...unit.statusDurations],
+    permanentStatuses: [...(unit.permanentStatuses ?? [])],
     statusImmunities: [...unit.statusImmunities],
     statusResistance: unit.statusResistance,
     level: unit.level,
@@ -3374,6 +3414,7 @@ function restoreUnit(snapshot) {
     equipment: cloneSerializable(snapshot.equipment, {}),
     statuses: snapshot.statuses ?? [],
     statusDurations: snapshot.statusDurations ?? [],
+    permanentStatuses: snapshot.permanentStatuses ?? [],
     statusImmunities: snapshot.statusImmunities ?? [],
     creatureTypes: snapshot.creatureTypes ?? [],
     magicList: cloneSerializable(snapshot.magicList, []),
@@ -3403,6 +3444,7 @@ class BattleManager {
     this.logJournal = [];
     this.pendingEnemyActions = new Map();
     this.bossPhase = 0;
+    this.bossIntel = { hp: false, mp: false, weakness: false, status: false, level: false };
     this.presentationHoldUntil = 0;
     this.itemStockProvider = options.getItemStock ?? (() => Infinity);
     this.itemConsumer = options.consumeItem ?? (() => true);
@@ -3417,6 +3459,7 @@ class BattleManager {
       currentActorIndex,
       awaitingPlayerInput: this.awaitingPlayerInput,
       bossPhase: this.bossPhase,
+      bossIntel: cloneSerializable(this.bossIntel, {}),
       logSequence: this.logSequence,
       logJournal: cloneSerializable(this.logJournal, []),
       pendingEnemyActions: [...this.pendingEnemyActions.entries()].map(([uid, action]) => [
@@ -3436,6 +3479,13 @@ class BattleManager {
     manager.currentActor = units[snapshot.currentActorIndex] ?? null;
     manager.awaitingPlayerInput = Boolean(snapshot.awaitingPlayerInput && manager.currentActor && !manager.currentActor.isEnemy);
     manager.bossPhase = Math.max(0, Number(snapshot.bossPhase) || 0);
+    manager.bossIntel = {
+      hp: Boolean(snapshot.bossIntel?.hp),
+      mp: Boolean(snapshot.bossIntel?.mp),
+      weakness: Boolean(snapshot.bossIntel?.weakness),
+      status: Boolean(snapshot.bossIntel?.status),
+      level: Boolean(snapshot.bossIntel?.level),
+    };
     manager.logSequence = Math.max(0, Number(snapshot.logSequence) || 0);
     manager.logJournal = Array.isArray(snapshot.logJournal) ? snapshot.logJournal.slice(-80) : [];
     manager.pendingEnemyActions = new Map((snapshot.pendingEnemyActions ?? []).flatMap(([index, action]) => {
@@ -3508,6 +3558,23 @@ class BattleManager {
     });
   }
 
+  revealBossIntel(action, target = this.boss) {
+    if (!target || target.uid !== this.boss.uid || action?.kind !== 'scan') return false;
+    const actionKey = [action.id, action.sourceId, action.visualId, action.name]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    const detailed = /libra|scan|ライブラ|みやぶる/.test(actionKey);
+    this.bossIntel.hp = true;
+    if (detailed) {
+      this.bossIntel.mp = true;
+      this.bossIntel.weakness = true;
+      this.bossIntel.status = true;
+      this.bossIntel.level = true;
+    }
+    return true;
+  }
+
   start() {
     this.log(`${this.boss.name} が あらわれた！`);
     this.broadcastState();
@@ -3563,6 +3630,7 @@ class BattleManager {
     // by anyone else, independently of the frozen unit's own (frozen) CTB.
     this.units.forEach((unit) => {
       if (unit === actor || !unit.isAlive() || !unit.statuses.has('stop')) return;
+      if (unit.permanentStatuses?.has('stop')) return;
       const remaining = (unit.statusDurations.get('stop') ?? 1) - 1;
       if (remaining <= 0) {
         unit.removeStatus('stop');
@@ -3621,6 +3689,7 @@ class BattleManager {
     const candidates = this.units.filter((unit) => unit.isAlive() && !unit.removedFromBattle && (confused || unit.isEnemy !== actor.isEnemy));
     const target = candidates[Math.floor(Math.random() * candidates.length)];
     if (!target) return this.scheduleNextTurn();
+    eventBus.emit('battle:actionStarted', { actor, action: { kind: 'physical-attack', name: 'こうげき' } });
     this.log(`${actor.name} は${confused ? '混乱して' : '狂戦士となり'} ${target.name} を攻撃！`);
     const results = resolveAction({ actor, action: { kind: 'physical-attack' }, targets: [target], battleUnits: this.units });
     eventBus.emit('battle:actionResolved', { actor, action: { kind: 'physical-attack', name: 'こうげき' }, results });
@@ -3675,6 +3744,7 @@ class BattleManager {
     const targets = chosenAction.target === 'all_enemies'
       ? this.party.filter((unit) => unit.isAlive())
       : [target];
+    eventBus.emit('battle:actionStarted', { actor, action: chosenAction });
     this.log(`${actor.name} の ${chosenAction.name ?? 'こうげき'}！`, chosenAction.power >= 2 ? 'danger' : 'action');
     const results = chosenAction.kind === 'physical-attack' && targets.length > 1
       ? targets.flatMap((eachTarget) => resolveAction({ actor, action: chosenAction, targets: [eachTarget], battleUnits: this.units }))
@@ -3856,11 +3926,16 @@ class BattleManager {
       this.log(`${choice.item.name ?? 'アイテム'} の使用に失敗した。`);
       return false;
     }
+    eventBus.emit('battle:actionStarted', { actor, action });
     const results = resolveAction({ actor, action, targets, battleUnits: this.units });
     if (results.some((result) => ['insufficient-mp', 'sealed', 'invalid-target', 'unavailable'].includes(result.type))) {
       this.log('その行動は実行できない。');
+      eventBus.emit('battle:playerTurn', { actor });
       return false;
     }
+    results
+      .filter((result) => result.type === 'scan')
+      .forEach((result) => this.revealBossIntel(action, this.units.find((unit) => unit.uid === result.targetUid)));
     results.forEach((r) => {
       const affectedUnit = this.units.find((unit) => unit.uid === r.targetUid) ?? targets[0] ?? actor;
       if (r.type === 'damage') {
@@ -3886,7 +3961,12 @@ class BattleManager {
       } else if (r.type === 'revive') {
         this.log(`${affectedUnit.name} は HP${r.amount} で復帰した！`);
       } else if (r.type === 'scan') {
-        this.log(`${affectedUnit.name} HP ${r.hp}/${r.maxHp}　弱点 ${r.weakness ?? 'なし'}`);
+        if (this.bossIntel.weakness) {
+          const activeStatuses = statusLabels(r.statuses) || 'なし';
+          this.log(`${affectedUnit.name} Lv${r.level} HP ${r.hp}/${r.maxHp} MP ${r.mp}/${r.maxMp}　弱点 ${r.weakness ?? 'なし'}　状態 ${activeStatuses}`);
+        } else {
+          this.log(`${affectedUnit.name} HP ${r.hp}/${r.maxHp}`);
+        }
       } else if (r.type === 'status') {
         this.log(`${affectedUnit.name} に ${statusLabels(r.statuses) || '特殊効果'}。`);
       } else if (r.type === 'status-resist') {
@@ -4504,6 +4584,10 @@ class BattleUI {
     });
 
     eventBus.on('battle:stateUpdate', ({ party, boss, preview }) => {
+      if (!this.battleManager?.awaitingPlayerInput) {
+        this.closeActionWindows();
+        this.renderCommandListIdle();
+      }
       this.renderEnemyField(boss);
       this.renderPartyField(party, this.battleManager?.currentActor);
       this.renderCtbList(preview);
@@ -4516,7 +4600,14 @@ class BattleUI {
       this.renderCommandListForActor(actor);
     });
 
+    eventBus.on('battle:actionStarted', () => {
+      this.closeActionWindows();
+      this.renderCommandListIdle();
+    });
+
     eventBus.on('battle:actionResolved', ({ actor, action, results }) => {
+      this.closeActionWindows();
+      this.renderCommandListIdle();
       if (actor?.isEnemy) this.clearTelegraph();
       this.playActionPulse(actor, results, action);
       const effectDescriptor = action?.id || action?.sourceId || action?.visualId || action?.name
@@ -4603,14 +4694,20 @@ class BattleUI {
 
     wrap.appendChild(sprite);
     const intel = document.createElement('div');
+    const intelState = this.battleManager?.bossIntel ?? {};
     const weakness = boss.weakness ? (elementNames[boss.weakness] ?? boss.weakness) : '解析不能';
+    const hpLine = intelState.hp ? `<span>HP ${boss.hp} / ${boss.maxHp}</span>` : '';
+    const weakLine = intelState.weakness ? `<span class="enemy-intel-weak">WEAK：${weakness}</span>` : '';
+    const levelLine = intelState.level ? `<span class="enemy-intel-detail">LEVEL ${boss.level}</span>` : '';
+    const unknownLine = intelState.hp ? '' : '<span class="enemy-intel-unknown">DATA UNANALYZED</span>';
     intel.className = 'enemy-intel';
     intel.innerHTML = `
       <span class="target-tag">TARGET</span>
       <strong>${boss.name}</strong>
-      <span>HP ${boss.hp} / ${boss.maxHp}</span>
-      <span class="enemy-intel-weak">WEAK：${weakness}</span>
-      <span class="enemy-intel-phase">PHASE ${this.currentPhase}</span>
+      ${unknownLine}
+      ${hpLine}
+      ${weakLine}
+      ${levelLine}
     `;
     wrap.appendChild(intel);
     this.enemyFieldEl.appendChild(wrap);
@@ -4697,12 +4794,22 @@ class BattleUI {
   }
 
   renderEnemyInfo(boss) {
+    const intelState = this.battleManager?.bossIntel ?? {};
+    if (!intelState.hp) {
+      this.enemyInfoEl.innerHTML = '<div class="enemy-info-unknown">未解析<br><small>ライブラ・しらべる・みやぶるで確認</small></div>';
+      return;
+    }
     const weakText = boss.weakness ? (elementNames[boss.weakness] ?? boss.weakness) : '不明';
+    const weaknessLine = intelState.weakness ? `<div>弱点: ${weakText}</div>` : '';
+    const levelLine = intelState.level ? `<div>レベル: ${boss.level}</div>` : '';
+    const statusLine = intelState.status
+      ? `<div>状態: ${[...(boss.statuses ?? [])].map((status) => statusNamesJa[status] ?? status).join('・') || 'なし'}</div>`
+      : '';
     this.enemyInfoEl.innerHTML = `
       <div>${boss.name}</div>
       <div>HP: ${boss.hp} / ${boss.maxHp}</div>
       <div class="stat-bar-track"><div class="stat-bar-fill hp ${hpBarClass(boss)}" style="width:${Math.max(0, boss.hpRatio() * 100)}%"></div></div>
-      <div>弱点: ${weakText}</div>
+      ${levelLine}${weaknessLine}${statusLine}
     `;
   }
 
@@ -4735,7 +4842,7 @@ class BattleUI {
 
   renderCommandListIdle() {
     this.commandHeadingEl.textContent = 'コマンド';
-    this.commandListEl.innerHTML = '<li style="opacity:.6">・・・待機中・・・</li>';
+    this.commandListEl.innerHTML = '';
   }
 
   renderCommandListForActor(actor) {
@@ -5429,7 +5536,7 @@ class IntermissionUI {
     this.partyUnits = partyUnits;
     this.currentIndex = 0;
     this.nextBossLabelEl.textContent = nextBoss
-      ? `つぎのボス: ${nextBoss.name} （弱点: ${nextBoss.weakness ? (elementNames[nextBoss.weakness] ?? nextBoss.weakness) : '不明'}）`
+      ? `つぎのボス: ${nextBoss.name}`
       : '';
 
     const showNav = partyUnits.length > 1;
@@ -6356,6 +6463,7 @@ function buildBossUnit(bossConfig) {
     isEnemy: true,
     maxHp: bossConfig.maxHp,
     maxMp: bossConfig.maxMp,
+    level: bossConfig.level,
     atk: bossConfig.atk,
     def: bossConfig.def,
     magicDef: bossConfig.magicDef,

@@ -718,6 +718,7 @@ function buildBossUnit(bossConfig) {
     isEnemy: true,
     maxHp: bossConfig.maxHp,
     maxMp: bossConfig.maxMp,
+    level: bossConfig.level,
     atk: bossConfig.atk,
     def: bossConfig.def,
     magicDef: bossConfig.magicDef,
