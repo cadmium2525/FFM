@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>FFM VFX Review</title>
+  <style>
+    *{box-sizing:border-box} body{margin:0;background:#050814;color:#eef7ff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    header{position:sticky;top:0;z-index:2;padding:14px 16px;background:#08142eef;border-bottom:1px solid #5bdcff66}
+    h1{margin:0;font-size:16px} p{margin:5px 0 0;color:#9bb8d7;font-size:12px}
+    main{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:8px;max-width:760px;margin:auto}
+    figure{position:relative;margin:0;overflow:hidden;border:1px solid #5074a9;border-radius:10px;background:radial-gradient(circle at 50% 52%,#12345a,#061126 67%);aspect-ratio:4/5}
+    canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
+    figcaption{position:absolute;left:7px;bottom:7px;padding:3px 7px;border:1px solid #7fe8ff66;border-radius:999px;background:#020817d9;font-size:10px;letter-spacing:.04em}
+    output{display:block;margin-top:5px;color:#8fffc8;font-size:11px}.warning{color:#ffca6c}
+    .review-controls{display:flex;gap:12px;align-items:center;margin-top:7px;font-size:11px}.review-controls input{accent-color:#61eaff}
+    .inspector{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px;max-width:760px;margin:auto;border-bottom:1px solid #42658c}
+    .inspection-stage{position:relative;overflow:hidden;border:1px solid #5074a9;border-radius:10px;background:#061126;aspect-ratio:4/5}.inspection-stage canvas{width:100%;height:100%}
+    .reference-missing{display:grid;place-items:center;padding:14px;color:#ffca6c;border:1px dashed #8d6c42;border-radius:10px;text-align:center;font-size:11px}
+    .scrubber{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font-size:11px}.scrubber input{width:100%;accent-color:#61eaff}
+    body.blind figcaption{visibility:hidden}body.blind #selected-name{filter:blur(6px);user-select:none}
+    @media(max-width:649px){.inspection-stage{grid-column:1/-1;width:min(100%,320px);justify-self:center}.reference-missing{min-height:74px}}
+    @media(min-width:650px){main{grid-template-columns:repeat(4,minmax(0,1fr))}.inspector{grid-template-columns:1fr 1fr 1fr}.scrubber{grid-column:1/-1}}
+  </style>
+</head>
+<body>
+  <header><h1>原作比較用・着弾フレーム一覧</h1><p><span class="warning">暫定作画</span> — SFC原作キャプチャとのgolden比較前。名称を隠して輪郭だけでも識別できるかを確認する。</p><output id="perf">描画負荷を測定中…</output><label class="review-controls"><input id="blind" type="checkbox" checked>技名を隠すブラインド判定</label></header>
+  <section class="inspector">
+    <div class="inspection-stage"><canvas id="scrub-canvas" width="320" height="400"></canvas></div>
+    <div class="reference-missing">原作キャプチャ未登録<br>referenceCaptureId = null</div>
+    <div class="reference-missing">Golden差分は参照登録後に表示</div>
+    <label class="scrubber"><b id="selected-name">ファイア</b><input id="frame" type="range" min="0" value="0"><span id="frame-label">0f</span></label>
+  </section>
+  <main id="grid"></main>
+  <script type="module">
+    const cacheKey=new URLSearchParams(location.search).get('v')||'dev';
+    const { SPELL_PIXEL_SEQUENCES, renderSpellCanvasFrame }=await import(`../src/ui/SpellCanvasRenderer.js?v=${encodeURIComponent(cacheKey)}`);
+    const labels = {fire:'ファイア',fira:'ファイラ',firaga:'ファイガ',blizzard:'ブリザド',blizzara:'ブリザラ',blizzaga:'ブリザガ',thunder:'サンダー',thundara:'サンダラ',thundaga:'サンダガ',cure:'ケアル',cura:'ケアルラ',curaga:'ケアルガ',haste:'ヘイスト',slow:'スロウ',stop:'ストップ',comet:'コメット',meteor:'メテオ',missile:'ミサイル',flare:'フレア','level-5-death':'レベル5デス',shiva:'シヴァ',ifrit:'イフリート',bahamut:'バハムート'};
+    const grid = document.querySelector('#grid');
+    const scrubCanvas=document.querySelector('#scrub-canvas');const frameInput=document.querySelector('#frame');const frameLabel=document.querySelector('#frame-label');const selectedName=document.querySelector('#selected-name');
+    let selectedId=new URLSearchParams(location.search).get('scene')||'fire';
+    if(!SPELL_PIXEL_SEQUENCES[selectedId])selectedId='fire';
+    const showFrame=()=>{const spec=SPELL_PIXEL_SEQUENCES[selectedId];const frame=Number(frameInput.value);renderSpellCanvasFrame(scrubCanvas,selectedId,frame);frameLabel.textContent=`${frame}f / ${spec.frameCount-1}f`;selectedName.textContent=labels[selectedId]??selectedId;};
+    const selectScene=(id)=>{selectedId=id;const spec=SPELL_PIXEL_SEQUENCES[id];frameInput.max=String(spec.frameCount-1);frameInput.value=String(spec.impactFrames[0]);showFrame();};
+    frameInput.addEventListener('input',showFrame);document.querySelector('#blind').addEventListener('change',(event)=>document.body.classList.toggle('blind',event.target.checked));document.body.classList.add('blind');
+    window.__vfxReviewApi = { SPELL_PIXEL_SEQUENCES, renderSpellCanvasFrame };
+    Object.entries(SPELL_PIXEL_SEQUENCES).forEach(([id,spec])=>{
+      const figure=document.createElement('figure'); const canvas=document.createElement('canvas'); canvas.width=320;canvas.height=400;
+      const caption=document.createElement('figcaption'); caption.textContent=`${labels[id]??id} / impact ${spec.impactFrames[0]}f`;
+      figure.append(canvas,caption);figure.addEventListener('click',()=>selectScene(id));grid.append(figure);renderSpellCanvasFrame(canvas,id,spec.impactFrames[0]);
+    });
+    selectScene(selectedId);
+    requestAnimationFrame(()=>{
+      const scratch=document.createElement('canvas');scratch.width=320;scratch.height=400;
+      let frames=0;const started=performance.now();
+      Object.entries(SPELL_PIXEL_SEQUENCES).forEach(([id,spec])=>{for(let frame=0;frame<spec.frameCount;frame+=1){renderSpellCanvasFrame(scratch,id,frame);frames+=1;}});
+      const elapsed=performance.now()-started;
+      document.querySelector('#perf').textContent=`この端末: ${frames} frames / ${elapsed.toFixed(1)}ms / 平均 ${(elapsed/frames).toFixed(3)}ms per draw`;
+    });
+  </script>
+</body>
+</html>

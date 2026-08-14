@@ -481,6 +481,75 @@
 .target-friendly-enemy .fx-spell-art { left: var(--fx-target-x, 24%); }
 .target-multi .fx-spell-art { width: 154px; height: 154px; }
 
+/*
+ * Fixed-resolution, spell-specific pixel sequences.  These scenes replace the
+ * generic path/core/orbit/particle skeleton one spell at a time.  Keeping the
+ * 320-wide stage uses the live battlefield aspect ratio; spell drawings use a
+ * 192px scratch surface before deterministic palette/alpha quantization.
+ */
+.effect-sequence.has-pixel-choreography > .fx-title,
+.effect-sequence.has-pixel-choreography > .fx-backdrop,
+.effect-sequence.has-pixel-choreography > .fx-caster-sigil,
+.effect-sequence.has-pixel-choreography > .fx-path,
+.effect-sequence.has-pixel-choreography > .fx-core,
+.effect-sequence.has-pixel-choreography > .fx-orbit,
+.effect-sequence.has-pixel-choreography > .fx-impact,
+.effect-sequence.has-pixel-choreography > .fx-glyph,
+.effect-sequence.has-pixel-choreography > .fx-particles,
+.effect-sequence.has-pixel-choreography > .fx-command-layer,
+.effect-sequence.has-pixel-choreography > .fx-summon-emblem,
+.effect-sequence.has-pixel-choreography > .fx-song-wave {
+  display: none;
+}
+
+.battle-effects.pixel-choreography-active::before,
+.battle-effects.pixel-choreography-active::after {
+  display: none !important;
+  animation: none !important;
+}
+
+.effect-sequence.has-pixel-choreography.direction-player {
+  transform: none;
+}
+
+.fx-spell-art.spell-scene {
+  inset: 0;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  transform: none;
+  animation: spell-pixel-stage var(--fx-duration) steps(18, end) both;
+  isolation: isolate;
+}
+
+.target-multi .fx-spell-art.spell-scene,
+.school-summon .fx-spell-art.spell-scene {
+  width: 100%;
+  height: 100%;
+}
+
+.fx-spell-art.spell-scene::before,
+.fx-spell-art.spell-scene::after {
+  display: none;
+}
+
+.spell-pixel-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 1;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  transform: translateZ(0);
+}
+
+@keyframes spell-pixel-stage {
+  0% { opacity: 0; }
+  5%, 91% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 .fx-spell-art::before,
 .fx-spell-art::after,
 .fx-spell-art > i {
@@ -729,6 +798,9 @@
 @media (max-width: 430px) {
   .fx-spell-art { width: 88px; height: 88px; }
   .target-multi .fx-spell-art { width: 116px; height: 116px; }
+  .fx-spell-art.spell-scene { width: 100%; height: 100%; }
+  .target-multi .fx-spell-art.spell-scene,
+  .school-summon .fx-spell-art.spell-scene { width: 100%; height: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -736,6 +808,7 @@
   .fx-spell-art::before,
   .fx-spell-art::after,
   .fx-spell-art > i { animation-duration: 380ms !important; animation-iteration-count: 1 !important; }
+  .fx-spell-art.spell-scene { animation-duration: var(--fx-duration) !important; }
 }
 
 @keyframes fx-reduced {

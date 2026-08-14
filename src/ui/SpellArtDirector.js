@@ -6,6 +6,48 @@
  */
 const art = (motif, motion, layers, rotation, spread, scale, impact, variant) => Object.freeze({ motif, motion, layers, rotation, spread, scale, impact, variant });
 
+const beat = (role, pieces = 1) => Object.freeze({ role, pieces });
+const scene = (id, beats, scale = 1) => Object.freeze({ id, beats: Object.freeze(beats), scale });
+
+/**
+ * The first production storyboard set.  Unlike SPELL_ART_BLUEPRINTS, which
+ * supplies a compact fallback grammar for every database entry, these scenes
+ * produce spell-specific layer trees.  A scene is intentionally named after
+ * one spell only: tiers do not share a DOM skeleton, so Fire/Fira/Firaga (and
+ * the other commonly compared spells) cannot collapse into a palette swap.
+ */
+export const SPELL_CHOREOGRAPHIES = Object.freeze({
+  magic_fire: scene('fire', [beat('kindle', 3), beat('flame-tongue', 4), beat('ember-burst', 5)], .86),
+  magic_fira: scene('fira', [beat('fire-ring', 3), beat('spiral-flame', 6), beat('cross-burst', 4)], 1.02),
+  magic_firaga: scene('firaga', [beat('inferno-gate', 2), beat('fire-pillar', 7), beat('crown-burst', 6)], 1.2),
+
+  magic_blizzard: scene('blizzard', [beat('cold-mist', 3), beat('ice-needle', 5), beat('frost-crack', 4)], .88),
+  magic_blizzara: scene('blizzara', [beat('freeze-ring', 2), beat('ice-spire', 6), beat('shatter', 6)], 1.04),
+  magic_blizzaga: scene('blizzaga', [beat('snow-veil', 4), beat('glacier-crown', 7), beat('avalanche-shard', 7)], 1.2),
+
+  magic_thunder: scene('thunder', [beat('storm-mark', 1), beat('bolt', 2), beat('spark', 5)], .88),
+  magic_thundara: scene('thundara', [beat('charge-ring', 2), beat('forked-bolt', 4), beat('arc-node', 6)], 1.04),
+  magic_thundaga: scene('thundaga', [beat('storm-cage', 3), beat('thunder-column', 6), beat('ground-arc', 7)], 1.2),
+
+  magic_cure: scene('cure', [beat('life-seed', 3), beat('heal-drop', 4), beat('soft-cross', 1)], .88),
+  magic_cura: scene('cura', [beat('double-halo', 2), beat('life-petal', 6), beat('heal-cross', 1)], 1.04),
+  magic_curaga: scene('curaga', [beat('sanctuary-ring', 3), beat('life-column', 6), beat('radiant-cross', 1)], 1.18),
+
+  magic_haste: scene('haste', [beat('clock-face', 1), beat('fast-hand', 2), beat('speed-trail', 6)], 1),
+  magic_slow: scene('slow', [beat('clock-face', 1), beat('slow-hand', 2), beat('time-weight', 4)], .96),
+  magic_stop: scene('stop', [beat('clock-face', 1), beat('frozen-hand', 2), beat('glass-lock', 4)], 1.08),
+  magic_comet: scene('comet', [beat('comet-tail', 4), beat('comet-core', 1), beat('crater', 5)], 1.02),
+  magic_meteor: scene('meteor', [beat('sky-rift', 2), beat('meteor-body', 5), beat('meteor-crater', 7)], 1.24),
+
+  magic_missile: scene('missile', [beat('target-ring', 3), beat('lock-tick', 4), beat('missile-body', 1), beat('quarter-break', 4)], 1.02),
+  magic_flare: scene('flare', [beat('star-dust', 6), beat('gravity-core', 3), beat('white-nova', 8)], 1.25),
+  magic_level_5_death: scene('level-5-death', [beat('level-five', 5), beat('death-gate', 2), beat('soul-cut', 5)], 1.18),
+
+  magic_shiva: scene('shiva', [beat('diamond-seal', 3), beat('ice-curtain', 6), beat('diamond-dust', 8)], 1.26),
+  magic_ifrit: scene('ifrit', [beat('horn-seal', 2), beat('hellfire-wave', 7), beat('hellfire-column', 6)], 1.28),
+  magic_bahamut: scene('bahamut', [beat('dragon-seal', 3), beat('mega-charge', 5), beat('mega-beam', 6)], 1.34),
+});
+
 export const SPELL_ART_BLUEPRINTS = Object.freeze({
   magic_cure: art('life-rune', 'rise', 4, 18, 56, 0.84, 'soft-ring', 1),
   magic_libra: art('scan-grid', 'sweep', 5, 0, 68, 0.92, 'reticle', 2),
@@ -120,20 +162,50 @@ export function spellArtForAction(action = {}) {
   return null;
 }
 
+export function spellChoreographyForAction(action = {}) {
+  const ids = [action.visualId, action.sourceId, action.id]
+    .filter(Boolean)
+    .flatMap((id) => [String(id), String(id).replace(/^dual-/, '').replace(/^call-/, '')]);
+  const id = ids.find((candidate) => SPELL_CHOREOGRAPHIES[candidate]);
+  return id ? SPELL_CHOREOGRAPHIES[id] : null;
+}
+
+export function spellChoreographyDuration(action = {}) {
+  const choreography = spellChoreographyForAction(action);
+  const spec = choreography ? SPELL_PIXEL_SEQUENCES[choreography.id] : null;
+  return spec ? Math.round((spec.frameCount / spec.fps) * 1000) : null;
+}
+
 export function createSpellArtElement(action = {}) {
   const blueprint = spellArtForAction(action);
   if (!blueprint || typeof document === 'undefined') return null;
+  const choreography = spellChoreographyForAction(action);
   const layer = document.createElement('span');
-  layer.className = `fx-spell-art spell-motif-${blueprint.motif} spell-motion-${blueprint.motion} spell-impact-${blueprint.impact}`;
+  layer.className = [
+    'fx-spell-art',
+    `spell-motif-${blueprint.motif}`,
+    `spell-motion-${blueprint.motion}`,
+    `spell-impact-${blueprint.impact}`,
+    choreography ? 'spell-scene' : '',
+    choreography ? `scene-${choreography.id}` : '',
+  ].filter(Boolean).join(' ');
   layer.dataset.spellArt = String(action.sourceId ?? action.id ?? 'spell');
+  if (choreography) layer.dataset.spellScene = choreography.id;
   layer.style.setProperty('--spell-layers', String(blueprint.layers));
   layer.style.setProperty('--spell-rotation', `${blueprint.rotation}deg`);
   layer.style.setProperty('--spell-rotation-negative', `${-blueprint.rotation}deg`);
   layer.style.setProperty('--spell-rotation-quarter-negative', `${-blueprint.rotation * 0.25}deg`);
   layer.style.setProperty('--spell-spread', `${blueprint.spread}px`);
-  layer.style.setProperty('--spell-scale', String(blueprint.scale));
-  layer.style.setProperty('--spell-scale-pop', String(blueprint.scale * 1.16));
+  const sceneScale = choreography?.scale ?? blueprint.scale;
+  layer.style.setProperty('--spell-scale', String(sceneScale));
+  layer.style.setProperty('--spell-scale-pop', String(sceneScale * 1.16));
   layer.style.setProperty('--spell-variant', String(blueprint.variant));
+  if (choreography) {
+    const canvas = createSpellCanvas(choreography.id);
+    if (canvas) layer.appendChild(canvas);
+    layer.setAttribute('aria-hidden', 'true');
+    return layer;
+  }
   for (let index = 0; index < blueprint.layers; index += 1) {
     const piece = document.createElement('i');
     piece.style.setProperty('--spell-piece', String(index));
@@ -148,3 +220,4 @@ export function createSpellArtElement(action = {}) {
   layer.setAttribute('aria-hidden', 'true');
   return layer;
 }
+import { createSpellCanvas, SPELL_PIXEL_SEQUENCES } from './SpellCanvasRenderer.js';

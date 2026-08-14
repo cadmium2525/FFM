@@ -7,6 +7,9 @@ export const bossData = [
     id: 'omega',
     name: 'オメガ',
     spriteUrl: 'assets/images/bosses/omega.webp',
+    // omega.webp has transparent padding on its right/top. VFX must target
+    // the visible machine body rather than the rectangular image box.
+    effectAnchor: { x: -15, y: 3 },
     // ---- FF5原作「オメガ」の完全再現 ----
     // 出典: src/database/ff5BossTechniques.js の 'bossref_omega_boss'
     // （ステータス・属性耐性・状態異常耐性は FF5ピクセルリマスター版の

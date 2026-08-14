@@ -734,6 +734,7 @@ function buildBossUnit(bossConfig) {
     id: bossConfig.id,
     name: bossConfig.name,
     spriteUrl: bossConfig.spriteUrl,
+    effectAnchor: bossConfig.effectAnchor,
     isEnemy: true,
     maxHp: bossConfig.maxHp,
     maxMp: bossConfig.maxMp,

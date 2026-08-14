@@ -7,7 +7,8 @@ import { getBattleEffectDescriptor, resolveBattleEffectDescriptor } from './Batt
 import { MessageWindow } from './MessageWindow.js';
 import { STATUS_LABELS_JA } from '../battle/StatusEngine.js';
 import { getAbilityListPosition, saveAbilityListPosition } from '../core/AbilityPosition.js';
-import { createSpellArtElement } from './SpellArtDirector.js';
+import { createSpellArtElement, spellChoreographyDuration } from './SpellArtDirector.js';
+import { SPELL_PIXEL_SEQUENCES, playSpellCanvas } from './SpellCanvasRenderer.js';
 
 function hpBarClass(unit) {
   const ratio = unit.hpRatio();
@@ -45,6 +46,52 @@ function effectDuration(descriptor) {
   // Keep the signature frame readable while suppressing the full travel and
   // camera choreography. 160ms was effectively invisible on mobile capture.
   return reducedMotion ? 360 : Math.min(1600, Math.max(620, descriptor.duration));
+}
+
+function clonePresentationValue(value) {
+  if (value instanceof Set) return new Set([...value].map(clonePresentationValue));
+  if (value instanceof Map) return new Map([...value].map(([key, entry]) => [key, clonePresentationValue(entry)]));
+  if (Array.isArray(value)) return value.map(clonePresentationValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, clonePresentationValue(entry)]));
+  }
+  return value;
+}
+
+export function splitPresentationResults(results = [], impactCount = 1, resultPolicy = 'final-impact') {
+  const count = Math.max(1, Math.floor(Number(impactCount) || 1));
+  const groups = Array.from({ length: count }, () => []);
+  if (resultPolicy !== 'split-amount') {
+    groups[count - 1] = results.map((result) => ({ ...result }));
+    return groups;
+  }
+  results.forEach((result) => {
+    const amount = Math.max(0, Math.floor(Number(result.amount) || 0));
+    const canSplit = count > 1 && amount > 0 && [
+      'damage', 'status-damage', 'heal', 'status-heal', 'absorb', 'mp-damage', 'mp-heal',
+    ].includes(result.type);
+    if (!canSplit) {
+      groups[count - 1].push({ ...result });
+      return;
+    }
+    const base = Math.floor(amount / count);
+    const remainder = amount % count;
+    for (let index = 0; index < count; index += 1) {
+      // Put remainder points on the final cues so even tiny totals retain the
+      // immutable after-state receipt at the last visible impact.
+      const splitAmount = base + (index >= count - remainder ? 1 : 0);
+      if (splitAmount <= 0) continue;
+      groups[index].push({
+        ...result,
+        presentationPatch: index === count - 1 ? result.presentationPatch : undefined,
+        amount: splitAmount,
+        hits: 1,
+        presentationImpactIndex: index,
+        presentationImpactCount: count,
+      });
+    }
+  });
+  return groups;
 }
 
 export function battleEffectRenderProfile(actionOrDescriptor = {}, results = []) {
@@ -120,6 +167,11 @@ export class BattleUI {
     this.activeEffect = null;
     this.effectTimer = null;
     this.activeEffectDeadline = 0;
+    this.deferredBattleState = null;
+    this.presentationUnits = new Map();
+    this.activeEffectCleanup = null;
+    this.bufferActionLogs = false;
+    this.bufferedActionLogs = [];
     this.activeAbilityMenu = null;
     this.pendingDualcast = null;
 
@@ -130,6 +182,7 @@ export class BattleUI {
 
   attachBattle(battleManager) {
     this.battleManager = battleManager;
+    this.syncPresentationFromManager();
     this.messageWindow.reset();
     this.clearTelegraph();
     this.currentPhase = 1;
@@ -141,20 +194,25 @@ export class BattleUI {
 
   _bindStaticEvents() {
     eventBus.on('battle:log', (text) => {
+      if (this.bufferActionLogs) {
+        this.bufferedActionLogs.push(text);
+        return;
+      }
       const pendingMs = this.messageWindow.show(text);
       this.battleManager?.deferNextTurnFor(pendingMs + 40);
     });
 
-    eventBus.on('battle:stateUpdate', ({ party, boss, preview }) => {
+    eventBus.on('battle:stateUpdate', (state) => {
       if (!this.battleManager?.awaitingPlayerInput) {
         this.closeActionWindows();
         this.renderCommandListIdle();
       }
-      this.renderEnemyField(boss);
-      this.renderPartyField(party, this.battleManager?.currentActor);
-      this.renderCtbList(preview);
-      this.renderEnemyInfo(boss);
-      this.renderPartyStatus(party);
+      if (this.activeEffect || this.effectQueue.length) {
+        this.deferredBattleState = state;
+        return;
+      }
+      this.syncPresentationFromUnits([...(state.party ?? []), state.boss].filter(Boolean));
+      this.renderBattleState(state);
     });
 
     eventBus.on('battle:playerTurn', ({ actor }) => {
@@ -165,38 +223,45 @@ export class BattleUI {
     eventBus.on('battle:actionStarted', () => {
       this.closeActionWindows();
       this.renderCommandListIdle();
+      this.bufferActionLogs = true;
+      this.bufferedActionLogs = [];
+    });
+
+    eventBus.on('battle:actionCancelled', () => {
+      const logs = this.bufferActionLogs ? [...this.bufferedActionLogs] : [];
+      this.bufferActionLogs = false;
+      this.bufferedActionLogs = [];
+      this.presentActionLogs(logs);
     });
 
     eventBus.on('battle:actionResolved', ({ actor, action, results }) => {
       this.closeActionWindows();
       this.renderCommandListIdle();
       if (actor?.isEnemy) this.clearTelegraph();
+      const presentationLogs = this.bufferActionLogs ? [...this.bufferedActionLogs] : [];
+      this.bufferActionLogs = false;
+      this.bufferedActionLogs = [];
       const dualVisuals = action?.specialCommand === 'dualcast'
         ? (action.dualSpells ?? []).map((spell, castIndex) => ({
           action: spell,
           results: results.filter((result) => result.castIndex === castIndex),
         })).filter((cast) => cast.results.length)
         : [];
+      let queuedVisual = false;
       if (dualVisuals.length) {
         // Dualcast is two real casts, not one generic "dual magic" flash.
         // Queue both spell-specific drawings in the order selected.
-        dualVisuals.forEach((cast) => this.playActionPulse(actor, cast.results, cast.action));
+        dualVisuals.forEach((cast, index) => {
+          const logs = index === dualVisuals.length - 1 ? presentationLogs : [];
+          queuedVisual = this.playActionPulse(actor, cast.results, cast.action, logs) || queuedVisual;
+        });
       } else {
-        this.playActionPulse(actor, results, action);
+        queuedVisual = this.playActionPulse(actor, results, action, presentationLogs);
       }
-      const reactionAction = dualVisuals[0]?.action ?? action;
-      const effectDescriptor = reactionAction?.id || reactionAction?.sourceId || reactionAction?.visualId || reactionAction?.name
-        ? resolveBattleEffectDescriptor(reactionAction)
-        : null;
-      results.forEach((r) => {
-        const el = document.querySelector(`[data-uid="${r.targetUid}"]`);
-        if (el) {
-          el.classList.add('flash');
-          setTimeout(() => el.classList.remove('flash'), 440);
-          if (effectDescriptor) this.playTargetReaction(el, effectDescriptor, r);
-        }
-        this.showCombatResult(r, el);
-      });
+      if (!queuedVisual) {
+        this.presentActionResults(results, dualVisuals[0]?.action ?? action);
+        this.presentActionLogs(presentationLogs);
+      }
     });
 
     eventBus.on('battle:telegraph', ({ actor, hint }) => {
@@ -571,6 +636,8 @@ export class BattleUI {
 
   promptTarget(entry, kind, actor) {
     const anyTarget = entry.target === 'single-any';
+    const switchableEnemyTarget = entry.target === 'one_or_all_enemies';
+    const switchableAllyTarget = entry.target === 'one_or_all_allies';
     const allyTarget = ['single-ally', 'one_ally', 'one_or_all_allies', 'all_allies', 'party', 'enemy_group_and_ally'].includes(entry.target);
     const automaticTarget = ['all_allies', 'all_enemies', 'all_units', 'party', 'enemy_group', 'enemy_and_party', 'random_unit'].includes(entry.target);
     const reviveAction = ['resurrection', 'reincarnate', 'phoenix-down', 'kiss-of-life'].includes(entry.mixEffect)
@@ -594,16 +661,25 @@ export class BattleUI {
       return;
     }
 
-    if (targets.length === 1) {
+    if (targets.length === 1 && !switchableEnemyTarget && !switchableAllyTarget) {
       this.finalizeAction(entry, kind, targets[0]);
       return;
     }
 
     this.targetListEl.innerHTML = '';
+    if (switchableEnemyTarget || switchableAllyTarget) {
+      const allTargetId = switchableEnemyTarget ? 'all_enemies' : 'all_allies';
+      const allLabel = switchableEnemyTarget ? '敵全体' : '味方全体';
+      const allChoice = this.createChoice(`${allLabel}（全体化）`, () => {
+        this.closeTargetWindow();
+        this.finalizeAction({ ...entry, target: allTargetId, visualTargetMode: 'all' }, kind, targets[0]);
+      });
+      this.targetListEl.appendChild(allChoice);
+    }
     targets.forEach((t) => {
       const li = this.createChoice(`${t.name} (HP ${t.hp}/${t.maxHp})`, () => {
         this.closeTargetWindow();
-        this.finalizeAction(entry, kind, t);
+        this.finalizeAction({ ...entry, target: switchableEnemyTarget ? 'one_enemy' : switchableAllyTarget ? 'one_ally' : entry.target, visualTargetMode: 'single' }, kind, t);
       });
       this.targetListEl.appendChild(li);
     });
@@ -657,7 +733,7 @@ export class BattleUI {
     }
   }
 
-  playActionPulse(actor, results, action = {}) {
+  playActionPulse(actor, results, action = {}, presentationLogs = []) {
     const actorEl = actor ? document.querySelector(`[data-uid="${actor.uid}"]`) : null;
     actorEl?.classList.add('action-pulse');
     setTimeout(() => actorEl?.classList.remove('action-pulse'), 420);
@@ -676,7 +752,7 @@ export class BattleUI {
       setTimeout(() => actorEl.classList.remove('casting-effect', castClass), 720);
     }
 
-    if (!this.battleFieldEl || results.length === 0) return;
+    if (!this.battleFieldEl || results.length === 0) return false;
     const element = action?.element ?? results.find((result) => result.element)?.element;
     const visualType = results.some((result) => ['heal', 'mp-heal', 'revive', 'absorb'].includes(result.type))
       ? 'cast-heal'
@@ -692,15 +768,144 @@ export class BattleUI {
         if (element) this.effectsEl?.classList.remove(`element-${safeToken(element)}`);
       }, 650);
       if (action?.id || action?.sourceId || action?.visualId || action?.name) {
-        this.enqueueBattleEffect(actor, action, results, visualType);
+        this.enqueueBattleEffect(actor, action, results, visualType, presentationLogs);
+        return true;
       }
     }
-    this.battleFieldEl.classList.remove('impacting');
-    // Restarting the class in a new frame keeps rapid multi-hit actions legible.
+    return false;
+  }
+
+  presentationSnapshot(unit) {
+    const snapshot = Object.fromEntries(Object.entries(unit ?? {}).map(([key, value]) => [key, clonePresentationValue(value)]));
+    snapshot.uid = unit?.uid;
+    snapshot.statuses = new Set(unit?.statuses ?? []);
+    snapshot.statusDurations = new Map(unit?.statusDurations ?? []);
+    snapshot.permanentStatuses = new Set(unit?.permanentStatuses ?? []);
+    snapshot.statusImmunities = new Set(unit?.statusImmunities ?? []);
+    snapshot.temporaryNullElements = new Set(unit?.temporaryNullElements ?? []);
+    snapshot.creatureTypes = new Set(unit?.creatureTypes ?? []);
+    return snapshot;
+  }
+
+  syncPresentationFromUnits(units = []) {
+    units.forEach((unit) => {
+      if (unit?.uid) this.presentationUnits.set(unit.uid, this.presentationSnapshot(unit));
+    });
+  }
+
+  syncPresentationFromManager() {
+    if (!this.battleManager) return;
+    this.syncPresentationFromUnits(this.battleManager.units ?? [...(this.battleManager.party ?? []), this.battleManager.boss]);
+  }
+
+  presentationUnit(unit) {
+    const state = this.presentationUnits.get(unit?.uid);
+    if (!unit || !state) return unit;
+    const clone = Object.assign(Object.create(Object.getPrototypeOf(unit)), state);
+    clone.statuses = new Set(state.statuses ?? []);
+    clone.statusDurations = new Map(state.statusDurations ?? []);
+    return clone;
+  }
+
+  applyPresentationMpCost(actor, action = {}) {
+    const state = this.presentationUnits.get(actor?.uid);
+    if (!state || !(action.mpCost > 0)) return;
+    const cost = Math.ceil(action.mpCost * (actor.mpCostMultiplier ?? 1));
+    state.mp = Math.max(0, state.mp - cost);
+  }
+
+  applyPresentationResults(results = []) {
+    results.forEach((result) => {
+      const unit = this.battleManager?.units.find((candidate) => candidate.uid === result.targetUid);
+      if (!unit) return;
+      let state = this.presentationUnits.get(unit.uid);
+      if (!state) {
+        state = this.presentationSnapshot(unit);
+        this.presentationUnits.set(unit.uid, state);
+      }
+      const amount = Math.max(0, Number(result.amount) || 0);
+      if (['damage', 'status-damage'].includes(result.type)) state.hp = Math.max(0, state.hp - amount);
+      if (['heal', 'status-heal', 'absorb'].includes(result.type)) state.hp = Math.min(state.maxHp, state.hp + amount);
+      if (result.type === 'mp-damage') state.mp = Math.max(0, state.mp - amount);
+      if (result.type === 'mp-heal') state.mp = Math.min(state.maxMp, state.mp + amount);
+      if (result.type === 'revive') {
+        state.hp = Math.max(1, Math.min(state.maxHp, amount));
+        state.statuses.delete('ko');
+      }
+      if (result.type === 'status') {
+        (result.statuses ?? []).forEach((status) => {
+          state.statuses.add(status);
+          if (status === 'ko') state.hp = 0;
+        });
+      }
+      if (result.type === 'cleanse' || result.type === 'status-expired') {
+        (result.statuses ?? [result.status]).filter(Boolean).forEach((status) => {
+          state.statuses.delete(status);
+          state.statusDurations.delete(status);
+        });
+      }
+      if (result.type === 'removed') state.removedFromBattle = true;
+      if (result.presentationPatch) {
+        this.presentationUnits.set(unit.uid, this.presentationSnapshot(result.presentationPatch));
+      }
+    });
+  }
+
+  currentPresentationState() {
+    return this.deferredBattleState ?? {
+      party: this.battleManager?.party ?? [],
+      boss: this.battleManager?.boss,
+      preview: this.battleManager?.ctb?.previewQueue?.(8) ?? [],
+    };
+  }
+
+  renderBattleState({ party, boss, preview } = {}) {
+    if (!party || !boss) return;
+    const displayBoss = this.presentationUnit(boss);
+    const displayParty = party.map((unit) => this.presentationUnit(unit));
+    const currentActor = displayParty.find((unit) => unit.uid === this.battleManager?.currentActor?.uid) ?? this.presentationUnit(this.battleManager?.currentActor);
+    this.renderEnemyField(displayBoss);
+    this.renderPartyField(displayParty, currentActor);
+    this.renderCtbList(preview ?? []);
+    this.renderEnemyInfo(displayBoss);
+    this.renderPartyStatus(displayParty);
+  }
+
+  flushDeferredBattleState() {
+    if (!this.deferredBattleState) return;
+    const state = this.deferredBattleState;
+    this.deferredBattleState = null;
+    this.renderBattleState(state);
+  }
+
+  presentActionResults(results = [], actionOrDescriptor = null) {
+    const descriptor = actionOrDescriptor?.family && actionOrDescriptor?.phaseTopology
+      ? actionOrDescriptor
+      : actionOrDescriptor?.id || actionOrDescriptor?.sourceId || actionOrDescriptor?.visualId || actionOrDescriptor?.name
+        ? resolveBattleEffectDescriptor(actionOrDescriptor)
+        : null;
+    this.applyPresentationResults(results);
+    this.renderBattleState(this.currentPresentationState());
+    this.battleFieldEl?.classList.remove('impacting');
     requestAnimationFrame(() => {
       this.battleFieldEl?.classList.add('impacting');
       setTimeout(() => this.battleFieldEl?.classList.remove('impacting'), 320);
     });
+    results.forEach((result) => {
+      const targetEl = document.querySelector(`[data-uid="${result.targetUid}"]`);
+      if (targetEl) {
+        targetEl.classList.add('flash');
+        setTimeout(() => targetEl.classList.remove('flash'), 440);
+        if (descriptor) this.playTargetReaction(targetEl, descriptor, result);
+      }
+      this.showCombatResult(result, targetEl);
+    });
+  }
+
+  presentActionLogs(logs = []) {
+    let pendingMs = 0;
+    logs.forEach((text) => { pendingMs = Math.max(pendingMs, this.messageWindow.show(text)); });
+    if (pendingMs > 0) this.battleManager?.deferNextTurnFor(pendingMs + 40);
   }
 
   playTargetReaction(targetEl, descriptor, result = {}) {
@@ -720,21 +925,26 @@ export class BattleUI {
     });
   }
 
-  enqueueBattleEffect(actor, action = {}, results = [], visualType = 'cast-impact') {
-    if (!this.effectsEl) return;
+  enqueueBattleEffect(actor, action = {}, results = [], visualType = 'cast-impact', presentationLogs = []) {
+    if (!this.effectsEl) return false;
     const descriptor = resolveBattleEffectDescriptor(action);
-    const duration = effectDuration(descriptor);
-    this.effectQueue.push({ actor, action, results, visualType, descriptor, duration });
+    const pixelDuration = spellChoreographyDuration(action);
+    const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const duration = pixelDuration ? (reducedMotion ? 360 : pixelDuration) : effectDuration(descriptor);
+    this.effectQueue.push({ actor, action, results, visualType, descriptor, duration, presentationLogs });
     const remainingMs = Math.max(0, this.activeEffectDeadline - Date.now());
     const queuedMs = this.effectQueue.reduce((total, queued) => total + queued.duration + 180, 0);
     this.battleManager?.deferNextTurnFor(remainingMs + queuedMs + 20);
     this.runNextBattleEffect();
+    return true;
   }
 
   runNextBattleEffect() {
     if (this.activeEffect || !this.effectsEl || this.effectQueue.length === 0) return;
     const effectState = this.effectQueue.shift();
-    const { actor, action, results, visualType, descriptor, duration } = effectState;
+    const { actor, action, results, visualType, descriptor, duration, presentationLogs = [] } = effectState;
+    this.applyPresentationMpCost(actor, action);
+    this.renderBattleState(this.currentPresentationState());
     const commandDescriptor = getBattleEffectDescriptor(action.commandSourceId);
     const sequence = document.createElement('div');
     const profile = battleEffectRenderProfile(action, results);
@@ -781,22 +991,38 @@ export class BattleUI {
     sequence.style.setProperty('--fx-arc-bias', String(descriptor.trajectory.arcBias));
     sequence.style.setProperty('--fx-turns', String(descriptor.trajectory.turns));
 
-    if (friendlyTarget) {
+    let pixelSceneContext = { targetX: actor?.isEnemy ? 78 : 24, targetY: 48 };
+    {
       const stageRect = this.effectsEl.getBoundingClientRect();
       const pointFor = (unit) => {
         const element = unit ? document.querySelector(`[data-uid="${unit.uid}"]`) : null;
         const rect = element?.getBoundingClientRect();
         return rect ? {
-          x: ((rect.left - stageRect.left + rect.width / 2) / Math.max(1, stageRect.width)) * 100,
-          y: ((rect.top - stageRect.top + rect.height / 2) / Math.max(1, stageRect.height)) * 100,
+          x: ((rect.left - stageRect.left + rect.width / 2) / Math.max(1, stageRect.width)) * 100 + Number(unit.effectAnchor?.x ?? 0),
+          y: ((rect.top - stageRect.top + rect.height / 2) / Math.max(1, stageRect.height)) * 100 + Number(unit.effectAnchor?.y ?? 0),
         } : null;
       };
-      const casterPoint = pointFor(actor) ?? { x: actor?.isEnemy ? 24 : 78, y: 42 };
+      const casterPointRaw = pointFor(actor) ?? { x: actor?.isEnemy ? 24 : 78, y: 42 };
       const targetPoints = targetUnits.map(pointFor).filter(Boolean);
-      const targetPoint = targetPoints.length ? {
+      const targetPointRaw = targetPoints.length ? {
         x: targetPoints.reduce((sum, point) => sum + point.x, 0) / targetPoints.length,
         y: targetPoints.reduce((sum, point) => sum + point.y, 0) / targetPoints.length,
-      } : casterPoint;
+      } : (hostileTargets.length ? { x: actor?.isEnemy ? 78 : 24, y: 48 } : casterPointRaw);
+      pixelSceneContext = {
+        casterX: casterPointRaw.x,
+        casterY: casterPointRaw.y,
+        targetX: targetPointRaw.x,
+        targetY: targetPointRaw.y,
+        targets: targetPoints,
+        targetMode: mixedTarget ? 'mixed' : multiTarget ? 'multi' : friendlyTarget ? 'friendly' : 'hostile',
+        actorIsEnemy: Boolean(actor?.isEnemy),
+      };
+      // direction-player mirrors the complete sequence so its logical
+      // coordinates must be mirrored as well. This keeps pixel spell art on
+      // the actual target instead of reflecting it back onto the caster.
+      const mirrored = directionClass === 'direction-player';
+      const casterPoint = { x: mirrored ? 100 - casterPointRaw.x : casterPointRaw.x, y: casterPointRaw.y };
+      const targetPoint = { x: mirrored ? 100 - targetPointRaw.x : targetPointRaw.x, y: targetPointRaw.y };
       sequence.style.setProperty('--fx-caster-x', `${casterPoint.x.toFixed(2)}%`);
       sequence.style.setProperty('--fx-caster-y', `${casterPoint.y.toFixed(2)}%`);
       sequence.style.setProperty('--fx-target-x', `${targetPoint.x.toFixed(2)}%`);
@@ -861,6 +1087,9 @@ export class BattleUI {
       songWave.setAttribute('aria-hidden', 'true');
     }
     const spellArt = createSpellArtElement(action);
+    const dedicatedPixelScene = Boolean(spellArt?.dataset.spellScene && spellArt.querySelector('.spell-pixel-canvas'));
+    const pixelSequence = dedicatedPixelScene ? SPELL_PIXEL_SEQUENCES[spellArt.dataset.spellScene] : null;
+    if (dedicatedPixelScene) sequence.classList.add('has-pixel-choreography');
     const particles = document.createElement('span');
     particles.className = 'fx-particles';
     const reservedAnimatedNodes = Number(Boolean(commandLayer)) + Number(Boolean(summonEmblem)) + Number(Boolean(songWave)) + Number(Boolean(mixedImpact)) + Number(Boolean(spellArt));
@@ -883,16 +1112,53 @@ export class BattleUI {
     if (songWave) sequence.appendChild(songWave);
     this.effectsEl.appendChild(sequence);
     this.activeEffect = sequence;
+    if (dedicatedPixelScene) this.effectsEl.classList.add('pixel-choreography-active');
+    let stopPixelScene = () => {};
+    const impactResultGroups = splitPresentationResults(results, pixelSequence?.impactFrames?.length ?? 1, pixelSequence?.resultPolicy);
+    const presentedImpacts = new Set();
+    let logsPresented = false;
+    let fallbackImpactTimer = null;
+    const presentImpact = (impactIndex = 0) => {
+      const normalizedIndex = Math.max(0, Math.min(impactResultGroups.length - 1, impactIndex));
+      if (presentedImpacts.has(normalizedIndex)) return;
+      presentedImpacts.add(normalizedIndex);
+      const impactResults = impactResultGroups[normalizedIndex] ?? [];
+      if (impactResults.length) this.presentActionResults(impactResults, descriptor);
+      if (!logsPresented && normalizedIndex === impactResultGroups.length - 1) {
+        logsPresented = true;
+        this.presentActionLogs(presentationLogs);
+      }
+    };
+    if (dedicatedPixelScene) {
+      stopPixelScene = playSpellCanvas(spellArt, duration, (cue) => {
+        if (cue.type === 'impact') presentImpact(cue.impactIndex);
+      }, pixelSceneContext);
+    } else {
+      fallbackImpactTimer = setTimeout(() => presentImpact(0), Math.round(duration * .62));
+    }
+    const cleanupPlayback = () => {
+      clearTimeout(fallbackImpactTimer);
+      stopPixelScene();
+    };
+    this.activeEffectCleanup = cleanupPlayback;
 
     this.activeEffectDeadline = Date.now() + duration + 180;
     const finish = () => {
       if (this.activeEffect !== sequence) return;
       sequence.remove();
+      impactResultGroups.forEach((_, impactIndex) => presentImpact(impactIndex));
       this.activeEffect = null;
+      this.effectsEl?.classList.remove('pixel-choreography-active');
       this.activeEffectDeadline = 0;
       clearTimeout(this.effectTimer);
       this.effectTimer = null;
+      cleanupPlayback();
+      this.activeEffectCleanup = null;
       eventBus.emit('battle:effectComplete', { actor, action, descriptor });
+      if (this.effectQueue.length === 0) {
+        this.syncPresentationFromManager();
+        this.flushDeferredBattleState();
+      }
       this.runNextBattleEffect();
     };
     sequence.addEventListener('animationend', (event) => {
@@ -903,11 +1169,17 @@ export class BattleUI {
 
   clearBattleEffects() {
     clearTimeout(this.effectTimer);
+    this.activeEffectCleanup?.();
+    this.activeEffectCleanup = null;
     this.effectTimer = null;
     this.effectQueue = [];
     this.activeEffect = null;
     this.activeEffectDeadline = 0;
-    if (this.effectsEl) this.effectsEl.innerHTML = '';
+    this.deferredBattleState = null;
+    if (this.effectsEl) {
+      this.effectsEl.innerHTML = '';
+      this.effectsEl.classList.remove('pixel-choreography-active');
+    }
   }
 
   showCombatResult(result, targetEl) {

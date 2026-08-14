@@ -15,6 +15,7 @@ export class Unit {
     this.isEnemy = !!config.isEnemy;
     this.role = config.role || null;
     this.spriteUrl = config.spriteUrl ?? null;
+    this.effectAnchor = config.effectAnchor ?? null;
 
     this.maxHp = config.maxHp;
     this.hp = config.hp ?? config.maxHp;

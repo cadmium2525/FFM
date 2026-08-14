@@ -33,6 +33,7 @@ function snapshotUnit(unit) {
     isEnemy: unit.isEnemy,
     role: unit.role,
     spriteUrl: unit.spriteUrl,
+    effectAnchor: cloneSerializable(unit.effectAnchor, null),
     maxHp: unit.maxHp,
     hp: unit.hp,
     maxMp: unit.maxMp,
@@ -139,6 +140,7 @@ export class BattleManager {
     this.bossPhase = 0;
     this.bossIntel = { hp: false, mp: false, weakness: false, status: false, level: false };
     this.presentationHoldUntil = 0;
+    this.battleEndTimer = null;
     this.itemStockProvider = options.getItemStock ?? (() => Infinity);
     this.itemConsumer = options.consumeItem ?? (() => true);
     this.itemAdder = options.addItemStock ?? (() => true);
@@ -264,7 +266,11 @@ export class BattleManager {
 
   emitActionResolved(actor, results, fromSequence = 0, action = null) {
     const entries = this.logJournal.filter((entry) => entry.id > fromSequence);
-    eventBus.emit('battle:actionResolved', { actor, action, results, logEntries: entries });
+    const presentationResults = results.map((result) => {
+      const target = this.units.find((unit) => unit.uid === result.targetUid);
+      return target ? { ...result, presentationPatch: result.presentationPatch ?? { uid: target.uid, ...snapshotUnit(target) } } : { ...result };
+    });
+    eventBus.emit('battle:actionResolved', { actor, action, results: presentationResults, logEntries: entries });
     eventBus.emit('battle:logBatch', { actorUid: actor.uid, entries });
   }
 
@@ -319,19 +325,37 @@ export class BattleManager {
   }
 
   checkBattleEnd() {
-    if (!this.boss.isAlive() || this.boss.removedFromBattle || this.boss.statuses.has('petrify')) {
+    if (this.finished) return true;
+    const finish = (result, message) => {
       this.finished = true;
-      this.result = 'victory';
-      this.log(`${this.boss.name} を たおした！`);
-      eventBus.emit('battle:end', { result: 'victory' });
+      this.result = result;
+      clearTimeout(this.battleEndTimer);
+      let announced = false;
+      const settleThenEnd = () => {
+        const remaining = Math.max(0, this.presentationHoldUntil - Date.now());
+        if (remaining > 0) {
+          this.battleEndTimer = setTimeout(settleThenEnd, remaining + 20);
+          return;
+        }
+        if (!announced) {
+          announced = true;
+          // battle:log listeners synchronously extend presentationHoldUntil
+          // for the victory/defeat message. Re-check it before emitting end.
+          this.log(message);
+          this.battleEndTimer = setTimeout(settleThenEnd, 20);
+          return;
+        }
+        this.battleEndTimer = null;
+        eventBus.emit('battle:end', { result });
+      };
+      this.battleEndTimer = setTimeout(settleThenEnd, 120);
       return true;
+    };
+    if (!this.boss.isAlive() || this.boss.removedFromBattle || this.boss.statuses.has('petrify')) {
+      return finish('victory', `${this.boss.name} を たおした！`);
     }
     if (this.party.every((p) => !p.isAlive() || p.removedFromBattle || p.statuses.has('petrify'))) {
-      this.finished = true;
-      this.result = 'defeat';
-      this.log('パーティは ぜんめつした...');
-      eventBus.emit('battle:end', { result: 'defeat' });
-      return true;
+      return finish('defeat', 'パーティは ぜんめつした...');
     }
     return false;
   }
@@ -366,14 +390,17 @@ export class BattleManager {
       }
     });
 
+    const tickAction = { id: 'status-tick', name: '継続効果', kind: 'status-tick' };
+    const tickActionStartSequence = this.logSequence;
     const tickResults = actor.processTurnStatuses();
+    if (tickResults.length) eventBus.emit('battle:actionStarted', { actor, action: tickAction });
     tickResults.forEach((result) => {
       if (result.type === 'status-damage') this.log(`${actor.name} は ${statusLabels([result.status])}で ${result.amount} ダメージ！`);
       if (result.type === 'status-heal' && result.amount > 0) this.log(`${actor.name} の HPが ${result.amount} 回復した。`);
       if (result.type === 'doom') this.log(`${actor.name} は死の宣告に倒れた！`);
       if (result.type === 'status-expired' && result.status !== 'doom') this.log(`${actor.name} の ${statusLabels([result.status])} が切れた。`);
     });
-    if (tickResults.length) eventBus.emit('battle:actionResolved', { actor, results: tickResults });
+    if (tickResults.length) this.emitActionResolved(actor, tickResults, tickActionStartSequence, tickAction);
     if (this.checkBattleEnd()) return;
 
     const statusMessageDelay = Math.max(0, this.presentationHoldUntil - Date.now());
@@ -449,11 +476,13 @@ export class BattleManager {
     const candidates = this.units.filter((unit) => unit.isAlive() && !unit.hidden && !unit.removedFromBattle && (confused || unit.isEnemy !== actor.isEnemy));
     const target = candidates[Math.floor(Math.random() * candidates.length)];
     if (!target) return this.scheduleNextTurn();
-    eventBus.emit('battle:actionStarted', { actor, action: { kind: 'physical-attack', name: 'こうげき' } });
+    const action = { kind: 'physical-attack', name: 'こうげき' };
+    const actionStartSequence = this.logSequence;
+    eventBus.emit('battle:actionStarted', { actor, action });
     this.log(`${actor.name} は${confused ? '混乱して' : '狂戦士となり'} ${target.name} を攻撃！`);
-    const results = resolveAction({ actor, action: { kind: 'physical-attack' }, targets: [target], battleUnits: this.units });
-    eventBus.emit('battle:actionResolved', { actor, action: { kind: 'physical-attack', name: 'こうげき' }, results });
+    const results = resolveAction({ actor, action, targets: [target], battleUnits: this.units });
     results.filter((result) => result.type === 'damage').forEach((result) => this.log(`${target.name} に ${result.amount} の ダメージ！`));
+    this.emitActionResolved(actor, results, actionStartSequence, action);
     this.ctb.consumeTurn(actor, 1);
     this.currentActor = null;
     this.broadcastState();
@@ -557,8 +586,9 @@ export class BattleManager {
       const focusTarget = aliveParty.includes(originalActor) ? originalActor : aliveParty[Math.floor(Math.random() * aliveParty.length)];
       const counterTargets = counterAction.target === 'all_enemies' ? aliveParty : [focusTarget];
 
-      this.log(`${this.boss.name} の反撃！ ${counterAction.name}！`, 'counter');
       const actionStartSequence = this.logSequence;
+      eventBus.emit('battle:actionStarted', { actor: this.boss, action: counterAction });
+      this.log(`${this.boss.name} の反撃！ ${counterAction.name}！`, 'counter');
       const results = resolveAction({ actor: this.boss, action: counterAction, targets: counterTargets, battleUnits: this.units });
       results.forEach((r) => {
         const affected = this.units.find((unit) => unit.uid === r.targetUid);
@@ -689,6 +719,12 @@ export class BattleManager {
       this.log(`${actor.name} は${reason}のため${commandName}を使えない！`, 'unavailable');
       return false;
     }
+    if (choice.type === 'item' && choice.item.consumable !== false && !this.consumeItemStock(choice.item)) {
+      this.log(`${choice.item.name ?? 'アイテム'} の使用に失敗した。`);
+      return false;
+    }
+
+    eventBus.emit('battle:actionStarted', { actor, action });
     if (isMagicLike && !action.ignoreReflect) {
       targets = targets.map((target) => {
         if (!target.statuses?.has('reflect')) return target;
@@ -699,15 +735,12 @@ export class BattleManager {
       });
     }
 
-    if (choice.type === 'item' && choice.item.consumable !== false && !this.consumeItemStock(choice.item)) {
-      this.log(`${choice.item.name ?? 'アイテム'} の使用に失敗した。`);
-      return false;
-    }
     let results;
     if (action.specialCommand) {
       const special = resolveFF5SpecialCommand({ manager: this, actor, action, targets });
       if (!special.valid) {
         this.log(special.reason ?? 'その行動は実行できない。', 'unavailable');
+        eventBus.emit('battle:actionCancelled', { actor, action });
         eventBus.emit('battle:playerTurn', { actor });
         return false;
       }
@@ -718,9 +751,9 @@ export class BattleManager {
     } else {
       results = resolveAction({ actor, action, targets, battleUnits: this.units });
     }
-    eventBus.emit('battle:actionStarted', { actor, action });
     if (results.some((result) => ['insufficient-mp', 'sealed', 'invalid-target', 'unavailable'].includes(result.type))) {
       this.log('その行動は実行できない。');
+      eventBus.emit('battle:actionCancelled', { actor, action });
       eventBus.emit('battle:playerTurn', { actor });
       return false;
     }

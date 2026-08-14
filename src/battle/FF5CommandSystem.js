@@ -33,6 +33,18 @@ const livingAllies = (manager, actor) => manager.units.filter((unit) => unit.isA
 const livingEnemies = (manager, actor) => manager.units.filter((unit) => unit.isAlive() && !unit.removedFromBattle && !unit.hidden && unit.isEnemy !== actor.isEnemy);
 const resultLabel = (actor, text) => ({ type: 'command-message', targetUid: actor.uid, label: text });
 
+function capturePresentationPatch(unit) {
+  if (!unit) return null;
+  const cloneValue = (value) => {
+    if (value instanceof Set) return [...value].map(cloneValue);
+    if (value instanceof Map) return [...value].map(([key, entry]) => [key, cloneValue(entry)]);
+    if (Array.isArray(value)) return value.map(cloneValue);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, cloneValue(entry)]));
+    return value;
+  };
+  return { uid: unit.uid, ...Object.fromEntries(Object.entries(unit).map(([key, value]) => [key, cloneValue(value)])) };
+}
+
 function commandTargets(manager, actor, action, fallback) {
   if (['all_enemies', 'enemy_group'].includes(action.target)) return livingEnemies(manager, actor);
   if (['all_allies', 'party'].includes(action.target)) return livingAllies(manager, actor);
@@ -211,7 +223,12 @@ export function resolveFF5SpecialCommand({ manager, actor, action, targets }) {
       spells.forEach((spell, index) => {
         const spellTargets = dualcastTargets(manager, actor, spell, action.dualTargetUids?.[index], target);
         results.push(...resolveAction({ actor, action: { ...spell, kind: spell.actionKind ?? 'magic-attack' }, targets: spellTargets, battleUnits: manager.units })
-          .map((result) => ({ ...result, castIndex: index, visualAction: spell })));
+          .map((result) => ({
+            ...result,
+            castIndex: index,
+            visualAction: spell,
+            presentationPatch: capturePresentationPatch(manager.units.find((unit) => unit.uid === result.targetUid)),
+          })));
       });
       return { valid: true, action, targets, results };
     }

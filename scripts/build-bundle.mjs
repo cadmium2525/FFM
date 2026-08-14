@@ -26,6 +26,7 @@ const sourceFiles = [
   'src/ui/MessageWindow.js',
   'src/battle/BattleManager.js',
   'src/ui/BattleEffectRegistry.js',
+  'src/ui/SpellCanvasRenderer.js',
   'src/ui/SpellArtDirector.js',
   'src/ui/BattleUI.js',
   'src/ui/IntermissionUI.js',
