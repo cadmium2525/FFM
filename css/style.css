@@ -89,6 +89,40 @@ ul {
   margin-bottom: 30px;
 }
 
+/* Result screens are full-screen states, not document-flow panels. */
+#victory-screen,
+#gameover-screen {
+  align-items: center;
+  justify-content: center;
+  padding:
+    max(20px, env(safe-area-inset-top))
+    14px
+    max(20px, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 50% 42%, rgba(54, 104, 205, .2), transparent 38%),
+    linear-gradient(180deg, #080d1a, #03050b);
+}
+
+#victory-screen.active-screen,
+#gameover-screen.active-screen {
+  display: flex;
+}
+
+#victory-screen .title-box,
+#gameover-screen .title-box {
+  width: min(430px, 100%);
+  margin: 0;
+  padding: clamp(34px, 8vh, 58px) 24px;
+}
+
+#gameover-screen .game-subtitle {
+  margin-bottom: 34px;
+  color: #f5f8ff;
+  font-size: clamp(18px, 5vw, 27px);
+  letter-spacing: .12em;
+  text-shadow: 0 2px 0 #101a64, 0 0 18px rgba(119, 176, 255, .42);
+}
+
 /* ---------- Battle layout ---------- */
 .battle-layout {
   position: relative;
@@ -1647,10 +1681,7 @@ body {
 
 #battle-screen .battle-layout {
   isolation: isolate;
-  background:
-    linear-gradient(180deg, rgba(2, 7, 24, .02) 0%, rgba(2, 6, 19, .06) 50%, rgba(2, 5, 17, .7) 100%),
-    url('../assets/backgrounds/crystal-sanctum-pixel-v2.png') center 50% / cover no-repeat;
-  image-rendering: auto;
+  background: linear-gradient(180deg, #030919 0%, #020715 57%, #01040e 100%);
 }
 
 .battle-atmosphere,
@@ -1748,8 +1779,11 @@ body {
 
 #battle-screen .battle-field {
   background:
-    linear-gradient(180deg, rgba(4, 11, 37, .06), rgba(4, 10, 32, .18)),
-    radial-gradient(circle at 43% 52%, rgba(84, 203, 255, .08), transparent 34%);
+    linear-gradient(180deg, rgba(4, 11, 37, .04), rgba(4, 10, 32, .15)),
+    radial-gradient(circle at 43% 52%, rgba(84, 203, 255, .07), transparent 34%),
+    url('../assets/backgrounds/crystal-sanctum-pixel-v2.png') center 50% / cover no-repeat,
+    #030817;
+  image-rendering: auto;
   border-color: rgba(217, 246, 255, .68);
   border-radius: 12px;
   box-shadow:
@@ -1961,13 +1995,13 @@ body {
     grid-template-rows: minmax(0, 1fr) 72px 236px;
     padding: max(6px, env(safe-area-inset-top)) 6px max(6px, env(safe-area-inset-bottom));
     gap: 6px;
-    background-position: center 50%;
   }
 
   #battle-screen .battle-field {
     min-height: 0;
     padding: 8px 5px 4px;
     border-radius: 11px;
+    background-position: center, center, center 50%, center;
   }
 
   #battle-screen .battle-field::after {

@@ -1,6 +1,6 @@
 import { CTBEngine } from './CTBEngine.js';
 import { resolveAction } from './ActionResolver.js';
-import { attackAction, defendAction, itemActions, magicSets } from '../data/abilityData.js';
+import { defendAction, itemActions, magicSets } from '../data/abilityData.js';
 import { eventBus } from '../core/EventBus.js';
 import { isIncapacitated, statusLabels } from './StatusEngine.js';
 import { bossActionsFor, bossPhaseIndex, counterPoolFor, nextBossActionFor } from './BossActionProfiles.js';
@@ -9,6 +9,10 @@ import { resolveFF5SpecialCommand } from './FF5CommandSystem.js';
 
 const ENEMY_TURN_DELAY_MS = 900;
 const AUTO_ADVANCE_DELAY_MS = 550;
+// FFV resets the enemy ATB interval after every ordinary command. A powerful
+// spell does not make the next gauge 1.2x or 1.55x longer; animation pacing is
+// already handled by the presentation gate.
+export const FF5_ENEMY_TURN_COST = 1;
 
 function cloneSerializable(value, fallback) {
   try {
@@ -522,7 +526,7 @@ export class BattleManager {
 
     this.emitActionResolved(actor, results, actionStartSequence, chosenAction);
     this.enemyActionCursor += 1;
-    this.ctb.consumeTurn(actor, chosenAction.ctbCost ?? attackAction.ctbCost);
+    this.ctb.consumeTurn(actor, FF5_ENEMY_TURN_COST);
     this.currentActor = null;
     this.broadcastState();
 

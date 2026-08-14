@@ -12,9 +12,9 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="assets/icons/icon-192.png">
 <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
-<link rel="stylesheet" href="css/style.css?v=ff5-system-v3">
-<link rel="stylesheet" href="css/ff5-ui.css?v=ff5-system-v3">
-<link rel="stylesheet" href="css/battle-effects.css?v=ff5-system-v3">
+<link rel="stylesheet" href="css/style.css?v=ff5-system-v4">
+<link rel="stylesheet" href="css/ff5-ui.css?v=ff5-system-v4">
+<link rel="stylesheet" href="css/battle-effects.css?v=ff5-system-v4">
 </head>
 <body>
   <div id="game-root">
@@ -73,19 +73,19 @@
     <section id="battle-screen" class="screen">
       <div class="battle-layout">
 
-        <div class="battle-atmosphere" aria-hidden="true">
-          <div class="arena-vault"></div>
-          <div class="arena-horizon"></div>
-          <div class="arena-platform"></div>
-          <div class="ambient-shard shard-a"></div>
-          <div class="ambient-shard shard-b"></div>
-          <div class="ambient-shard shard-c"></div>
-          <div class="ambient-mote mote-a"></div>
-          <div class="ambient-mote mote-b"></div>
-          <div class="ambient-mote mote-c"></div>
-        </div>
         <!-- Field: enemies (left) + party (right) -->
         <div class="battle-field ff5-window" aria-label="戦闘フィールド">
+          <div class="battle-atmosphere" aria-hidden="true">
+            <div class="arena-vault"></div>
+            <div class="arena-horizon"></div>
+            <div class="arena-platform"></div>
+            <div class="ambient-shard shard-a"></div>
+            <div class="ambient-shard shard-b"></div>
+            <div class="ambient-shard shard-c"></div>
+            <div class="ambient-mote mote-a"></div>
+            <div class="ambient-mote mote-b"></div>
+            <div class="ambient-mote mote-c"></div>
+          </div>
           <div id="battle-effects" class="battle-effects" aria-hidden="true"></div>
           <div id="enemy-field" class="enemy-field"></div>
           <div id="party-field" class="party-field"></div>
@@ -4259,6 +4259,10 @@ class MessageWindow {
 // ---- src/battle/BattleManager.js ----
 const ENEMY_TURN_DELAY_MS = 900;
 const AUTO_ADVANCE_DELAY_MS = 550;
+// FFV resets the enemy ATB interval after every ordinary command. A powerful
+// spell does not make the next gauge 1.2x or 1.55x longer; animation pacing is
+// already handled by the presentation gate.
+const FF5_ENEMY_TURN_COST = 1;
 
 function cloneSerializable(value, fallback) {
   try {
@@ -4772,7 +4776,7 @@ class BattleManager {
 
     this.emitActionResolved(actor, results, actionStartSequence, chosenAction);
     this.enemyActionCursor += 1;
-    this.ctb.consumeTurn(actor, chosenAction.ctbCost ?? attackAction.ctbCost);
+    this.ctb.consumeTurn(actor, FF5_ENEMY_TURN_COST);
     this.currentActor = null;
     this.broadcastState();
 
