@@ -5,6 +5,8 @@ const sourceFiles = [
   'src/core/GameState.js',
   'src/core/Settings.js',
   'src/core/Loadout.js',
+  'src/core/SuspendSave.js',
+  'src/core/AbilityPosition.js',
   'src/battle/StatusEngine.js',
   'src/battle/Unit.js',
   'src/battle/ActionResolver.js',

@@ -9,9 +9,9 @@ const SETTINGS_STORAGE_KEY = 'ff-crystal-rush-settings-v1';
  * gap between one message closing and the next appearing.
  */
 export const MESSAGE_SPEED_PRESETS = Object.freeze({
-  slow: { label: 'おそい', holdMs: 1700, fastHoldMs: 1100, betweenMs: 140 },
-  normal: { label: 'ふつう', holdMs: 900, fastHoldMs: 580, betweenMs: 55 },
-  fast: { label: 'はやい', holdMs: 520, fastHoldMs: 320, betweenMs: 25 },
+  slow: { label: 'おそい', holdMs: 2400, fastHoldMs: 1700, betweenMs: 180 },
+  normal: { label: 'ふつう', holdMs: 1700, fastHoldMs: 1100, betweenMs: 140 },
+  fast: { label: 'はやい', holdMs: 900, fastHoldMs: 580, betweenMs: 55 },
 });
 
 const DEFAULT_SETTINGS = Object.freeze({

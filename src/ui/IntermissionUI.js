@@ -8,6 +8,7 @@ import {
 import { isAbilityImplemented } from '../data/abilityData.js';
 import { elementNames } from '../data/bossData.js';
 import { saveUnitLoadout } from '../core/Loadout.js';
+import { getAbilityListPosition, saveAbilityListPosition } from '../core/AbilityPosition.js';
 
 const slotLabels = {
   weapon: '武器',
@@ -51,6 +52,7 @@ export class IntermissionUI {
     this.indicatorEl = document.getElementById('intermission-indicator');
     this.partyUnits = [];
     this.currentIndex = 0;
+    this.activePickerPosition = null;
 
     this.prevButton?.addEventListener('click', () => this.step(-1));
     this.nextButton?.addEventListener('click', () => this.step(1));
@@ -85,7 +87,11 @@ export class IntermissionUI {
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
 
-    const close = () => overlay.classList.add('hidden');
+    const close = () => {
+      this.rememberPickerPosition();
+      overlay.classList.add('hidden');
+      this.activePickerPosition = null;
+    };
     closeButton.addEventListener('click', close);
     overlay.addEventListener('click', (event) => {
       if (event.target === overlay) close();
@@ -94,12 +100,15 @@ export class IntermissionUI {
     this.pickerEl = overlay;
     this.pickerTitleEl = title;
     this.pickerListEl = list;
+    list.addEventListener('scroll', () => this.rememberPickerPosition(), { passive: true });
   }
 
   /**
    * options: array of { value, name, statLine, effectText, selected, disabled, badge }
    */
-  openPicker(titleText, options, onSelect) {
+  openPicker(titleText, options, onSelect, position = null) {
+    this.rememberPickerPosition();
+    this.activePickerPosition = position;
     this.pickerTitleEl.textContent = titleText;
     this.pickerListEl.innerHTML = '';
 
@@ -141,23 +150,37 @@ export class IntermissionUI {
 
       row.addEventListener('click', () => {
         if (opt.disabled) return;
+        this.rememberPickerPosition();
         onSelect(opt.value);
         this.pickerEl.classList.add('hidden');
+        this.activePickerPosition = null;
       });
 
       this.pickerListEl.appendChild(row);
     });
 
     this.pickerEl.classList.remove('hidden');
-    this.pickerListEl.scrollTop = 0;
+    requestAnimationFrame(() => {
+      this.pickerListEl.scrollTop = position
+        ? getAbilityListPosition(position.unitId, position.surface, position.abilityId)
+        : 0;
+    });
+  }
+
+  rememberPickerPosition() {
+    if (!this.activePickerPosition || !this.pickerListEl) return;
+    const { unitId, surface, abilityId } = this.activePickerPosition;
+    saveAbilityListPosition(unitId, surface, this.pickerListEl.scrollTop, abilityId);
   }
 
   clear() {
+    this.rememberPickerPosition();
     this.containerEl.replaceChildren();
     this.nextBossLabelEl.textContent = '';
     if (this.indicatorEl) this.indicatorEl.textContent = '';
     this.partyUnits = [];
     this.pickerEl?.classList.add('hidden');
+    this.activePickerPosition = null;
   }
 
   step(direction) {
@@ -184,6 +207,7 @@ export class IntermissionUI {
     const unit = this.partyUnits[this.currentIndex];
     this.containerEl.innerHTML = '';
     this.pickerEl?.classList.add('hidden');
+    this.activePickerPosition = null;
     if (!unit) return;
 
     if (this.indicatorEl) {
@@ -352,7 +376,7 @@ export class IntermissionUI {
         renderAbilityLabel();
         updateDetails();
         persistLoadout();
-      });
+      }, { unitId: unit.id, surface: 'formation' });
     });
 
     abilityField.append(abilityCaption, abilityPicker);

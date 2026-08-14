@@ -4,9 +4,100 @@ import { attackAction, defendAction, itemActions, magicSets } from '../data/abil
 import { eventBus } from '../core/EventBus.js';
 import { isIncapacitated, statusLabels } from './StatusEngine.js';
 import { bossActionsFor, bossPhaseIndex, counterPoolFor } from './BossActionProfiles.js';
+import { Unit } from './Unit.js';
 
 const ENEMY_TURN_DELAY_MS = 900;
 const AUTO_ADVANCE_DELAY_MS = 550;
+
+function cloneSerializable(value, fallback) {
+  try {
+    return structuredClone(value);
+  } catch {
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch {
+      return fallback;
+    }
+  }
+}
+
+function snapshotUnit(unit) {
+  return {
+    id: unit.id,
+    name: unit.name,
+    isEnemy: unit.isEnemy,
+    role: unit.role,
+    spriteUrl: unit.spriteUrl,
+    maxHp: unit.maxHp,
+    hp: unit.hp,
+    maxMp: unit.maxMp,
+    mp: unit.mp,
+    atk: unit.atk,
+    def: unit.def,
+    magicDef: unit.magicDef,
+    magic: unit.magic,
+    agility: unit.agility,
+    evasion: unit.evasion,
+    weakness: unit.weakness,
+    resist: unit.resist,
+    weaponElement: unit.weaponElement,
+    weaponAccuracy: unit.weaponAccuracy,
+    weaponSpecial: unit.weaponSpecial,
+    weaponId: unit.weaponId,
+    baseAtk: unit.baseAtk,
+    baseDef: unit.baseDef,
+    baseMagicDef: unit.baseMagicDef,
+    baseMagic: unit.baseMagic,
+    baseAgility: unit.baseAgility,
+    equipmentEffects: cloneSerializable(unit.equipmentEffects, {}),
+    physicalDamageMultiplier: unit.physicalDamageMultiplier,
+    magicDamageMultiplier: unit.magicDamageMultiplier,
+    imageHits: unit.imageHits,
+    nextAttackMultiplier: unit.nextAttackMultiplier,
+    physicalBarrier: unit.physicalBarrier,
+    statuses: [...unit.statuses],
+    statusDurations: [...unit.statusDurations],
+    statusImmunities: [...unit.statusImmunities],
+    statusResistance: unit.statusResistance,
+    level: unit.level,
+    equippedAbilitySet: unit.equippedAbilitySet,
+    equipment: cloneSerializable(unit.equipment, {}),
+    abilityId: unit.abilityId,
+    crystalShardId: unit.crystalShardId,
+    size: unit.size,
+    ai: unit.ai,
+    counterOnHit: cloneSerializable(unit.counterOnHit, null),
+    creatureTypes: [...unit.creatureTypes],
+    row: unit.row,
+    heavy: unit.heavy,
+    isUndead: unit.isUndead,
+    removedFromBattle: unit.removedFromBattle,
+    ctValue: unit.ctValue,
+    defending: unit.defending,
+    magicList: cloneSerializable(unit.magicList, []),
+  };
+}
+
+function restoreUnit(snapshot) {
+  const unit = new Unit({
+    ...snapshot,
+    equipmentEffects: cloneSerializable(snapshot.equipmentEffects, {}),
+    equipment: cloneSerializable(snapshot.equipment, {}),
+    statuses: snapshot.statuses ?? [],
+    statusDurations: snapshot.statusDurations ?? [],
+    statusImmunities: snapshot.statusImmunities ?? [],
+    creatureTypes: snapshot.creatureTypes ?? [],
+    magicList: cloneSerializable(snapshot.magicList, []),
+  });
+  unit.physicalDamageMultiplier = snapshot.physicalDamageMultiplier ?? unit.physicalDamageMultiplier;
+  unit.magicDamageMultiplier = snapshot.magicDamageMultiplier ?? 1;
+  unit.imageHits = snapshot.imageHits ?? 0;
+  unit.nextAttackMultiplier = snapshot.nextAttackMultiplier ?? 1;
+  unit.physicalBarrier = snapshot.physicalBarrier ?? 0;
+  unit.removedFromBattle = Boolean(snapshot.removedFromBattle);
+  unit.defending = Boolean(snapshot.defending);
+  return unit;
+}
 
 export class BattleManager {
   constructor(partyUnits, bossUnit, options = {}) {
@@ -26,6 +117,60 @@ export class BattleManager {
     this.presentationHoldUntil = 0;
     this.itemStockProvider = options.getItemStock ?? (() => Infinity);
     this.itemConsumer = options.consumeItem ?? (() => true);
+  }
+
+  createSnapshot() {
+    const currentActorIndex = this.currentActor ? this.units.indexOf(this.currentActor) : -1;
+    return {
+      version: 1,
+      partyLength: this.party.length,
+      units: this.units.map(snapshotUnit),
+      currentActorIndex,
+      awaitingPlayerInput: this.awaitingPlayerInput,
+      bossPhase: this.bossPhase,
+      logSequence: this.logSequence,
+      logJournal: cloneSerializable(this.logJournal, []),
+      pendingEnemyActions: [...this.pendingEnemyActions.entries()].map(([uid, action]) => [
+        this.units.findIndex((unit) => unit.uid === uid),
+        cloneSerializable(action, null),
+      ]).filter(([index, action]) => index >= 0 && action),
+    };
+  }
+
+  static fromSnapshot(snapshot, options = {}) {
+    if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.units)) {
+      throw new Error('Invalid battle suspend snapshot');
+    }
+    const units = snapshot.units.map(restoreUnit);
+    const partyLength = Math.max(1, Math.min(units.length - 1, Number(snapshot.partyLength) || units.length - 1));
+    const manager = new BattleManager(units.slice(0, partyLength), units[partyLength], options);
+    manager.currentActor = units[snapshot.currentActorIndex] ?? null;
+    manager.awaitingPlayerInput = Boolean(snapshot.awaitingPlayerInput && manager.currentActor && !manager.currentActor.isEnemy);
+    manager.bossPhase = Math.max(0, Number(snapshot.bossPhase) || 0);
+    manager.logSequence = Math.max(0, Number(snapshot.logSequence) || 0);
+    manager.logJournal = Array.isArray(snapshot.logJournal) ? snapshot.logJournal.slice(-80) : [];
+    manager.pendingEnemyActions = new Map((snapshot.pendingEnemyActions ?? []).flatMap(([index, action]) => {
+      const unit = units[index];
+      return unit && action ? [[unit.uid, action]] : [];
+    }));
+    return manager;
+  }
+
+  resume() {
+    if (this.checkBattleEnd()) return;
+    this.presentationHoldUntil = 0;
+    this.broadcastState();
+    const actor = this.currentActor;
+    if (!actor) {
+      this.awaitingPlayerInput = false;
+      this.scheduleNextTurn(350);
+      return;
+    }
+    if (this.awaitingPlayerInput && !actor.isEnemy) {
+      eventBus.emit('battle:playerTurn', { actor });
+      return;
+    }
+    this.beginActorTurn(actor);
   }
 
   itemId(itemOrId) {
@@ -111,6 +256,12 @@ export class BattleManager {
 
   advanceTurn() {
     if (this.finished) return;
+    const presentationDelay = Math.max(0, this.presentationHoldUntil - Date.now());
+    if (presentationDelay > 0) {
+      this.scheduleNextTurn(presentationDelay);
+      return;
+    }
+    this.presentationHoldUntil = 0;
     const actor = this.ctb.advanceToNextActor();
     if (!actor) return;
     this.currentActor = actor;
@@ -142,6 +293,17 @@ export class BattleManager {
     if (tickResults.length) eventBus.emit('battle:actionResolved', { actor, results: tickResults });
     if (this.checkBattleEnd()) return;
 
+    const statusMessageDelay = Math.max(0, this.presentationHoldUntil - Date.now());
+    if (tickResults.length && statusMessageDelay > 0) {
+      setTimeout(() => this.beginActorTurn(actor), statusMessageDelay);
+      return;
+    }
+    this.beginActorTurn(actor);
+  }
+
+  beginActorTurn(actor) {
+    if (this.finished || this.currentActor !== actor) return;
+
     // Reset defend stance at the start of a unit's own turn.
     actor.defending = false;
     actor.physicalDamageMultiplier = actor.equipmentEffects?.physicalDamageMultiplier ?? 1;
@@ -149,6 +311,7 @@ export class BattleManager {
     if (isIncapacitated(actor)) {
       this.log(`${actor.name} は動けない！`);
       this.ctb.consumeTurn(actor, 0.45);
+      this.currentActor = null;
       this.broadcastState();
       this.scheduleNextTurn(260);
     } else if (actor.statuses.has('berserk') || actor.statuses.has('confuse')) {
@@ -174,6 +337,7 @@ export class BattleManager {
     eventBus.emit('battle:actionResolved', { actor, action: { kind: 'physical-attack', name: 'こうげき' }, results });
     results.filter((result) => result.type === 'damage').forEach((result) => this.log(`${target.name} に ${result.amount} の ダメージ！`));
     this.ctb.consumeTurn(actor, 1);
+    this.currentActor = null;
     this.broadcastState();
     if (!this.checkBattleEnd()) this.scheduleNextTurn();
   }
@@ -214,6 +378,7 @@ export class BattleManager {
       this.log(`${actor.name}：${chosenAction.telegraph}`, 'telegraph');
       eventBus.emit('battle:telegraph', { actor, action: preparedAction, hint: chosenAction.telegraph });
       this.ctb.consumeTurn(actor, 0.5);
+      this.currentActor = null;
       this.broadcastState();
       this.scheduleNextTurn(420);
       return;
@@ -239,6 +404,7 @@ export class BattleManager {
 
     this.emitActionResolved(actor, results, actionStartSequence, chosenAction);
     this.ctb.consumeTurn(actor, chosenAction.ctbCost ?? attackAction.ctbCost);
+    this.currentActor = null;
     this.broadcastState();
 
     if (this.checkBattleEnd()) return;

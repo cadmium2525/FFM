@@ -6,6 +6,7 @@ import { crystalShardAction } from '../database/battleCatalog.js';
 import { getBattleEffectDescriptor, resolveBattleEffectDescriptor } from './BattleEffectRegistry.js';
 import { MessageWindow } from './MessageWindow.js';
 import { STATUS_LABELS_JA } from '../battle/StatusEngine.js';
+import { getAbilityListPosition, saveAbilityListPosition } from '../core/AbilityPosition.js';
 
 function hpBarClass(unit) {
   const ratio = unit.hpRatio();
@@ -118,6 +119,9 @@ export class BattleUI {
     this.activeEffect = null;
     this.effectTimer = null;
     this.activeEffectDeadline = 0;
+    this.activeAbilityMenu = null;
+
+    this.submenuListEl?.addEventListener('scroll', () => this.rememberAbilityMenuPosition(), { passive: true });
 
     this._bindStaticEvents();
   }
@@ -134,7 +138,10 @@ export class BattleUI {
   }
 
   _bindStaticEvents() {
-    eventBus.on('battle:log', (text) => this.messageWindow.show(text));
+    eventBus.on('battle:log', (text) => {
+      const pendingMs = this.messageWindow.show(text);
+      this.battleManager?.deferNextTurnFor(pendingMs + 40);
+    });
 
     eventBus.on('battle:stateUpdate', ({ party, boss, preview }) => {
       this.renderEnemyField(boss);
@@ -420,6 +427,10 @@ export class BattleUI {
   }
 
   openSubmenu(heading, list, kind, actor) {
+    this.rememberAbilityMenuPosition();
+    this.activeAbilityMenu = kind === 'ability'
+      ? { unitId: actor.id, abilityId: actor.abilityId }
+      : null;
     this.submenuHeadingEl.textContent = heading;
     this.submenuListEl.innerHTML = '';
 
@@ -455,6 +466,7 @@ export class BattleUI {
       const li = this.createChoice(
         `${entry.name}${costLabel}${stockLabel}`,
         () => {
+          this.rememberAbilityMenuPosition();
           this.closeSubmenu();
           if (entry.disabledReason) {
             this.messageWindow.show(entry.disabledReason);
@@ -467,14 +479,33 @@ export class BattleUI {
         },
         { disabled, detail: disabledReason || this.entryDetail(entry, kind) }
       );
+      li.querySelector('button')?.setAttribute('data-entry-id', entry.id ?? entry.sourceId ?? entry.name);
       this.submenuListEl.appendChild(li);
     });
 
     this.submenuWindowEl.classList.remove('hidden');
+    if (this.activeAbilityMenu) {
+      const { unitId, abilityId } = this.activeAbilityMenu;
+      requestAnimationFrame(() => {
+        this.submenuListEl.scrollTop = getAbilityListPosition(unitId, 'battle', abilityId);
+      });
+    }
   }
 
   closeSubmenu() {
+    this.rememberAbilityMenuPosition();
     this.submenuWindowEl.classList.add('hidden');
+    this.activeAbilityMenu = null;
+  }
+
+  rememberAbilityMenuPosition() {
+    if (!this.activeAbilityMenu || !this.submenuListEl) return;
+    saveAbilityListPosition(
+      this.activeAbilityMenu.unitId,
+      'battle',
+      this.submenuListEl.scrollTop,
+      this.activeAbilityMenu.abilityId
+    );
   }
 
   closeActionWindows() {

@@ -18,6 +18,7 @@ import {
 import { FirebaseAccountService } from './services/FirebaseAccountService.js';
 import { MESSAGE_SPEED_PRESETS, getMessageSpeed, setMessageSpeed } from './core/Settings.js';
 import { getUnitLoadout } from './core/Loadout.js';
+import { clearSuspendSave, readSuspendSave, writeSuspendSave } from './core/SuspendSave.js';
 import { bossData } from './data/bossData.js';
 import { ff5BossTechniques } from './database/ff5BossTechniques.js';
 import {
@@ -535,6 +536,103 @@ document.getElementById('menu-panel-back').addEventListener('click', closeMenuPa
 
 // ---------- Persistent party (carries HP/MP/equip across bosses) ----------
 let livingParty = null;
+let activeSetupUnits = null;
+let activeBattleManager = null;
+let activeBattlePartyUnits = null;
+
+function copyRunState(value) {
+  try {
+    return structuredClone(value);
+  } catch {
+    return JSON.parse(JSON.stringify(value));
+  }
+}
+
+function partyStateFromUnits(units, source = livingParty) {
+  if (!Array.isArray(source)) return [];
+  return source.map((state, index) => {
+    const unit = units?.[index];
+    if (!unit) return copyRunState(state);
+    return {
+      ...copyRunState(state),
+      hp: unit.hp,
+      mp: unit.mp,
+      equipment: { ...unit.equipment },
+      abilityId: unit.abilityId,
+      crystalShardId: unit.crystalShardId,
+      weaponId: unit.weaponId,
+      baseAtk: unit.baseAtk,
+      baseDef: unit.baseDef,
+      baseMagicDef: unit.baseMagicDef,
+      baseMagic: unit.baseMagic,
+      baseAgility: unit.baseAgility,
+      equippedAbilitySet: unit.equippedAbilitySet,
+    };
+  });
+}
+
+function updateResumeButton() {
+  document.getElementById('resume-button')?.classList.toggle('hidden', !readSuspendSave());
+}
+
+function deleteSuspendData() {
+  clearSuspendSave();
+  updateResumeButton();
+}
+
+function saveCurrentSuspendState() {
+  if (!Array.isArray(livingParty)) return false;
+  let snapshot = null;
+  if (GameState.is(States.BATTLE) && activeBattleManager && !activeBattleManager.finished) {
+    snapshot = {
+      screen: 'battle',
+      bossIndex: GameState.bossIndex,
+      livingParty: partyStateFromUnits(activeBattlePartyUnits),
+      battle: activeBattleManager.createSnapshot(),
+    };
+  } else if (GameState.is(States.INTERMISSION)) {
+    snapshot = {
+      screen: 'intermission',
+      bossIndex: GameState.bossIndex,
+      livingParty: partyStateFromUnits(activeSetupUnits),
+    };
+  }
+  if (!snapshot) return false;
+  const saved = writeSuspendSave(snapshot);
+  updateResumeButton();
+  return saved;
+}
+
+function resumeSuspendedRun() {
+  const suspended = readSuspendSave();
+  if (!suspended) {
+    updateResumeButton();
+    return;
+  }
+
+  // Consume the old checkpoint before restoring it. From this point onward,
+  // every state update/page interruption writes a fresh, newer snapshot.
+  clearSuspendSave();
+  GameState.bossIndex = Math.max(0, Math.min(bossData.length - 1, suspended.bossIndex));
+  livingParty = suspended.livingParty.map((state) => {
+    const loadout = getUnitLoadout(state.id);
+    return {
+      ...state,
+      equipment: { ...state.equipment, ...(loadout?.equipment ?? {}) },
+      abilityId: loadout?.abilityId ?? state.abilityId,
+      crystalShardId: loadout?.crystalShardId ?? state.crystalShardId,
+    };
+  });
+
+  if (suspended.screen === 'battle' && suspended.battle) {
+    startBossBattle(suspended.battle);
+    return;
+  }
+  openPartySetup(bossData[GameState.bossIndex], {
+    canReturnToMenu: GameState.bossIndex === 0,
+    readyLabel: GameState.bossIndex === 0 ? 'バトル開始' : '次のバトルへ',
+  });
+}
 
 function freshPartyState() {
   return partyData.map((p) => {
@@ -661,6 +759,8 @@ function applyPartySetup(partyUnits) {
 
 function openPartySetup(nextBoss, { canReturnToMenu = false, readyLabel = 'バトル開始' } = {}) {
   GameState.set(States.INTERMISSION);
+  activeBattleManager = null;
+  activeBattlePartyUnits = null;
 
   const partyUnits = buildPartyUnits(livingParty).map((unit, index) =>
     Object.assign(unit, {
@@ -676,6 +776,7 @@ function openPartySetup(nextBoss, { canReturnToMenu = false, readyLabel = 'バ�
       crystalShardId: livingParty[index].crystalShardId,
     })
   );
+  activeSetupUnits = partyUnits;
 
   intermissionUI.render(partyUnits, nextBoss);
 
@@ -688,9 +789,11 @@ function openPartySetup(nextBoss, { canReturnToMenu = false, readyLabel = 'バ�
     applyPartySetup(partyUnits);
     startBossBattle();
   };
+  saveCurrentSuspendState();
 }
 
 function beginCourseSetup() {
+  deleteSuspendData();
   GameState.bossIndex = 0;
   livingParty = freshPartyState();
   closeMenuPanel();
@@ -710,26 +813,36 @@ function consumeProfileItem(itemId, amount = 1) {
 }
 
 // ---------- Boss rush flow ----------
-function startBossBattle() {
+function startBossBattle(restoredBattle = null) {
   GameState.set(States.BATTLE);
+  activeSetupUnits = null;
 
   // Formation lists contain hundreds of option nodes. They are rebuilt only
   // when needed, keeping the live battle DOM lean on mobile Safari.
   intermissionUI.clear();
 
-  const partyUnits = buildPartyUnits(livingParty);
-  const bossConfig = bossData[GameState.bossIndex];
-  const bossUnit = buildBossUnit(bossConfig);
-
-  const battleManager = new BattleManager(partyUnits, bossUnit, {
+  const battleOptions = {
     getItemStock: profileItemStock,
     consumeItem: consumeProfileItem,
-  });
+  };
+  const battleManager = restoredBattle
+    ? BattleManager.fromSnapshot(restoredBattle, battleOptions)
+    : new BattleManager(
+      buildPartyUnits(livingParty),
+      buildBossUnit(bossData[GameState.bossIndex]),
+      battleOptions
+    );
+  const partyUnits = battleManager.party;
+  activeBattleManager = battleManager;
+  activeBattlePartyUnits = partyUnits;
   battleUI.attachBattle(battleManager);
 
   const onEnd = ({ result }) => {
     eventBus.off('battle:end', onEnd);
     syncStateFromUnits(livingParty, partyUnits);
+    activeBattleManager = null;
+    activeBattlePartyUnits = null;
+    deleteSuspendData();
 
     if (result === 'victory') {
       setTimeout(() => goToIntermissionOrWin(), 1800);
@@ -739,7 +852,8 @@ function startBossBattle() {
   };
   eventBus.on('battle:end', onEnd);
 
-  battleManager.start();
+  if (restoredBattle) battleManager.resume();
+  else battleManager.start();
 }
 
 function goToIntermissionOrWin() {
@@ -759,8 +873,21 @@ function goToIntermissionOrWin() {
 
 // ---------- Title / restart wiring ----------
 document.getElementById('start-button').addEventListener('click', openMainMenu);
-document.getElementById('restart-button-win').addEventListener('click', openMainMenu);
-document.getElementById('restart-button-lose').addEventListener('click', openMainMenu);
+document.getElementById('resume-button').addEventListener('click', resumeSuspendedRun);
+document.getElementById('restart-button-win').addEventListener('click', () => {
+  deleteSuspendData();
+  openMainMenu();
+});
+document.getElementById('restart-button-lose').addEventListener('click', () => {
+  deleteSuspendData();
+  openMainMenu();
+});
+
+eventBus.on('battle:stateUpdate', saveCurrentSuspendState);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveCurrentSuspendState();
+});
+window.addEventListener('pagehide', saveCurrentSuspendState);
 
 // ---------- PWA ----------
 if ('serviceWorker' in navigator && ['http:', 'https:'].includes(location.protocol)) {
@@ -778,4 +905,5 @@ firebaseAccount.initialize().catch((error) => {
 
 applyProfileOptions();
 renderProfileStatus();
+updateResumeButton();
 showScreen('TITLE');

@@ -79,9 +79,9 @@ const SETTINGS_STORAGE_KEY = 'ff-crystal-rush-settings-v1';
  * gap between one message closing and the next appearing.
  */
 const MESSAGE_SPEED_PRESETS = Object.freeze({
-  slow: { label: 'おそい', holdMs: 1700, fastHoldMs: 1100, betweenMs: 140 },
-  normal: { label: 'ふつう', holdMs: 900, fastHoldMs: 580, betweenMs: 55 },
-  fast: { label: 'はやい', holdMs: 520, fastHoldMs: 320, betweenMs: 25 },
+  slow: { label: 'おそい', holdMs: 2400, fastHoldMs: 1700, betweenMs: 180 },
+  normal: { label: 'ふつう', holdMs: 1700, fastHoldMs: 1100, betweenMs: 140 },
+  fast: { label: 'はやい', holdMs: 900, fastHoldMs: 580, betweenMs: 55 },
 });
 
 const DEFAULT_SETTINGS = Object.freeze({
@@ -162,6 +162,92 @@ function saveUnitLoadout(unitId, loadout) {
     crystalShardId: loadout.crystalShardId ?? null,
   };
   persist();
+}
+
+// ---- src/core/SuspendSave.js ----
+const SUSPEND_STORAGE_KEY = 'ff-crystal-rush-suspend-v1';
+
+const SUSPEND_SAVE_VERSION = 1;
+
+function storageOrNull(storage) {
+  try {
+    return storage ?? globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function readSuspendSave(storage) {
+  try {
+    const target = storageOrNull(storage);
+    if (!target) return null;
+    const parsed = JSON.parse(target.getItem(SUSPEND_STORAGE_KEY) || 'null');
+    if (!parsed || parsed.version !== SUSPEND_SAVE_VERSION) return null;
+    if (!['battle', 'intermission'].includes(parsed.screen)) return null;
+    if (!Number.isInteger(parsed.bossIndex) || !Array.isArray(parsed.livingParty)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeSuspendSave(snapshot, storage) {
+  try {
+    const target = storageOrNull(storage);
+    if (!target || !snapshot) return false;
+    target.setItem(SUSPEND_STORAGE_KEY, JSON.stringify({
+      ...snapshot,
+      version: SUSPEND_SAVE_VERSION,
+      savedAt: Date.now(),
+    }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function clearSuspendSave(storage) {
+  try {
+    const target = storageOrNull(storage);
+    if (!target) return false;
+    target.removeItem(SUSPEND_STORAGE_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---- src/core/AbilityPosition.js ----
+const POSITION_STORAGE_KEY = 'ff-crystal-rush-ability-positions-v1';
+
+function loadPositions() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(POSITION_STORAGE_KEY) || 'null');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+const positions = loadPositions();
+
+function keyFor(unitId, surface, abilityId = '') {
+  return `${surface}:${unitId || 'unknown'}:${abilityId || 'default'}`;
+}
+
+function getAbilityListPosition(unitId, surface = 'battle', abilityId = '') {
+  const value = Number(positions[keyFor(unitId, surface, abilityId)] ?? 0);
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+function saveAbilityListPosition(unitId, surface, scrollTop, abilityId = '') {
+  if (!unitId) return;
+  positions[keyFor(unitId, surface, abilityId)] = Math.max(0, Math.round(Number(scrollTop) || 0));
+  try {
+    localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(positions));
+  } catch {
+    // The UI remains usable when persistent storage is unavailable.
+  }
 }
 
 // ---- src/battle/StatusEngine.js ----
@@ -3127,7 +3213,7 @@ function counterPoolFor(unit) {
 }
 
 // ---- src/ui/MessageWindow.js ----
-const MAX_QUEUE_LENGTH = 6;
+const MAX_QUEUE_LENGTH = 80;
 
 class MessageWindow {
   constructor(windowEl, textEl) {
@@ -3137,13 +3223,17 @@ class MessageWindow {
     this.advanceTimer = null;
     this.queue = [];
     this.isShowing = false;
+    this.currentDeadline = 0;
   }
 
   show(text) {
     if (!text) return;
     this.queue.push(String(text));
-    if (this.queue.length > MAX_QUEUE_LENGTH) this.queue.splice(0, this.queue.length - MAX_QUEUE_LENGTH);
+    // An action may produce several result lines. Keep the whole action journal
+    // visible instead of dropping its opening lines while the battle races on.
+    if (this.queue.length > MAX_QUEUE_LENGTH) this.queue.splice(MAX_QUEUE_LENGTH);
     if (!this.isShowing) this.showNext();
+    return this.remainingDurationMs();
   }
 
   showNext() {
@@ -3163,6 +3253,7 @@ class MessageWindow {
     // reset or recreate the message window.
     const { holdMs: HOLD_MS, fastHoldMs: FAST_HOLD_MS, betweenMs: BETWEEN_MESSAGES_MS } = getMessageSpeedTiming();
     const holdMs = this.queue.length ? FAST_HOLD_MS : HOLD_MS;
+    this.currentDeadline = Date.now() + holdMs;
     this.hideTimer = setTimeout(() => {
       this.windowEl.classList.remove('message-enter');
       this.isShowing = false;
@@ -3175,7 +3266,20 @@ class MessageWindow {
     clearTimeout(this.hideTimer);
     clearTimeout(this.advanceTimer);
     this.isShowing = false;
+    this.currentDeadline = 0;
     this.windowEl.classList.add('hidden');
+  }
+
+  remainingDurationMs() {
+    const timing = getMessageSpeedTiming();
+    let remaining = this.isShowing ? Math.max(0, this.currentDeadline - Date.now()) : 0;
+    if (this.isShowing && this.queue.length) remaining += timing.betweenMs;
+    this.queue.forEach((_text, index) => {
+      const remainingAfter = this.queue.length - index - 1;
+      remaining += remainingAfter ? timing.fastHoldMs : timing.holdMs;
+      if (remainingAfter) remaining += timing.betweenMs;
+    });
+    return remaining;
   }
 
   reset() {
@@ -3183,6 +3287,7 @@ class MessageWindow {
     clearTimeout(this.advanceTimer);
     this.queue.length = 0;
     this.isShowing = false;
+    this.currentDeadline = 0;
     this.textEl.textContent = '';
     this.windowEl.classList.remove('message-enter');
     this.windowEl.classList.add('hidden');
@@ -3192,6 +3297,96 @@ class MessageWindow {
 // ---- src/battle/BattleManager.js ----
 const ENEMY_TURN_DELAY_MS = 900;
 const AUTO_ADVANCE_DELAY_MS = 550;
+
+function cloneSerializable(value, fallback) {
+  try {
+    return structuredClone(value);
+  } catch {
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch {
+      return fallback;
+    }
+  }
+}
+
+function snapshotUnit(unit) {
+  return {
+    id: unit.id,
+    name: unit.name,
+    isEnemy: unit.isEnemy,
+    role: unit.role,
+    spriteUrl: unit.spriteUrl,
+    maxHp: unit.maxHp,
+    hp: unit.hp,
+    maxMp: unit.maxMp,
+    mp: unit.mp,
+    atk: unit.atk,
+    def: unit.def,
+    magicDef: unit.magicDef,
+    magic: unit.magic,
+    agility: unit.agility,
+    evasion: unit.evasion,
+    weakness: unit.weakness,
+    resist: unit.resist,
+    weaponElement: unit.weaponElement,
+    weaponAccuracy: unit.weaponAccuracy,
+    weaponSpecial: unit.weaponSpecial,
+    weaponId: unit.weaponId,
+    baseAtk: unit.baseAtk,
+    baseDef: unit.baseDef,
+    baseMagicDef: unit.baseMagicDef,
+    baseMagic: unit.baseMagic,
+    baseAgility: unit.baseAgility,
+    equipmentEffects: cloneSerializable(unit.equipmentEffects, {}),
+    physicalDamageMultiplier: unit.physicalDamageMultiplier,
+    magicDamageMultiplier: unit.magicDamageMultiplier,
+    imageHits: unit.imageHits,
+    nextAttackMultiplier: unit.nextAttackMultiplier,
+    physicalBarrier: unit.physicalBarrier,
+    statuses: [...unit.statuses],
+    statusDurations: [...unit.statusDurations],
+    statusImmunities: [...unit.statusImmunities],
+    statusResistance: unit.statusResistance,
+    level: unit.level,
+    equippedAbilitySet: unit.equippedAbilitySet,
+    equipment: cloneSerializable(unit.equipment, {}),
+    abilityId: unit.abilityId,
+    crystalShardId: unit.crystalShardId,
+    size: unit.size,
+    ai: unit.ai,
+    counterOnHit: cloneSerializable(unit.counterOnHit, null),
+    creatureTypes: [...unit.creatureTypes],
+    row: unit.row,
+    heavy: unit.heavy,
+    isUndead: unit.isUndead,
+    removedFromBattle: unit.removedFromBattle,
+    ctValue: unit.ctValue,
+    defending: unit.defending,
+    magicList: cloneSerializable(unit.magicList, []),
+  };
+}
+
+function restoreUnit(snapshot) {
+  const unit = new Unit({
+    ...snapshot,
+    equipmentEffects: cloneSerializable(snapshot.equipmentEffects, {}),
+    equipment: cloneSerializable(snapshot.equipment, {}),
+    statuses: snapshot.statuses ?? [],
+    statusDurations: snapshot.statusDurations ?? [],
+    statusImmunities: snapshot.statusImmunities ?? [],
+    creatureTypes: snapshot.creatureTypes ?? [],
+    magicList: cloneSerializable(snapshot.magicList, []),
+  });
+  unit.physicalDamageMultiplier = snapshot.physicalDamageMultiplier ?? unit.physicalDamageMultiplier;
+  unit.magicDamageMultiplier = snapshot.magicDamageMultiplier ?? 1;
+  unit.imageHits = snapshot.imageHits ?? 0;
+  unit.nextAttackMultiplier = snapshot.nextAttackMultiplier ?? 1;
+  unit.physicalBarrier = snapshot.physicalBarrier ?? 0;
+  unit.removedFromBattle = Boolean(snapshot.removedFromBattle);
+  unit.defending = Boolean(snapshot.defending);
+  return unit;
+}
 
 class BattleManager {
   constructor(partyUnits, bossUnit, options = {}) {
@@ -3211,6 +3406,60 @@ class BattleManager {
     this.presentationHoldUntil = 0;
     this.itemStockProvider = options.getItemStock ?? (() => Infinity);
     this.itemConsumer = options.consumeItem ?? (() => true);
+  }
+
+  createSnapshot() {
+    const currentActorIndex = this.currentActor ? this.units.indexOf(this.currentActor) : -1;
+    return {
+      version: 1,
+      partyLength: this.party.length,
+      units: this.units.map(snapshotUnit),
+      currentActorIndex,
+      awaitingPlayerInput: this.awaitingPlayerInput,
+      bossPhase: this.bossPhase,
+      logSequence: this.logSequence,
+      logJournal: cloneSerializable(this.logJournal, []),
+      pendingEnemyActions: [...this.pendingEnemyActions.entries()].map(([uid, action]) => [
+        this.units.findIndex((unit) => unit.uid === uid),
+        cloneSerializable(action, null),
+      ]).filter(([index, action]) => index >= 0 && action),
+    };
+  }
+
+  static fromSnapshot(snapshot, options = {}) {
+    if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.units)) {
+      throw new Error('Invalid battle suspend snapshot');
+    }
+    const units = snapshot.units.map(restoreUnit);
+    const partyLength = Math.max(1, Math.min(units.length - 1, Number(snapshot.partyLength) || units.length - 1));
+    const manager = new BattleManager(units.slice(0, partyLength), units[partyLength], options);
+    manager.currentActor = units[snapshot.currentActorIndex] ?? null;
+    manager.awaitingPlayerInput = Boolean(snapshot.awaitingPlayerInput && manager.currentActor && !manager.currentActor.isEnemy);
+    manager.bossPhase = Math.max(0, Number(snapshot.bossPhase) || 0);
+    manager.logSequence = Math.max(0, Number(snapshot.logSequence) || 0);
+    manager.logJournal = Array.isArray(snapshot.logJournal) ? snapshot.logJournal.slice(-80) : [];
+    manager.pendingEnemyActions = new Map((snapshot.pendingEnemyActions ?? []).flatMap(([index, action]) => {
+      const unit = units[index];
+      return unit && action ? [[unit.uid, action]] : [];
+    }));
+    return manager;
+  }
+
+  resume() {
+    if (this.checkBattleEnd()) return;
+    this.presentationHoldUntil = 0;
+    this.broadcastState();
+    const actor = this.currentActor;
+    if (!actor) {
+      this.awaitingPlayerInput = false;
+      this.scheduleNextTurn(350);
+      return;
+    }
+    if (this.awaitingPlayerInput && !actor.isEnemy) {
+      eventBus.emit('battle:playerTurn', { actor });
+      return;
+    }
+    this.beginActorTurn(actor);
   }
 
   itemId(itemOrId) {
@@ -3296,6 +3545,12 @@ class BattleManager {
 
   advanceTurn() {
     if (this.finished) return;
+    const presentationDelay = Math.max(0, this.presentationHoldUntil - Date.now());
+    if (presentationDelay > 0) {
+      this.scheduleNextTurn(presentationDelay);
+      return;
+    }
+    this.presentationHoldUntil = 0;
     const actor = this.ctb.advanceToNextActor();
     if (!actor) return;
     this.currentActor = actor;
@@ -3327,6 +3582,17 @@ class BattleManager {
     if (tickResults.length) eventBus.emit('battle:actionResolved', { actor, results: tickResults });
     if (this.checkBattleEnd()) return;
 
+    const statusMessageDelay = Math.max(0, this.presentationHoldUntil - Date.now());
+    if (tickResults.length && statusMessageDelay > 0) {
+      setTimeout(() => this.beginActorTurn(actor), statusMessageDelay);
+      return;
+    }
+    this.beginActorTurn(actor);
+  }
+
+  beginActorTurn(actor) {
+    if (this.finished || this.currentActor !== actor) return;
+
     // Reset defend stance at the start of a unit's own turn.
     actor.defending = false;
     actor.physicalDamageMultiplier = actor.equipmentEffects?.physicalDamageMultiplier ?? 1;
@@ -3334,6 +3600,7 @@ class BattleManager {
     if (isIncapacitated(actor)) {
       this.log(`${actor.name} は動けない！`);
       this.ctb.consumeTurn(actor, 0.45);
+      this.currentActor = null;
       this.broadcastState();
       this.scheduleNextTurn(260);
     } else if (actor.statuses.has('berserk') || actor.statuses.has('confuse')) {
@@ -3359,6 +3626,7 @@ class BattleManager {
     eventBus.emit('battle:actionResolved', { actor, action: { kind: 'physical-attack', name: 'こうげき' }, results });
     results.filter((result) => result.type === 'damage').forEach((result) => this.log(`${target.name} に ${result.amount} の ダメージ！`));
     this.ctb.consumeTurn(actor, 1);
+    this.currentActor = null;
     this.broadcastState();
     if (!this.checkBattleEnd()) this.scheduleNextTurn();
   }
@@ -3399,6 +3667,7 @@ class BattleManager {
       this.log(`${actor.name}：${chosenAction.telegraph}`, 'telegraph');
       eventBus.emit('battle:telegraph', { actor, action: preparedAction, hint: chosenAction.telegraph });
       this.ctb.consumeTurn(actor, 0.5);
+      this.currentActor = null;
       this.broadcastState();
       this.scheduleNextTurn(420);
       return;
@@ -3424,6 +3693,7 @@ class BattleManager {
 
     this.emitActionResolved(actor, results, actionStartSequence, chosenAction);
     this.ctb.consumeTurn(actor, chosenAction.ctbCost ?? attackAction.ctbCost);
+    this.currentActor = null;
     this.broadcastState();
 
     if (this.checkBattleEnd()) return;
@@ -4209,6 +4479,9 @@ class BattleUI {
     this.activeEffect = null;
     this.effectTimer = null;
     this.activeEffectDeadline = 0;
+    this.activeAbilityMenu = null;
+
+    this.submenuListEl?.addEventListener('scroll', () => this.rememberAbilityMenuPosition(), { passive: true });
 
     this._bindStaticEvents();
   }
@@ -4225,7 +4498,10 @@ class BattleUI {
   }
 
   _bindStaticEvents() {
-    eventBus.on('battle:log', (text) => this.messageWindow.show(text));
+    eventBus.on('battle:log', (text) => {
+      const pendingMs = this.messageWindow.show(text);
+      this.battleManager?.deferNextTurnFor(pendingMs + 40);
+    });
 
     eventBus.on('battle:stateUpdate', ({ party, boss, preview }) => {
       this.renderEnemyField(boss);
@@ -4511,6 +4787,10 @@ class BattleUI {
   }
 
   openSubmenu(heading, list, kind, actor) {
+    this.rememberAbilityMenuPosition();
+    this.activeAbilityMenu = kind === 'ability'
+      ? { unitId: actor.id, abilityId: actor.abilityId }
+      : null;
     this.submenuHeadingEl.textContent = heading;
     this.submenuListEl.innerHTML = '';
 
@@ -4546,6 +4826,7 @@ class BattleUI {
       const li = this.createChoice(
         `${entry.name}${costLabel}${stockLabel}`,
         () => {
+          this.rememberAbilityMenuPosition();
           this.closeSubmenu();
           if (entry.disabledReason) {
             this.messageWindow.show(entry.disabledReason);
@@ -4558,14 +4839,33 @@ class BattleUI {
         },
         { disabled, detail: disabledReason || this.entryDetail(entry, kind) }
       );
+      li.querySelector('button')?.setAttribute('data-entry-id', entry.id ?? entry.sourceId ?? entry.name);
       this.submenuListEl.appendChild(li);
     });
 
     this.submenuWindowEl.classList.remove('hidden');
+    if (this.activeAbilityMenu) {
+      const { unitId, abilityId } = this.activeAbilityMenu;
+      requestAnimationFrame(() => {
+        this.submenuListEl.scrollTop = getAbilityListPosition(unitId, 'battle', abilityId);
+      });
+    }
   }
 
   closeSubmenu() {
+    this.rememberAbilityMenuPosition();
     this.submenuWindowEl.classList.add('hidden');
+    this.activeAbilityMenu = null;
+  }
+
+  rememberAbilityMenuPosition() {
+    if (!this.activeAbilityMenu || !this.submenuListEl) return;
+    saveAbilityListPosition(
+      this.activeAbilityMenu.unitId,
+      'battle',
+      this.submenuListEl.scrollTop,
+      this.activeAbilityMenu.abilityId
+    );
   }
 
   closeActionWindows() {
@@ -4988,6 +5288,7 @@ class IntermissionUI {
     this.indicatorEl = document.getElementById('intermission-indicator');
     this.partyUnits = [];
     this.currentIndex = 0;
+    this.activePickerPosition = null;
 
     this.prevButton?.addEventListener('click', () => this.step(-1));
     this.nextButton?.addEventListener('click', () => this.step(1));
@@ -5022,7 +5323,11 @@ class IntermissionUI {
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
 
-    const close = () => overlay.classList.add('hidden');
+    const close = () => {
+      this.rememberPickerPosition();
+      overlay.classList.add('hidden');
+      this.activePickerPosition = null;
+    };
     closeButton.addEventListener('click', close);
     overlay.addEventListener('click', (event) => {
       if (event.target === overlay) close();
@@ -5031,12 +5336,15 @@ class IntermissionUI {
     this.pickerEl = overlay;
     this.pickerTitleEl = title;
     this.pickerListEl = list;
+    list.addEventListener('scroll', () => this.rememberPickerPosition(), { passive: true });
   }
 
   /**
    * options: array of { value, name, statLine, effectText, selected, disabled, badge }
    */
-  openPicker(titleText, options, onSelect) {
+  openPicker(titleText, options, onSelect, position = null) {
+    this.rememberPickerPosition();
+    this.activePickerPosition = position;
     this.pickerTitleEl.textContent = titleText;
     this.pickerListEl.innerHTML = '';
 
@@ -5078,23 +5386,37 @@ class IntermissionUI {
 
       row.addEventListener('click', () => {
         if (opt.disabled) return;
+        this.rememberPickerPosition();
         onSelect(opt.value);
         this.pickerEl.classList.add('hidden');
+        this.activePickerPosition = null;
       });
 
       this.pickerListEl.appendChild(row);
     });
 
     this.pickerEl.classList.remove('hidden');
-    this.pickerListEl.scrollTop = 0;
+    requestAnimationFrame(() => {
+      this.pickerListEl.scrollTop = position
+        ? getAbilityListPosition(position.unitId, position.surface, position.abilityId)
+        : 0;
+    });
+  }
+
+  rememberPickerPosition() {
+    if (!this.activePickerPosition || !this.pickerListEl) return;
+    const { unitId, surface, abilityId } = this.activePickerPosition;
+    saveAbilityListPosition(unitId, surface, this.pickerListEl.scrollTop, abilityId);
   }
 
   clear() {
+    this.rememberPickerPosition();
     this.containerEl.replaceChildren();
     this.nextBossLabelEl.textContent = '';
     if (this.indicatorEl) this.indicatorEl.textContent = '';
     this.partyUnits = [];
     this.pickerEl?.classList.add('hidden');
+    this.activePickerPosition = null;
   }
 
   step(direction) {
@@ -5121,6 +5443,7 @@ class IntermissionUI {
     const unit = this.partyUnits[this.currentIndex];
     this.containerEl.innerHTML = '';
     this.pickerEl?.classList.add('hidden');
+    this.activePickerPosition = null;
     if (!unit) return;
 
     if (this.indicatorEl) {
@@ -5289,7 +5612,7 @@ class IntermissionUI {
         renderAbilityLabel();
         updateDetails();
         persistLoadout();
-      });
+      }, { unitId: unit.id, surface: 'formation' });
     });
 
     abilityField.append(abilityCaption, abilityPicker);
@@ -5851,6 +6174,103 @@ document.getElementById('menu-panel-back').addEventListener('click', closeMenuPa
 
 // ---------- Persistent party (carries HP/MP/equip across bosses) ----------
 let livingParty = null;
+let activeSetupUnits = null;
+let activeBattleManager = null;
+let activeBattlePartyUnits = null;
+
+function copyRunState(value) {
+  try {
+    return structuredClone(value);
+  } catch {
+    return JSON.parse(JSON.stringify(value));
+  }
+}
+
+function partyStateFromUnits(units, source = livingParty) {
+  if (!Array.isArray(source)) return [];
+  return source.map((state, index) => {
+    const unit = units?.[index];
+    if (!unit) return copyRunState(state);
+    return {
+      ...copyRunState(state),
+      hp: unit.hp,
+      mp: unit.mp,
+      equipment: { ...unit.equipment },
+      abilityId: unit.abilityId,
+      crystalShardId: unit.crystalShardId,
+      weaponId: unit.weaponId,
+      baseAtk: unit.baseAtk,
+      baseDef: unit.baseDef,
+      baseMagicDef: unit.baseMagicDef,
+      baseMagic: unit.baseMagic,
+      baseAgility: unit.baseAgility,
+      equippedAbilitySet: unit.equippedAbilitySet,
+    };
+  });
+}
+
+function updateResumeButton() {
+  document.getElementById('resume-button')?.classList.toggle('hidden', !readSuspendSave());
+}
+
+function deleteSuspendData() {
+  clearSuspendSave();
+  updateResumeButton();
+}
+
+function saveCurrentSuspendState() {
+  if (!Array.isArray(livingParty)) return false;
+  let snapshot = null;
+  if (GameState.is(States.BATTLE) && activeBattleManager && !activeBattleManager.finished) {
+    snapshot = {
+      screen: 'battle',
+      bossIndex: GameState.bossIndex,
+      livingParty: partyStateFromUnits(activeBattlePartyUnits),
+      battle: activeBattleManager.createSnapshot(),
+    };
+  } else if (GameState.is(States.INTERMISSION)) {
+    snapshot = {
+      screen: 'intermission',
+      bossIndex: GameState.bossIndex,
+      livingParty: partyStateFromUnits(activeSetupUnits),
+    };
+  }
+  if (!snapshot) return false;
+  const saved = writeSuspendSave(snapshot);
+  updateResumeButton();
+  return saved;
+}
+
+function resumeSuspendedRun() {
+  const suspended = readSuspendSave();
+  if (!suspended) {
+    updateResumeButton();
+    return;
+  }
+
+  // Consume the old checkpoint before restoring it. From this point onward,
+  // every state update/page interruption writes a fresh, newer snapshot.
+  clearSuspendSave();
+  GameState.bossIndex = Math.max(0, Math.min(bossData.length - 1, suspended.bossIndex));
+  livingParty = suspended.livingParty.map((state) => {
+    const loadout = getUnitLoadout(state.id);
+    return {
+      ...state,
+      equipment: { ...state.equipment, ...(loadout?.equipment ?? {}) },
+      abilityId: loadout?.abilityId ?? state.abilityId,
+      crystalShardId: loadout?.crystalShardId ?? state.crystalShardId,
+    };
+  });
+
+  if (suspended.screen === 'battle' && suspended.battle) {
+    startBossBattle(suspended.battle);
+    return;
+  }
+  openPartySetup(bossData[GameState.bossIndex], {
+    canReturnToMenu: GameState.bossIndex === 0,
+    readyLabel: GameState.bossIndex === 0 ? 'バトル開始' : '次のバトルへ',
+  });
+}
 
 function freshPartyState() {
   return partyData.map((p) => {
@@ -5977,6 +6397,8 @@ function applyPartySetup(partyUnits) {
 
 function openPartySetup(nextBoss, { canReturnToMenu = false, readyLabel = 'バトル開始' } = {}) {
   GameState.set(States.INTERMISSION);
+  activeBattleManager = null;
+  activeBattlePartyUnits = null;
 
   const partyUnits = buildPartyUnits(livingParty).map((unit, index) =>
     Object.assign(unit, {
@@ -5992,6 +6414,7 @@ function openPartySetup(nextBoss, { canReturnToMenu = false, readyLabel = 'バ�
       crystalShardId: livingParty[index].crystalShardId,
     })
   );
+  activeSetupUnits = partyUnits;
 
   intermissionUI.render(partyUnits, nextBoss);
 
@@ -6004,9 +6427,11 @@ function openPartySetup(nextBoss, { canReturnToMenu = false, readyLabel = 'バ�
     applyPartySetup(partyUnits);
     startBossBattle();
   };
+  saveCurrentSuspendState();
 }
 
 function beginCourseSetup() {
+  deleteSuspendData();
   GameState.bossIndex = 0;
   livingParty = freshPartyState();
   closeMenuPanel();
@@ -6026,26 +6451,36 @@ function consumeProfileItem(itemId, amount = 1) {
 }
 
 // ---------- Boss rush flow ----------
-function startBossBattle() {
+function startBossBattle(restoredBattle = null) {
   GameState.set(States.BATTLE);
+  activeSetupUnits = null;
 
   // Formation lists contain hundreds of option nodes. They are rebuilt only
   // when needed, keeping the live battle DOM lean on mobile Safari.
   intermissionUI.clear();
 
-  const partyUnits = buildPartyUnits(livingParty);
-  const bossConfig = bossData[GameState.bossIndex];
-  const bossUnit = buildBossUnit(bossConfig);
-
-  const battleManager = new BattleManager(partyUnits, bossUnit, {
+  const battleOptions = {
     getItemStock: profileItemStock,
     consumeItem: consumeProfileItem,
-  });
+  };
+  const battleManager = restoredBattle
+    ? BattleManager.fromSnapshot(restoredBattle, battleOptions)
+    : new BattleManager(
+      buildPartyUnits(livingParty),
+      buildBossUnit(bossData[GameState.bossIndex]),
+      battleOptions
+    );
+  const partyUnits = battleManager.party;
+  activeBattleManager = battleManager;
+  activeBattlePartyUnits = partyUnits;
   battleUI.attachBattle(battleManager);
 
   const onEnd = ({ result }) => {
     eventBus.off('battle:end', onEnd);
     syncStateFromUnits(livingParty, partyUnits);
+    activeBattleManager = null;
+    activeBattlePartyUnits = null;
+    deleteSuspendData();
 
     if (result === 'victory') {
       setTimeout(() => goToIntermissionOrWin(), 1800);
@@ -6055,7 +6490,8 @@ function startBossBattle() {
   };
   eventBus.on('battle:end', onEnd);
 
-  battleManager.start();
+  if (restoredBattle) battleManager.resume();
+  else battleManager.start();
 }
 
 function goToIntermissionOrWin() {
@@ -6075,8 +6511,21 @@ function goToIntermissionOrWin() {
 
 // ---------- Title / restart wiring ----------
 document.getElementById('start-button').addEventListener('click', openMainMenu);
-document.getElementById('restart-button-win').addEventListener('click', openMainMenu);
-document.getElementById('restart-button-lose').addEventListener('click', openMainMenu);
+document.getElementById('resume-button').addEventListener('click', resumeSuspendedRun);
+document.getElementById('restart-button-win').addEventListener('click', () => {
+  deleteSuspendData();
+  openMainMenu();
+});
+document.getElementById('restart-button-lose').addEventListener('click', () => {
+  deleteSuspendData();
+  openMainMenu();
+});
+
+eventBus.on('battle:stateUpdate', saveCurrentSuspendState);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveCurrentSuspendState();
+});
+window.addEventListener('pagehide', saveCurrentSuspendState);
 
 // ---------- PWA ----------
 if ('serviceWorker' in navigator && ['http:', 'https:'].includes(location.protocol)) {
@@ -6094,6 +6543,7 @@ firebaseAccount.initialize().catch((error) => {
 
 applyProfileOptions();
 renderProfileStatus();
+updateResumeButton();
 showScreen('TITLE');
 
 })();

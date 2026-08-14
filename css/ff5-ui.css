@@ -662,6 +662,12 @@ body {
   overflow: visible;
 }
 
+/* Omega's supplied pixel artwork reads best at two-thirds of the former boss frame. */
+#battle-screen .sprite-placeholder.boss.unit-omega {
+  width: clamp(100px, 16.667vw, 147px) !important;
+  height: clamp(100px, 16.667vw, 147px) !important;
+}
+
 #battle-screen .sprite-placeholder.boss .blob {
   position: relative;
   overflow: visible;

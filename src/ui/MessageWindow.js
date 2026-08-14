@@ -1,6 +1,6 @@
 import { getMessageSpeedTiming } from '../core/Settings.js';
 
-const MAX_QUEUE_LENGTH = 6;
+const MAX_QUEUE_LENGTH = 80;
 
 export class MessageWindow {
   constructor(windowEl, textEl) {
@@ -10,13 +10,17 @@ export class MessageWindow {
     this.advanceTimer = null;
     this.queue = [];
     this.isShowing = false;
+    this.currentDeadline = 0;
   }
 
   show(text) {
     if (!text) return;
     this.queue.push(String(text));
-    if (this.queue.length > MAX_QUEUE_LENGTH) this.queue.splice(0, this.queue.length - MAX_QUEUE_LENGTH);
+    // An action may produce several result lines. Keep the whole action journal
+    // visible instead of dropping its opening lines while the battle races on.
+    if (this.queue.length > MAX_QUEUE_LENGTH) this.queue.splice(MAX_QUEUE_LENGTH);
     if (!this.isShowing) this.showNext();
+    return this.remainingDurationMs();
   }
 
   showNext() {
@@ -36,6 +40,7 @@ export class MessageWindow {
     // reset or recreate the message window.
     const { holdMs: HOLD_MS, fastHoldMs: FAST_HOLD_MS, betweenMs: BETWEEN_MESSAGES_MS } = getMessageSpeedTiming();
     const holdMs = this.queue.length ? FAST_HOLD_MS : HOLD_MS;
+    this.currentDeadline = Date.now() + holdMs;
     this.hideTimer = setTimeout(() => {
       this.windowEl.classList.remove('message-enter');
       this.isShowing = false;
@@ -48,7 +53,20 @@ export class MessageWindow {
     clearTimeout(this.hideTimer);
     clearTimeout(this.advanceTimer);
     this.isShowing = false;
+    this.currentDeadline = 0;
     this.windowEl.classList.add('hidden');
+  }
+
+  remainingDurationMs() {
+    const timing = getMessageSpeedTiming();
+    let remaining = this.isShowing ? Math.max(0, this.currentDeadline - Date.now()) : 0;
+    if (this.isShowing && this.queue.length) remaining += timing.betweenMs;
+    this.queue.forEach((_text, index) => {
+      const remainingAfter = this.queue.length - index - 1;
+      remaining += remainingAfter ? timing.fastHoldMs : timing.holdMs;
+      if (remainingAfter) remaining += timing.betweenMs;
+    });
+    return remaining;
   }
 
   reset() {
@@ -56,6 +74,7 @@ export class MessageWindow {
     clearTimeout(this.advanceTimer);
     this.queue.length = 0;
     this.isShowing = false;
+    this.currentDeadline = 0;
     this.textEl.textContent = '';
     this.windowEl.classList.remove('message-enter');
     this.windowEl.classList.add('hidden');
