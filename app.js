@@ -4963,12 +4963,21 @@ const jobLabels = {
   dancer: '踊り子', dragoon: '竜騎士', chemist: '薬師', mime: 'ものまね士',
 };
 
+function equipmentStatLine(item) {
+  if (!item) return '';
+  return item.slot === 'weapon'
+    ? `攻撃力 ${item.attack} ／ 命中 ${item.accuracy ?? '-'}%`
+    : `防御 ${item.defense} ／ 魔防 ${item.magicDefense} ／ 回避 ${item.evasion}%`;
+}
+
 /**
  * Party formation screen shown between bosses. One character occupies the
  * whole screen at a time (bigger text, easier to read on mobile); use the
  * prev/next arrow buttons to page between party members. Equipment/ability/
- * crystal-shard choices are persisted to localStorage via Loadout.js as soon
- * as they change, so the player doesn't have to re-pick them on every run.
+ * crystal-shard choices are made via a full-detail picker modal (name + stat
+ * gains + additional effect for every option) rather than a plain <select>,
+ * and are persisted to localStorage via Loadout.js as soon as they change,
+ * so the player doesn't have to re-pick them on every run.
  */
 class IntermissionUI {
   constructor() {
@@ -4982,6 +4991,102 @@ class IntermissionUI {
 
     this.prevButton?.addEventListener('click', () => this.step(-1));
     this.nextButton?.addEventListener('click', () => this.step(1));
+
+    this.buildPickerModal();
+  }
+
+  buildPickerModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'picker-overlay hidden';
+
+    const modal = document.createElement('div');
+    modal.className = 'ff5-window picker-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+
+    const header = document.createElement('div');
+    header.className = 'picker-modal-header';
+    const title = document.createElement('div');
+    title.className = 'picker-modal-title';
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'picker-modal-close';
+    closeButton.setAttribute('aria-label', '閉じる');
+    closeButton.textContent = '×';
+    header.append(title, closeButton);
+
+    const list = document.createElement('div');
+    list.className = 'picker-modal-list';
+
+    modal.append(header, list);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.classList.add('hidden');
+    closeButton.addEventListener('click', close);
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) close();
+    });
+
+    this.pickerEl = overlay;
+    this.pickerTitleEl = title;
+    this.pickerListEl = list;
+  }
+
+  /**
+   * options: array of { value, name, statLine, effectText, selected, disabled, badge }
+   */
+  openPicker(titleText, options, onSelect) {
+    this.pickerTitleEl.textContent = titleText;
+    this.pickerListEl.innerHTML = '';
+
+    options.forEach((opt) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'picker-row';
+      if (opt.selected) row.classList.add('selected');
+      if (opt.disabled) row.classList.add('disabled');
+      row.disabled = !!opt.disabled;
+
+      const rowTop = document.createElement('div');
+      rowTop.className = 'picker-row-top';
+      const name = document.createElement('span');
+      name.className = 'picker-row-name';
+      name.textContent = opt.name;
+      rowTop.appendChild(name);
+      if (opt.badge) {
+        const badge = document.createElement('span');
+        badge.className = 'picker-row-badge';
+        badge.textContent = opt.badge;
+        rowTop.appendChild(badge);
+      }
+      row.appendChild(rowTop);
+
+      if (opt.statLine) {
+        const stat = document.createElement('div');
+        stat.className = 'picker-row-stat';
+        stat.textContent = opt.statLine;
+        row.appendChild(stat);
+      }
+
+      if (opt.effectText) {
+        const effect = document.createElement('div');
+        effect.className = 'picker-row-effect';
+        effect.textContent = `追加効果: ${opt.effectText}`;
+        row.appendChild(effect);
+      }
+
+      row.addEventListener('click', () => {
+        if (opt.disabled) return;
+        onSelect(opt.value);
+        this.pickerEl.classList.add('hidden');
+      });
+
+      this.pickerListEl.appendChild(row);
+    });
+
+    this.pickerEl.classList.remove('hidden');
+    this.pickerListEl.scrollTop = 0;
   }
 
   clear() {
@@ -4989,6 +5094,7 @@ class IntermissionUI {
     this.nextBossLabelEl.textContent = '';
     if (this.indicatorEl) this.indicatorEl.textContent = '';
     this.partyUnits = [];
+    this.pickerEl?.classList.add('hidden');
   }
 
   step(direction) {
@@ -5014,6 +5120,7 @@ class IntermissionUI {
   renderCurrentCard() {
     const unit = this.partyUnits[this.currentIndex];
     this.containerEl.innerHTML = '';
+    this.pickerEl?.classList.add('hidden');
     if (!unit) return;
 
     if (this.indicatorEl) {
@@ -5102,93 +5209,125 @@ class IntermissionUI {
       ].join('\n');
     };
 
+    // ---- Equipment slots (weapon / shield / head / body / accessory) ----
     Object.entries(slotLabels).forEach(([slot, labelText]) => {
-      const label = document.createElement('label');
-      label.className = 'formation-field';
+      const field = document.createElement('div');
+      field.className = 'formation-field';
       const caption = document.createElement('span');
       caption.textContent = labelText;
-      const select = document.createElement('select');
-      select.setAttribute('aria-label', `${unit.name}の${labelText}`);
 
-      const none = document.createElement('option');
-      none.value = '';
-      none.textContent = 'なし';
-      select.appendChild(none);
+      const picker = document.createElement('button');
+      picker.type = 'button';
+      picker.className = 'picker-trigger';
+      picker.setAttribute('aria-haspopup', 'dialog');
 
-      equipmentBySlot[slot].forEach((item) => {
-        const option = document.createElement('option');
-        option.value = item.id;
-        const stat = slot === 'weapon'
-          ? `攻${item.attack} 命中${item.accuracy ?? '-'}%`
-          : `防${item.defense} 魔防${item.magicDefense} 回避${item.evasion}%`;
-        option.textContent = `${item.nameJa}　${stat}${item.special ? ' ★' : ''}`;
-        option.selected = unit.equipment?.[slot] === item.id;
-        select.appendChild(option);
+      const renderPickerLabel = () => {
+        const current = findEquipment(unit.equipment?.[slot]);
+        picker.textContent = current ? current.nameJa : 'なし';
+      };
+      renderPickerLabel();
+
+      picker.addEventListener('click', () => {
+        const options = [
+          {
+            value: '',
+            name: 'なし',
+            statLine: '',
+            effectText: '',
+            selected: !unit.equipment?.[slot],
+          },
+          ...equipmentBySlot[slot].map((item) => ({
+            value: item.id,
+            name: item.nameJa,
+            statLine: equipmentStatLine(item),
+            effectText: equipmentEffectText(item),
+            selected: unit.equipment?.[slot] === item.id,
+            badge: item.special ? '★' : null,
+          })),
+        ];
+        this.openPicker(`${unit.name}の${labelText}を選択`, options, (value) => {
+          unit.equipment = { ...unit.equipment, [slot]: value || null };
+          if (slot === 'weapon') unit.weaponId = value || null;
+          renderPickerLabel();
+          updateDetails();
+          persistLoadout();
+        });
       });
 
-      select.addEventListener('change', () => {
-        unit.equipment = { ...unit.equipment, [slot]: select.value || null };
-        if (slot === 'weapon') unit.weaponId = select.value || null;
+      field.append(caption, picker);
+      selects.appendChild(field);
+    });
+
+    // ---- Ability slot ----
+    const abilityField = document.createElement('div');
+    abilityField.className = 'formation-field';
+    const abilityCaption = document.createElement('span');
+    abilityCaption.textContent = 'アビリティ';
+    const abilityPicker = document.createElement('button');
+    abilityPicker.type = 'button';
+    abilityPicker.className = 'picker-trigger';
+    abilityPicker.setAttribute('aria-haspopup', 'dialog');
+
+    const renderAbilityLabel = () => {
+      const current = selectableAbilities.find((entry) => entry.id === unit.abilityId);
+      abilityPicker.textContent = current ? current.nameJa : 'なし';
+    };
+    renderAbilityLabel();
+
+    abilityPicker.addEventListener('click', () => {
+      const options = selectableAbilities.map((ability) => ({
+        value: ability.id,
+        name: `${ability.nameJa}（${jobLabels[ability.job] ?? ability.job}）`,
+        statLine: '',
+        effectText: ability.effect,
+        selected: unit.abilityId === ability.id,
+        disabled: !isAbilityImplemented(ability.id),
+        badge: isAbilityImplemented(ability.id) ? null : '準備中',
+      }));
+      this.openPicker(`${unit.name}のアビリティを選択`, options, (value) => {
+        unit.abilityId = value;
+        renderAbilityLabel();
         updateDetails();
         persistLoadout();
       });
-      label.append(caption, select);
-      selects.appendChild(label);
     });
 
-    const abilityLabel = document.createElement('label');
-    abilityLabel.className = 'formation-field';
-    const abilityCaption = document.createElement('span');
-    abilityCaption.textContent = 'アビリティ';
-    const abilitySelect = document.createElement('select');
-    abilitySelect.setAttribute('aria-label', `${unit.name}のアビリティ`);
-    const abilitiesByJob = Object.groupBy
-      ? Object.groupBy(selectableAbilities, (ability) => ability.job)
-      : selectableAbilities.reduce((groups, ability) => {
-          (groups[ability.job] ??= []).push(ability);
-          return groups;
-        }, {});
-    Object.entries(abilitiesByJob).forEach(([job, abilities]) => {
-      const group = document.createElement('optgroup');
-      group.label = jobLabels[job] ?? job;
-      abilities.forEach((ability) => {
-        const option = document.createElement('option');
-        option.value = ability.id;
-        option.textContent = ability.nameJa;
-        option.selected = unit.abilityId === ability.id;
-        option.disabled = !isAbilityImplemented(ability.id);
-        if (option.disabled) option.textContent += '（準備中）';
-        group.appendChild(option);
-      });
-      abilitySelect.appendChild(group);
-    });
-    abilitySelect.addEventListener('change', () => {
-      unit.abilityId = abilitySelect.value;
-      updateDetails();
-      persistLoadout();
-    });
-    abilityLabel.append(abilityCaption, abilitySelect);
-    selects.appendChild(abilityLabel);
+    abilityField.append(abilityCaption, abilityPicker);
+    selects.appendChild(abilityField);
 
-    const shardLabel = document.createElement('label');
-    shardLabel.className = 'formation-field';
+    // ---- Crystal shard slot ----
+    const shardField = document.createElement('div');
+    shardField.className = 'formation-field';
     const shardCaption = document.createElement('span');
     shardCaption.textContent = 'クリスタルのかけら';
-    const shardSelect = document.createElement('select');
-    shardSelect.setAttribute('aria-label', `${unit.name}のクリスタルのかけら`);
-    crystalShards.forEach((shard) => {
-      const option = document.createElement('option');
-      option.value = shard.id;
-      option.textContent = `${shard.nameJa}（${shard.techniqueNameJa}）`;
-      option.selected = unit.crystalShardId === shard.id;
-      shardSelect.appendChild(option);
+    const shardPicker = document.createElement('button');
+    shardPicker.type = 'button';
+    shardPicker.className = 'picker-trigger';
+    shardPicker.setAttribute('aria-haspopup', 'dialog');
+
+    const renderShardLabel = () => {
+      const current = crystalShards.find((entry) => entry.id === unit.crystalShardId);
+      shardPicker.textContent = current ? current.nameJa : 'なし';
+    };
+    renderShardLabel();
+
+    shardPicker.addEventListener('click', () => {
+      const options = crystalShards.map((shard) => ({
+        value: shard.id,
+        name: shard.nameJa,
+        statLine: `技: ${shard.techniqueNameJa}`,
+        effectText: shard.lore,
+        selected: unit.crystalShardId === shard.id,
+      }));
+      this.openPicker(`${unit.name}のクリスタルのかけらを選択`, options, (value) => {
+        unit.crystalShardId = value;
+        renderShardLabel();
+        persistLoadout();
+      });
     });
-    shardSelect.addEventListener('change', () => {
-      unit.crystalShardId = shardSelect.value;
-      persistLoadout();
-    });
-    shardLabel.append(shardCaption, shardSelect);
-    selects.appendChild(shardLabel);
+
+    shardField.append(shardCaption, shardPicker);
+    selects.appendChild(shardField);
 
     info.appendChild(selects);
 
