@@ -5932,6 +5932,7 @@ function buildBossUnit(bossConfig) {
   return new Unit({
     id: bossConfig.id,
     name: bossConfig.name,
+    spriteUrl: bossConfig.spriteUrl,
     isEnemy: true,
     maxHp: bossConfig.maxHp,
     maxMp: bossConfig.maxMp,
