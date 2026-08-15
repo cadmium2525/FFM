@@ -132,7 +132,7 @@ Math.random = oldRandom;
 
 // A freshly equipped summon command must cast through BattleManager, spend MP,
 // and carry its school metadata to the presentation layer.
-const summonFaris = makeUnit({ id: 'faris-summoner', name: 'ファリス', maxMp: 350, mp: 350, ctValue: BASE_THRESHOLD });
+const summonFaris = makeUnit({ id: 'faris-summoner', name: 'ピーシィ', maxMp: 350, mp: 350, ctValue: BASE_THRESHOLD });
 const summonBoss = makeUnit({ id: 'summon-target', name: '召喚検証用', isEnemy: true, maxHp: 9999, hp: 9999, ctValue: 0 });
 const summonManager = new BattleManager([summonFaris], summonBoss);
 summonManager.scheduleNextTurn = () => {};
@@ -147,7 +147,7 @@ assert.equal(summonFaris.mp, 350 - ifritAction.mpCost);
 
 // If summoning really is sealed, report the concrete status instead of a
 // generic wiring-looking error and leave the turn/MP untouched.
-const silencedFaris = makeUnit({ id: 'faris-silenced', name: 'ファリス', maxMp: 350, mp: 350, ctValue: BASE_THRESHOLD });
+const silencedFaris = makeUnit({ id: 'faris-silenced', name: 'ピーシィ', maxMp: 350, mp: 350, ctValue: BASE_THRESHOLD });
 silencedFaris.addStatus('silence', { force: true });
 const sealedManager = new BattleManager([silencedFaris], summonBoss);
 sealedManager.scheduleNextTurn = () => {};

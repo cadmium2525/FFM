@@ -7,7 +7,7 @@
 export const partyData = [
   {
     id: 'p1',
-    name: 'バッツ',
+    name: 'ポルツ',
     level: 50,
     role: '前衛',
     maxHp: 1200,
@@ -19,6 +19,7 @@ export const partyData = [
     weakness: null,
     equippedAbilitySet: 'たたかう型',
     weapon: 'ブロードソード',
+    spriteUrl: 'assets/images/characters/portz.webp',
     equipment: {
       weapon: 'equipment_weapon_broadsword',
       shield: 'equipment_shield_leather_shield',
@@ -56,7 +57,7 @@ export const partyData = [
   },
   {
     id: 'p3',
-    name: 'ガラフ',
+    name: 'ブラス',
     level: 50,
     role: '前衛',
     maxHp: 1400,
@@ -68,6 +69,7 @@ export const partyData = [
     weakness: null,
     equippedAbilitySet: 'たたかう型',
     weapon: 'オノ',
+    spriteUrl: 'assets/images/characters/brass.webp',
     equipment: {
       weapon: 'equipment_weapon_battle_axe',
       shield: 'equipment_shield_bronze_shield',
@@ -80,7 +82,7 @@ export const partyData = [
   },
   {
     id: 'p4',
-    name: 'ファリス',
+    name: 'ピーシィ',
     level: 50,
     role: '後衛',
     maxHp: 1000,
@@ -92,6 +94,7 @@ export const partyData = [
     weakness: null,
     equippedAbilitySet: '黒魔法',
     weapon: 'レイピア',
+    spriteUrl: 'assets/images/characters/piecy.webp',
     equipment: {
       weapon: 'equipment_weapon_dagger',
       shield: null,
