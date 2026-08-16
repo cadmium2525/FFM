@@ -21,7 +21,15 @@ export const GACHA_TIER_WEIGHTS = [
   { tier: 'miss', weight: 70 },
 ];
 
-export const MISS_POOL = [{ itemId: 'item_potion', qty: 1, nameJa: 'ポーション' }];
+export const MISS_POOL = [
+  { itemId: 'item_potion', qty: 1, nameJa: 'ポーション' },
+  { itemId: 'item_antidote', qty: 1, nameJa: 'どくけし' },
+  { itemId: 'item_eye_drops', qty: 1, nameJa: 'めぐすり' },
+  { itemId: 'item_maiden_s_kiss', qty: 1, nameJa: 'おとめのキッス' },
+  { itemId: 'item_mallet', qty: 1, nameJa: 'うちでのこづち' },
+  { itemId: 'item_gold_needle', qty: 1, nameJa: 'きんのはり' },
+  { itemId: 'item_holy_water', qty: 1, nameJa: 'せいすい' },
+];
 
 export const SMALL_POOL = [
   { itemId: 'item_phoenix_down', qty: 1, nameJa: 'フェニックスのお' },

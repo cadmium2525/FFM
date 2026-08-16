@@ -634,6 +634,10 @@ body {
   overflow-y: auto;
 }
 
+.menu-panel-content-wide {
+  padding: 10px 2px 2px;
+}
+
 .course-card {
   width: 100%;
   display: flex;
@@ -863,8 +867,9 @@ body {
 /* -- crack stage (single crystal, used for 1-pull and the 10-pull intro) -- */
 .gacha-crack-stage {
   position: relative;
-  width: 168px;
-  height: 210px;
+  width: min(74vw, 380px);
+  aspect-ratio: 887 / 1774;
+  height: auto;
   display: grid;
   place-items: center;
   background: radial-gradient(circle, rgba(40, 60, 130, 0.5), rgba(6, 10, 30, 0.15) 70%);
@@ -906,13 +911,18 @@ body {
   animation: gacha-crack-shatter-out 0.34s ease-in both;
 }
 
-.gacha-crack-upgrade-flash::after {
+.gacha-crack-upgrade-flash::after,
+.gacha-cascade-flash::after {
   content: '';
   position: absolute;
   inset: -20%;
   background: radial-gradient(circle, rgba(255, 255, 255, 0.85), transparent 70%);
   animation: gacha-flash-pulse 0.36s ease-out;
   pointer-events: none;
+}
+
+.gacha-cascade-shake {
+  animation: gacha-crack-shake 0.18s ease-in-out infinite;
 }
 
 .gacha-crack-revealed {
@@ -922,8 +932,8 @@ body {
 .gacha-result-visual {
   position: relative;
   z-index: 1;
-  width: 128px;
-  height: 128px;
+  width: 62%;
+  height: 62%;
   animation: gacha-reveal-pop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
 
@@ -995,7 +1005,7 @@ body {
 .shard-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 7px;
+  gap: 9px;
   width: 100%;
 }
 
@@ -1026,17 +1036,8 @@ body {
   box-shadow: 0 0 0 2px rgba(255, 233, 168, 0.35) inset;
 }
 
-.shard-tile-opening .shard-tile-art {
-  animation: gacha-reveal-pop 0.4s cubic-bezier(0.2, 1.4, 0.4, 1) both;
-}
-
-.shard-tile-upgrade-flash::after {
-  content: '';
-  position: absolute;
-  inset: -15%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.85), transparent 70%);
-  animation: gacha-flash-pulse 0.4s ease-out;
-  pointer-events: none;
+.shard-tile-active .shard-tile-art {
+  animation: gacha-shard-pulse 0.9s ease-in-out infinite;
 }
 
 .shard-tile-revealed.tile-tier-jackpot {
@@ -1073,6 +1074,11 @@ body {
 @keyframes gacha-rainbow-shimmer {
   0%, 100% { filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.65)) hue-rotate(0deg); }
   50% { filter: drop-shadow(0 0 16px rgba(255, 255, 255, 0.85)) hue-rotate(40deg); }
+}
+
+@keyframes gacha-shard-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.25); }
 }
 
 @keyframes gacha-shard-appear {
