@@ -20,6 +20,17 @@
   <div id="game-root">
     <div id="global-toast" class="global-toast hidden" role="status" aria-live="polite"></div>
 
+    <!-- ============ GACHA ODDS MODAL ============ -->
+    <div id="gacha-odds-modal" class="gacha-odds-modal hidden">
+      <div class="gacha-odds-modal-panel ff5-window">
+        <div class="gacha-odds-modal-header">
+          <h3>提供割合</h3>
+          <button id="gacha-odds-modal-close" class="menu-back-button" type="button">閉じる</button>
+        </div>
+        <div id="gacha-odds-modal-body" class="gacha-odds-modal-body"></div>
+      </div>
+    </div>
+
     <!-- ============ TITLE SCREEN ============ -->
     <section id="title-screen" class="screen active-screen">
       <div class="title-box ff5-window">
@@ -2068,15 +2079,37 @@ function rollJackpotDisc() {
   return createDiscInstance(shard.id);
 }
 
+/**
+ * "確定演出" (early-tell) state for the crystal-crack reveal (see
+ * playGachaReveal in main.js). About half of all 小当たり/大当たり slots
+ * light up gold/rainbow while the crystal is still cracking, so the player
+ * gets an early tell; the other half stay a mystery blue crystal until the
+ * moment it opens (surprise reveal). ハズレ is always plain blue.
+ *
+ *  - 'blue'         : no early tell, stays blue until opened
+ *  - 'gold'          : early tell, confirmed 小当たり以上
+ *  - 'rainbow'       : early tell, confirmed 大当たり (visible immediately)
+ *  - 'gold-upgrade'  : early tell shows gold, then upgrades to rainbow
+ *                      (大当たり) right before it opens
+ */
+function rollTellState(tier) {
+  if (tier === 'miss') return 'blue';
+  const hasTell = Math.random() < 0.5;
+  if (!hasTell) return 'blue';
+  if (tier === 'small') return 'gold';
+  return Math.random() < 0.5 ? 'rainbow' : 'gold-upgrade';
+}
+
 /** Roll one gacha slot. Pass a tier ('jackpot' | 'small' | 'miss') to force a
  * result — used for the guaranteed 10-pull slot and the admin preview. */
 function rollGachaResult(forcedTier = null) {
   const tier = forcedTier ?? rollTier();
+  const tell = rollTellState(tier);
   if (tier === 'jackpot') {
-    return { tier, kind: 'disc', disc: rollJackpotDisc() };
+    return { tier, tell, kind: 'disc', disc: rollJackpotDisc() };
   }
   const item = pick(tier === 'small' ? SMALL_POOL : MISS_POOL);
-  return { tier, kind: 'item', itemId: item.itemId, qty: item.qty, nameJa: item.nameJa };
+  return { tier, tell, kind: 'item', itemId: item.itemId, qty: item.qty, nameJa: item.nameJa };
 }
 
 function rollTenPullResults() {
@@ -8471,7 +8504,7 @@ function showToast(message, duration = 3200) {
   }, duration);
 }
 
-// ---------- えんばんせきガチャ (rich reveal presentation) ----------
+// ---------- えんばんせきガチャ (crystal-crack reveal presentation) ----------
 function gachaResultLabel(result) {
   return result.kind === 'disc' ? (result.disc?.name ?? 'えんばんせき') : result.nameJa;
 }
@@ -8488,76 +8521,295 @@ function applyGachaResult(result) {
   }
 }
 
-/**
- * Renders a tap-to-open reveal sequence into the menu panel. For a 10-pull,
- * results are opened one at a time; a 大当たり flashes a rainbow aura around
- * the えんばんせき artwork. `preview: true` skips granting anything (used by
- * the admin gacha-preview buttons).
- */
-function playGachaReveal(results, { preview = false, onFinish = () => {} } = {}) {
-  let index = 0;
-  let revealed = false;
+const GACHA_CRACK_FRAMES = [
+  'assets/images/gacha/crystal-idle.webp',
+  'assets/images/gacha/crystal-crack-1.webp',
+  'assets/images/gacha/crystal-crack-2.webp',
+  'assets/images/gacha/crystal-crack-3.webp',
+];
 
-  const renderStep = () => {
-    const result = results[index];
-    revealed = false;
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-    openMenuPanel(
-      preview ? 'ガチャ演出プレビュー' : 'えんばんせきガチャ',
-      `<div class="gacha-reveal">
-        <div class="gacha-reveal-progress">${results.length > 1 ? `${index + 1} / ${results.length}` : ''}</div>
-        <button id="gacha-reveal-stage" type="button" class="gacha-reveal-stage" aria-label="タップして開封">
-          <span class="gacha-reveal-glow" aria-hidden="true"></span>
-          <span class="gacha-reveal-rays" aria-hidden="true"></span>
-          <span class="gacha-reveal-disc" aria-hidden="true"></span>
-        </button>
-        <p id="gacha-reveal-hint" class="gacha-reveal-hint">タップして開封</p>
-      </div>`
-    );
+/** The true tone a result ends on once opened: ハズレ=blue, 小当たり=gold,
+ * 大当たり=rainbow. This is always what a slot settles to, regardless of
+ * whether it showed an early tell while cracking. */
+function gachaFinalTone(tier) {
+  if (tier === 'jackpot') return 'rainbow';
+  if (tier === 'small') return 'gold';
+  return 'blue';
+}
 
-    const stageEl = document.getElementById('gacha-reveal-stage');
-    const hintEl = document.getElementById('gacha-reveal-hint');
-    const stageWrap = document.querySelector('.gacha-reveal');
+/** What color the crystal should show at a given crack step, given its
+ * pre-rolled `tell`. 'gold-upgrade' shows gold at crack2 then upgrades to
+ * rainbow at crack3 (the 昇格演出), right before it opens. */
+function gachaTellToneAtStep(tell, step) {
+  if (tell === 'gold-upgrade') return step === 'crack3' ? 'rainbow' : 'gold';
+  return tell;
+}
 
-    stageEl.addEventListener('click', () => {
-      if (!revealed) {
-        revealed = true;
-        const isJackpot = result.tier === 'jackpot';
-        stageWrap.classList.add('gacha-reveal-open');
-        if (isJackpot) stageWrap.classList.add('gacha-reveal-jackpot');
-        const qtyText = result.kind === 'item' ? ` ×${result.qty}` : '';
-        const nextText = results.length > 1 && index < results.length - 1 ? 'タップして次へ' : 'タップして閉じる';
-        hintEl.innerHTML = `<strong class="gacha-reveal-tier">${escapeHtml(gachaTierLabel(result.tier))}</strong><br>${escapeHtml(gachaResultLabel(result))}${qtyText}<br><small>${nextText}</small>`;
-        return;
-      }
-      index += 1;
-      if (index < results.length) {
-        renderStep();
-      } else {
-        onFinish();
-      }
-    });
-  };
+function setCrackImageTone(imgEl, tone) {
+  imgEl.classList.remove('tint-gold', 'tint-rainbow');
+  if (tone === 'gold') imgEl.classList.add('tint-gold');
+  if (tone === 'rainbow') imgEl.classList.add('tint-rainbow');
+}
 
-  if (!preview) results.forEach(applyGachaResult);
-  if (!preview) saveProfile();
-  renderStep();
+/** Plays the shared "crystal cracks apart" animation (frames 002→003→004)
+ * on an existing <img>, tinting it gold/rainbow per `tell`. Resolves once
+ * the crystal has fully shattered. Pass tell: 'blue' for a plain intro
+ * crystal (e.g. the 10-pull's outer crystal) that carries no result. */
+async function playCrackSequence({ imgEl, stageEl, tell }) {
+  stageEl.classList.add('gacha-crack-shaking');
+  imgEl.src = GACHA_CRACK_FRAMES[1];
+  await wait(230);
+
+  const tone2 = gachaTellToneAtStep(tell, 'crack2');
+  imgEl.src = GACHA_CRACK_FRAMES[2];
+  setCrackImageTone(imgEl, tone2);
+  await wait(280);
+
+  const tone3 = gachaTellToneAtStep(tell, 'crack3');
+  if (tone3 !== tone2) {
+    stageEl.classList.add('gacha-crack-upgrade-flash');
+    await wait(180);
+    stageEl.classList.remove('gacha-crack-upgrade-flash');
+  }
+  imgEl.src = GACHA_CRACK_FRAMES[3];
+  setCrackImageTone(imgEl, tone3);
+  await wait(320);
+
+  stageEl.classList.remove('gacha-crack-shaking');
+  stageEl.classList.add('gacha-crack-shatter');
+  await wait(340);
+}
+
+function gachaCrackStageHtml() {
+  return `<button id="gacha-crack-stage" type="button" class="gacha-crack-stage" aria-label="タップして開封">
+    <img id="gacha-crack-img" class="gacha-crack-img" src="${GACHA_CRACK_FRAMES[0]}" alt="">
+    <span id="gacha-crack-tap" class="gacha-crack-tap">TAP</span>
+  </button>`;
+}
+
+/** 1回引く: tap the crystal, watch it crack (with an early gold/rainbow
+ * tell about half the time), then it shatters into the result. */
+function playSingleGachaReveal(result, { preview = false, onFinish = () => {} } = {}) {
+  if (!preview) {
+    applyGachaResult(result);
+    saveProfile();
+  }
+
+  openMenuPanel(
+    preview ? 'ガチャ演出プレビュー' : 'えんばんせきガチャ',
+    `<div class="gacha-reveal">
+      ${gachaCrackStageHtml()}
+      <p id="gacha-reveal-hint" class="gacha-reveal-hint">タップして開封</p>
+    </div>`
+  );
+
+  const stageEl = document.getElementById('gacha-crack-stage');
+  const imgEl = document.getElementById('gacha-crack-img');
+  const tapEl = document.getElementById('gacha-crack-tap');
+  const hintEl = document.getElementById('gacha-reveal-hint');
+
+  let phase = 'idle';
+  stageEl.addEventListener('click', async () => {
+    if (phase === 'revealed') {
+      onFinish();
+      return;
+    }
+    if (phase !== 'idle') return;
+    phase = 'opening';
+    tapEl.classList.add('hidden');
+    hintEl.textContent = '';
+    await playCrackSequence({ imgEl, stageEl, tell: result.tell });
+
+    stageEl.classList.remove('gacha-crack-shatter');
+    stageEl.classList.add('gacha-crack-revealed');
+    const isJackpot = result.tier === 'jackpot';
+    const tone = gachaFinalTone(result.tier);
+    imgEl.remove();
+    const resultEl = document.createElement('div');
+    resultEl.className = isJackpot
+      ? 'gacha-result-visual gacha-result-disc gacha-result-jackpot'
+      : `gacha-result-visual gacha-result-shard tone-${tone}`;
+    stageEl.prepend(resultEl);
+
+    const qtyText = result.kind === 'item' ? ` ×${result.qty}` : '';
+    hintEl.innerHTML = `<strong class="gacha-reveal-tier${isJackpot ? ' is-jackpot' : ''}">${escapeHtml(gachaTierLabel(result.tier))}</strong><br>${escapeHtml(gachaResultLabel(result))}${qtyText}<br><small>タップして閉じる</small>`;
+    phase = 'revealed';
+  });
+}
+
+/** 10連引く: tap the big crystal → it cracks apart and shatters into 10
+ * shards laid out left-to-right, top-to-bottom → each shard auto-opens in
+ * turn (大当たり gets a longer, more dramatic beat than the rest). */
+async function playTenGachaReveal(results, { preview = false, onFinish = () => {} } = {}) {
+  if (!preview) {
+    results.forEach(applyGachaResult);
+    saveProfile();
+  }
+
+  openMenuPanel(
+    preview ? 'ガチャ演出プレビュー' : 'えんばんせきガチャ・10連',
+    `<div class="gacha-reveal">
+      ${gachaCrackStageHtml()}
+      <p id="gacha-reveal-hint" class="gacha-reveal-hint">タップして開封</p>
+    </div>`
+  );
+
+  const stageEl = document.getElementById('gacha-crack-stage');
+  const imgEl = document.getElementById('gacha-crack-img');
+  const tapEl = document.getElementById('gacha-crack-tap');
+  const hintEl = document.getElementById('gacha-reveal-hint');
+
+  stageEl.addEventListener('click', async function onTap() {
+    stageEl.removeEventListener('click', onTap);
+    tapEl.classList.add('hidden');
+    hintEl.textContent = '';
+    await playCrackSequence({ imgEl, stageEl, tell: 'blue' });
+    await playTenPullShardGrid({ results, preview, onFinish });
+  }, { once: true });
+}
+
+async function playTenPullShardGrid({ results, preview, onFinish }) {
+  const tiles = results
+    .map((result, index) => {
+      const lineupTone = result.tell === 'blue' ? 'blue' : (result.tell === 'gold-upgrade' ? 'gold' : result.tell);
+      return `<div class="shard-tile shard-tile-hidden" id="shard-tile-${index}">
+        <div class="shard-tile-art tone-${lineupTone}"></div>
+      </div>`;
+    })
+    .join('');
+
+  openMenuPanel(
+    preview ? 'ガチャ演出プレビュー' : 'えんばんせきガチャ・10連',
+    `<div class="gacha-ten-reveal">
+      <div class="gacha-reveal-progress" id="gacha-reveal-progress"></div>
+      <div class="shard-grid" id="shard-grid">${tiles}</div>
+      <p id="gacha-reveal-hint" class="gacha-reveal-hint">かけらが並んでいます…</p>
+    </div>`
+  );
+
+  const progressEl = document.getElementById('gacha-reveal-progress');
+  const hintEl = document.getElementById('gacha-reveal-hint');
+  const tileEls = results.map((_, index) => document.getElementById(`shard-tile-${index}`));
+
+  for (const tileEl of tileEls) {
+    tileEl.classList.remove('shard-tile-hidden');
+    tileEl.classList.add('shard-tile-appear');
+    await wait(90);
+  }
+  await wait(420);
+
+  for (let i = 0; i < results.length; i += 1) {
+    const result = results[i];
+    const tileEl = tileEls[i];
+    const artEl = tileEl.querySelector('.shard-tile-art');
+    const isJackpot = result.tier === 'jackpot';
+
+    progressEl.textContent = `${i + 1} / ${results.length}`;
+    tileEl.classList.add('shard-tile-active');
+
+    if (result.tell === 'gold-upgrade') {
+      hintEl.textContent = '様子がおかしい…！';
+      await wait(200);
+      tileEl.classList.add('shard-tile-upgrade-flash');
+      await wait(220);
+      artEl.classList.remove('tone-gold');
+      artEl.classList.add('tone-rainbow');
+      tileEl.classList.remove('shard-tile-upgrade-flash');
+      await wait(280);
+    }
+
+    tileEl.classList.add('shard-tile-opening');
+    await wait(isJackpot ? 260 : 140);
+
+    const tone = gachaFinalTone(result.tier);
+    artEl.className = isJackpot
+      ? 'shard-tile-art gacha-result-disc gacha-result-jackpot'
+      : `shard-tile-art tone-${tone}`;
+    tileEl.classList.add('shard-tile-revealed', `tile-tier-${result.tier}`);
+
+    const qtyText = result.kind === 'item' ? ` ×${result.qty}` : '';
+    hintEl.innerHTML = `<strong class="gacha-reveal-tier${isJackpot ? ' is-jackpot' : ''}">${escapeHtml(gachaTierLabel(result.tier))}</strong> ${escapeHtml(gachaResultLabel(result))}${qtyText}`;
+
+    await wait(isJackpot ? 1050 : 260);
+    tileEl.classList.remove('shard-tile-active', 'shard-tile-opening');
+  }
+
+  progressEl.textContent = '';
+  hintEl.innerHTML = 'すべて開封しました<br><small>タップして閉じる</small>';
+  document.querySelector('.gacha-ten-reveal').addEventListener('click', () => onFinish(), { once: true });
+}
+
+function playGachaReveal(results, options = {}) {
+  if (results.length > 1) {
+    playTenGachaReveal(results, options);
+  } else {
+    playSingleGachaReveal(results[0], options);
+  }
+}
+
+function gachaOddsModalHtml() {
+  const jackpotWeight = GACHA_TIER_WEIGHTS.find((w) => w.tier === 'jackpot')?.weight ?? 0;
+  const smallWeight = GACHA_TIER_WEIGHTS.find((w) => w.tier === 'small')?.weight ?? 0;
+  const missWeight = GACHA_TIER_WEIGHTS.find((w) => w.tier === 'miss')?.weight ?? 0;
+  const totalWeight = jackpotWeight + smallWeight + missWeight;
+  const pct = (weight) => `${((weight / totalWeight) * 100).toFixed(2)}%`;
+
+  const jackpotRows = crystalShards
+    .map((shard) => `<li><span>${escapeHtml(shard.nameJa)}</span><b>${pct(jackpotWeight / crystalShards.length)}</b></li>`)
+    .join('');
+  const smallRows = SMALL_POOL
+    .map((item) => `<li><span>${escapeHtml(item.nameJa)} ×${item.qty}</span><b>${pct(smallWeight / SMALL_POOL.length)}</b></li>`)
+    .join('');
+  const missRows = MISS_POOL
+    .map((item) => `<li><span>${escapeHtml(item.nameJa)} ×${item.qty}</span><b>${pct(missWeight / MISS_POOL.length)}</b></li>`)
+    .join('');
+
+  return `<div class="gacha-odds-section">
+    <h4 class="gacha-odds-heading is-jackpot">大当たり（合計 ${pct(jackpotWeight)}）</h4>
+    <ul class="gacha-odds-list">${jackpotRows}</ul>
+  </div>
+  <div class="gacha-odds-section">
+    <h4 class="gacha-odds-heading is-small">小当たり（合計 ${pct(smallWeight)}）</h4>
+    <ul class="gacha-odds-list">${smallRows}</ul>
+  </div>
+  <div class="gacha-odds-section">
+    <h4 class="gacha-odds-heading is-miss">ハズレ（合計 ${pct(missWeight)}）</h4>
+    <ul class="gacha-odds-list">${missRows}</ul>
+  </div>
+  <p class="gacha-odds-note">10連引くと、上記10回のうち小当たり以上が1回も出なかった場合、最後の1枠が小当たりに昇格します。</p>`;
+}
+
+function openGachaOddsModal() {
+  const modalEl = document.getElementById('gacha-odds-modal');
+  const bodyEl = document.getElementById('gacha-odds-modal-body');
+  bodyEl.innerHTML = gachaOddsModalHtml();
+  modalEl.classList.remove('hidden');
+}
+
+function closeGachaOddsModal() {
+  document.getElementById('gacha-odds-modal').classList.add('hidden');
 }
 
 function renderGacha(message = '') {
   openMenuPanel(
     'えんばんせきガチャ',
-    `<div class="gacha-visual" aria-hidden="true"><span></span></div>
+    `<div class="gacha-visual" aria-hidden="true"></div>
     <p>クリスタルに眠る技の記憶を「えんばんせき」として呼び出します。</p>
     ${message ? `<p class="menu-notice">${escapeHtml(message)}</p>` : ''}
     <div class="gacha-actions">
       <button id="gacha-pull-1" class="panel-button primary">1回引く（${GACHA_SINGLE_COST} DIAMOND）</button>
       <button id="gacha-pull-10" class="panel-button primary">10連引く（${GACHA_TEN_COST} DIAMOND・小当たり以上1回確定）</button>
+      <button id="gacha-show-odds" class="panel-button">提供割合を見る</button>
     </div>`
   );
 
   document.getElementById('gacha-pull-1').addEventListener('click', () => performGachaPull(1));
   document.getElementById('gacha-pull-10').addEventListener('click', () => performGachaPull(10));
+  document.getElementById('gacha-show-odds').addEventListener('click', openGachaOddsModal);
 }
 
 function performGachaPull(count) {
@@ -9006,6 +9258,10 @@ document.querySelectorAll('[data-menu-action]').forEach((button) => {
 });
 
 document.getElementById('menu-panel-back').addEventListener('click', closeMenuPanel);
+document.getElementById('gacha-odds-modal-close').addEventListener('click', closeGachaOddsModal);
+document.getElementById('gacha-odds-modal').addEventListener('click', (event) => {
+  if (event.target.id === 'gacha-odds-modal') closeGachaOddsModal();
+});
 
 // ---------- Persistent party (carries HP/MP/equip across bosses) ----------
 let livingParty = null;
