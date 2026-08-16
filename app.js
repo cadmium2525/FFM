@@ -8431,22 +8431,32 @@ function checkImageExists(path) {
   if (gachaItemIconCache.has(path)) return Promise.resolve(gachaItemIconCache.get(path));
   return new Promise((resolve) => {
     const probe = new Image();
-    probe.onload = () => { gachaItemIconCache.set(path, true); resolve(true); };
-    probe.onerror = () => { gachaItemIconCache.set(path, false); resolve(false); };
+    let settled = false;
+    const settle = (ok) => {
+      if (settled) return;
+      settled = true;
+      gachaItemIconCache.set(path, ok);
+      resolve(ok);
+    };
+    probe.onload = () => settle(true);
+    probe.onerror = () => settle(false);
+    // Safety net: never let a missing/slow image stall the reveal sequence.
+    setTimeout(() => settle(false), 800);
     probe.src = path;
   });
 }
 
-async function setArtItemIcon(artEl, itemId, fallbackTone) {
+function setArtItemIcon(artEl, itemId, fallbackTone) {
+  // Show the crystal immediately so the reveal never waits on a network
+  // round-trip; swap to the real item art in the background if it exists.
+  setArtTone(artEl, fallbackTone);
   const path = `${GACHA_ITEM_ICON_DIR}${itemId}.webp`;
-  const exists = await checkImageExists(path);
-  artEl.classList.remove('tone-blue', 'tone-gold', 'tone-rainbow', 'gacha-result-disc', 'gacha-result-jackpot');
-  if (exists) {
-    artEl.style.backgroundImage = `url('${path}')`;
-  } else {
-    artEl.style.backgroundImage = '';
-    artEl.classList.add(`tone-${fallbackTone}`);
-  }
+  checkImageExists(path).then((exists) => {
+    if (exists) {
+      artEl.style.backgroundImage = `url('${path}')`;
+      artEl.classList.remove('tone-blue', 'tone-gold', 'tone-rainbow');
+    }
+  });
 }
 
 async function pulseShakeFlash(el, duration) {
@@ -8479,7 +8489,7 @@ async function revealFinalArt(artEl, result, fromTone, { slow = false } = {}) {
   if (result.kind === 'disc') {
     setArtDisc(artEl);
   } else {
-    await setArtItemIcon(artEl, result.itemId, targetTone);
+    setArtItemIcon(artEl, result.itemId, targetTone);
   }
   await wait(settleDuration);
 }
