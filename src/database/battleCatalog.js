@@ -319,6 +319,12 @@ export function crystalShardAction(shardId) {
   return record ? battleRecordToAction(record) : null;
 }
 
+/** Resolve every technique carried by an equipped えんばんせき (a disc can hold
+ * up to 4 fused technique ids) into the battle command list. */
+export function crystalShardActionsFor(shardIds = []) {
+  return shardIds.map((id) => crystalShardAction(id)).filter(Boolean);
+}
+
 export function magicActionsForSchool(school, { maxLevel = Infinity } = {}) {
   return battleReadyMagic.filter((record) => record.school === school && (record.level ?? 0) <= maxLevel).map(magicRecordToAction);
 }

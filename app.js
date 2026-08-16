@@ -442,6 +442,14 @@ class Unit {
     };
     this.abilityId = config.abilityId ?? 'ability_guard';
     this.crystalShardId = config.crystalShardId ?? 'shard_azure';
+    // A disc can carry 1-4 techniques once fused; this is the resolved list
+    // of technique ids the equipped えんばんせき currently grants in battle.
+    // Callers that know the real owned-disc composition (main.js, battle
+    // snapshot restore) pass this explicitly. Anything else falls back to
+    // treating crystalShardId as a single base technique id.
+    this.crystalShardTechniqueIds = Array.isArray(config.crystalShardTechniqueIds)
+      ? config.crystalShardTechniqueIds
+      : (this.crystalShardId ? [this.crystalShardId] : []);
 
     this.size = config.size ?? 1.0;
     this.ai = config.ai ?? null;
@@ -1761,6 +1769,149 @@ const ff5Database = Object.freeze({
   crystalShards,
 });
 
+// ---- src/data/discStones.js ----
+/**
+ * えんばんせき (disc stones) — collectible technique discs.
+ *
+ * Each owned disc is an individual instance (not a stacked count) so it can
+ * be freely renamed and fused with another disc. A disc always carries 1-4
+ * distinct base techniques drawn from the crystalShards reference pool
+ * (src/database/ff5Database.js). Fusing two discs merges their technique
+ * lists into a brand-new disc instance; the two source discs are consumed.
+ */
+
+let discUidCounter = 0;
+function nextDiscUid() {
+  discUidCounter += 1;
+  return `disc_${Date.now().toString(36)}_${discUidCounter}_${Math.floor(Math.random() * 1e6).toString(36)}`;
+}
+
+function baseDiscRecord(shardId) {
+  return crystalShards.find((entry) => entry.id === shardId) ?? null;
+}
+
+function createDiscInstance(shardId) {
+  const base = baseDiscRecord(shardId);
+  if (!base) return null;
+  return { uid: nextDiscUid(), name: base.nameJa, shardIds: [shardId] };
+}
+
+function discTechniques(disc) {
+  return (disc?.shardIds ?? []).map((id) => baseDiscRecord(id)).filter(Boolean);
+}
+
+function discDefaultName(shardIds) {
+  const bases = shardIds.map((id) => baseDiscRecord(id)).filter(Boolean);
+  if (bases.length <= 1) return bases[0]?.nameJa ?? 'えんばんせき';
+  return `融合えんばんせき（${bases.map((base) => base.nameJa.replace('のかけら', '')).join('・')}）`;
+}
+
+const MERGE_COST_BY_RESULT_COUNT = { 2: 300, 3: 900, 4: 2000 };
+function mergeCost(resultCount) {
+  return MERGE_COST_BY_RESULT_COUNT[resultCount] ?? resultCount * 500;
+}
+
+function canMergeDiscs(discA, discB) {
+  if (!discA || !discB || discA.uid === discB.uid) return { ok: false, reason: 'invalid' };
+  const shardIds = [...discA.shardIds, ...discB.shardIds];
+  const unique = new Set(shardIds);
+  if (unique.size !== shardIds.length) return { ok: false, reason: 'duplicate' };
+  if (unique.size > 4) return { ok: false, reason: 'toomany' };
+  return { ok: true, resultCount: unique.size };
+}
+
+function mergeDiscs(discA, discB, customName = null) {
+  const check = canMergeDiscs(discA, discB);
+  if (!check.ok) return check;
+  const shardIds = [...discA.shardIds, ...discB.shardIds];
+  const disc = {
+    uid: nextDiscUid(),
+    name: customName?.trim() || discDefaultName(shardIds),
+    shardIds,
+  };
+  return { ok: true, disc, cost: mergeCost(check.resultCount), resultCount: check.resultCount };
+}
+
+/** Resolve the technique ids an equipped えんばんせき grants in battle. `crystalShardId`
+ * may be an owned disc's uid or (for characters who never customized their
+ * loadout) a base crystalShards catalog id. */
+function resolveDiscTechniqueIds(crystalShardId, ownedDiscs = []) {
+  if (!crystalShardId) return [];
+  const owned = ownedDiscs.find((disc) => disc.uid === crystalShardId);
+  if (owned) return [...owned.shardIds];
+  const base = baseDiscRecord(crystalShardId);
+  return base ? [base.id] : [];
+}
+
+// ---- src/data/discGacha.js ----
+/**
+ * えんばんせきガチャ — gacha odds and reward pools.
+ *
+ *  - 大当たり (jackpot, 5%): a new single-technique えんばんせき.
+ *  - 小当たり (small win): a useful consumable (Phoenix Down / Hi-Potion / Ether).
+ *  - ハズレ (miss): a Potion.
+ *
+ * A 10-pull guarantees at least one 小当たり-or-better among the ten slots.
+ */
+
+const GACHA_SINGLE_COST = 50;
+const GACHA_TEN_COST = 500;
+const GACHA_TEN_PULL_COUNT = 10;
+
+const GACHA_TIER_WEIGHTS = [
+  { tier: 'jackpot', weight: 5 },
+  { tier: 'small', weight: 25 },
+  { tier: 'miss', weight: 70 },
+];
+
+const MISS_POOL = [{ itemId: 'item_potion', qty: 1, nameJa: 'ポーション' }];
+
+const SMALL_POOL = [
+  { itemId: 'item_phoenix_down', qty: 1, nameJa: 'フェニックスのお' },
+  { itemId: 'item_hi_potion', qty: 1, nameJa: 'ハイポーション' },
+  { itemId: 'item_ether', qty: 1, nameJa: 'エーテル' },
+];
+
+function pick(list) {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function rollTier() {
+  const total = GACHA_TIER_WEIGHTS.reduce((sum, entry) => sum + entry.weight, 0);
+  let roll = Math.random() * total;
+  for (const entry of GACHA_TIER_WEIGHTS) {
+    if (roll < entry.weight) return entry.tier;
+    roll -= entry.weight;
+  }
+  return 'miss';
+}
+
+function rollJackpotDisc() {
+  const shard = pick(crystalShards);
+  return createDiscInstance(shard.id);
+}
+
+/** Roll one gacha slot. Pass a tier ('jackpot' | 'small' | 'miss') to force a
+ * result — used for the guaranteed 10-pull slot and the admin preview. */
+function rollGachaResult(forcedTier = null) {
+  const tier = forcedTier ?? rollTier();
+  if (tier === 'jackpot') {
+    return { tier, kind: 'disc', disc: rollJackpotDisc() };
+  }
+  const item = pick(tier === 'small' ? SMALL_POOL : MISS_POOL);
+  return { tier, kind: 'item', itemId: item.itemId, qty: item.qty, nameJa: item.nameJa };
+}
+
+function rollTenPullResults() {
+  const results = Array.from({ length: GACHA_TEN_PULL_COUNT }, () => rollGachaResult());
+  const hasGoodResult = results.some((entry) => entry.tier === 'jackpot' || entry.tier === 'small');
+  if (!hasGoodResult) {
+    const index = Math.floor(Math.random() * results.length);
+    results[index] = rollGachaResult('small');
+  }
+  return results;
+}
+
 // ---- src/battle/EquipmentSystem.js ----
 const elementLabels = Object.freeze({
   fire: '炎', ice: '冷気', lightning: '雷', thunder: '雷', water: '水',
@@ -2279,6 +2430,12 @@ function crystalShardAction(shardId) {
   return record ? battleRecordToAction(record) : null;
 }
 
+/** Resolve every technique carried by an equipped えんばんせき (a disc can hold
+ * up to 4 fused technique ids) into the battle command list. */
+function crystalShardActionsFor(shardIds = []) {
+  return shardIds.map((id) => crystalShardAction(id)).filter(Boolean);
+}
+
 function magicActionsForSchool(school, { maxLevel = Infinity } = {}) {
   return battleReadyMagic.filter((record) => record.school === school && (record.level ?? 0) <= maxLevel).map(magicRecordToAction);
 }
@@ -2306,12 +2463,12 @@ function publicProfile(profile, loginId, loginIdKey, createdAt, updatedAt) {
     ])),
     volume: Math.min(100, Math.max(0, Math.trunc(profile.volume ?? 70))),
     windowHue: Math.min(359, Math.max(0, Math.trunc(profile.windowHue ?? 220))),
-    shards: Array.isArray(profile.shards)
-      ? profile.shards.map(({ id, name, ability, count }) => ({
-          id: String(id),
-          name: String(name),
-          ability: String(ability),
-          count: Math.max(0, Math.trunc(count || 0)),
+    shards: [],
+    discs: Array.isArray(profile.discs)
+      ? profile.discs.slice(0, 200).map(({ uid, name, shardIds }) => ({
+          uid: String(uid),
+          name: String(name).slice(0, 16),
+          shardIds: Array.isArray(shardIds) ? shardIds.slice(0, 4).map(String) : [],
         }))
       : [],
     ...(createdAt ? { createdAt } : {}),
@@ -2610,7 +2767,7 @@ const ff5MixActions = Object.freeze(FF5_MIX_INGREDIENTS.flatMap(([firstId, first
 const basicCommands = [
   { id: 'attack', label: 'たたかう' },
   { id: 'ability', label: 'アビリティ' },
-  { id: 'crystal', label: '結晶技' },
+  { id: 'crystal', label: 'えんばんせき' },
   { id: 'item', label: 'アイテム' },
   { id: 'defend', label: 'ぼうぎょ' },
 ];
@@ -4175,6 +4332,7 @@ function snapshotUnit(unit) {
     equipment: cloneSerializable(unit.equipment, {}),
     abilityId: unit.abilityId,
     crystalShardId: unit.crystalShardId,
+    crystalShardTechniqueIds: [...(unit.crystalShardTechniqueIds ?? [])],
     size: unit.size,
     ai: unit.ai,
     counterOnHit: cloneSerializable(unit.counterOnHit, null),
@@ -4757,7 +4915,7 @@ class BattleManager {
           operations: shard.operations ?? shard.battle?.operations,
         };
         targets = resolveTargets(shard.target ?? shard.battle?.target?.id ?? 'one_enemy', targetUnit);
-        this.log(`${actor.name} の結晶技 ${shard.name ?? shard.techniqueNameJa}！`);
+        this.log(`${actor.name} のえんばんせき ${shard.name ?? shard.techniqueNameJa}！`);
         break;
       }
       case 'item':
@@ -4811,7 +4969,7 @@ class BattleManager {
         : actor.statuses?.has('toad')
           ? 'カエル状態'
           : '行動不能状態';
-      const commandName = isSummon ? '召喚' : isCrystal ? '結晶技' : '魔法';
+      const commandName = isSummon ? '召喚' : isCrystal ? 'えんばんせき' : '魔法';
       this.log(`${actor.name} は${reason}のため${commandName}を使えない！`, 'unavailable');
       return false;
     }
@@ -6681,8 +6839,11 @@ class BattleUI {
         break;
       }
       case 'crystal': {
-        const shardAction = crystalShardAction(actor.crystalShardId);
-        this.openSubmenu('結晶技', shardAction ? [shardAction] : [], 'crystal', actor);
+        const techniqueIds = actor.crystalShardTechniqueIds?.length
+          ? actor.crystalShardTechniqueIds
+          : (actor.crystalShardId ? [actor.crystalShardId] : []);
+        const shardActions = crystalShardActionsFor(techniqueIds);
+        this.openSubmenu('えんばんせき', shardActions, 'crystal', actor);
         break;
       }
       case 'item':
@@ -7457,6 +7618,7 @@ class IntermissionUI {
     this.nextButton = document.getElementById('intermission-next');
     this.indicatorEl = document.getElementById('intermission-indicator');
     this.partyUnits = [];
+    this.ownedDiscs = [];
     this.currentIndex = 0;
     this.activePickerPosition = null;
 
@@ -7595,8 +7757,9 @@ class IntermissionUI {
     this.renderCurrentCard();
   }
 
-  render(partyUnits, nextBoss) {
+  render(partyUnits, nextBoss, ownedDiscs = []) {
     this.partyUnits = partyUnits;
+    this.ownedDiscs = ownedDiscs;
     this.currentIndex = 0;
     this.nextBossLabelEl.textContent = nextBoss
       ? `つぎのボス: ${nextBoss.name}`
@@ -7695,10 +7858,18 @@ class IntermissionUI {
       const abilityLine = ability
         ? `アビリティ: ${ability.nameJa} — ${ability.effect}［${isAbilityImplemented(ability.id) ? '戦闘反映' : '準備中'}］`
         : 'アビリティ: なし';
+      const discTechniqueIds = resolveDiscTechniqueIds(unit.crystalShardId, this.ownedDiscs);
+      const discTechniqueNames = discTechniqueIds
+        .map((id) => crystalShards.find((entry) => entry.id === id)?.techniqueNameJa)
+        .filter(Boolean);
+      const discLine = discTechniqueNames.length
+        ? `えんばんせきの技: ${discTechniqueNames.join('・')}`
+        : 'えんばんせきの技: なし';
       detail.textContent = [
         `戦闘能力: 攻撃 ${unit.baseAtk + bonuses.attack} / 防御 ${unit.baseDef + bonuses.defense} / 魔防 ${unit.baseMagicDef + bonuses.magicDefense} / 魔力 ${unit.baseMagic + bonuses.magic} / 素早さ ${unit.baseAgility + bonuses.agility} / 回避 ${bonuses.evasion}%`,
         ...equipmentLines,
         abilityLine,
+        discLine,
       ].join('\n');
     };
 
@@ -7788,33 +7959,51 @@ class IntermissionUI {
     abilityField.append(abilityCaption, abilityPicker);
     selects.appendChild(abilityField);
 
-    // ---- Crystal shard slot ----
+    // ---- えんばんせき slot ----
     const shardField = document.createElement('div');
     shardField.className = 'formation-field';
     const shardCaption = document.createElement('span');
-    shardCaption.textContent = 'クリスタルのかけら';
+    shardCaption.textContent = 'えんばんせき';
     const shardPicker = document.createElement('button');
     shardPicker.type = 'button';
     shardPicker.className = 'picker-trigger';
     shardPicker.setAttribute('aria-haspopup', 'dialog');
 
+    const findEquippedDisc = () =>
+      this.ownedDiscs.find((entry) => entry.uid === unit.crystalShardId)
+      ?? crystalShards.find((entry) => entry.id === unit.crystalShardId);
+
     const renderShardLabel = () => {
-      const current = crystalShards.find((entry) => entry.id === unit.crystalShardId);
-      shardPicker.textContent = current ? current.nameJa : 'なし';
+      const current = findEquippedDisc();
+      shardPicker.textContent = current ? (current.name ?? current.nameJa) : 'なし';
     };
     renderShardLabel();
 
     shardPicker.addEventListener('click', () => {
-      const options = crystalShards.map((shard) => ({
-        value: shard.id,
-        name: shard.nameJa,
-        statLine: `技: ${shard.techniqueNameJa}`,
-        effectText: shard.lore,
-        selected: unit.crystalShardId === shard.id,
-      }));
-      this.openPicker(`${unit.name}のクリスタルのかけらを選択`, options, (value) => {
+      const options = [
+        ...this.ownedDiscs.map((disc) => ({
+          value: disc.uid,
+          name: disc.name,
+          statLine: `技(${disc.shardIds.length}/4): ${disc.shardIds
+            .map((id) => crystalShards.find((entry) => entry.id === id)?.techniqueNameJa ?? id)
+            .join('・')}`,
+          effectText: '',
+          selected: unit.crystalShardId === disc.uid,
+          badge: disc.shardIds.length > 1 ? '融合' : null,
+        })),
+        ...crystalShards.map((shard) => ({
+          value: shard.id,
+          name: shard.nameJa,
+          statLine: `技: ${shard.techniqueNameJa}`,
+          effectText: shard.lore,
+          selected: unit.crystalShardId === shard.id,
+        })),
+      ];
+      this.openPicker(`${unit.name}のえんばんせきを選択`, options, (value) => {
         unit.crystalShardId = value;
+        unit.crystalShardTechniqueIds = resolveDiscTechniqueIds(value, this.ownedDiscs);
         renderShardLabel();
+        updateDetails();
         persistLoadout();
       });
     });
@@ -7857,12 +8046,6 @@ eventBus.on('state:changed', ({ next }) => showScreen(next));
 
 // ---------- Player profile / menu ----------
 const PROFILE_STORAGE_KEY = 'ff-crystal-rush-profile-v1';
-const shardCatalog = [
-  { id: 'azure', name: '蒼光のかけら', ability: 'アクアスパイラル' },
-  { id: 'ember', name: '紅炎のかけら', ability: 'フレイムバースト' },
-  { id: 'storm', name: '紫電のかけら', ability: 'ライトニングエッジ' },
-  { id: 'verdant', name: '翠風のかけら', ability: 'ウィンドカッター' },
-];
 const defaultItemInventory = Object.freeze(Object.fromEntries(battleReadyItems.map((item) => [
   item.id,
   item.id === 'item_potion' ? 3
@@ -7880,8 +8063,30 @@ const defaultProfile = {
   items: { ...defaultItemInventory },
   volume: 70,
   windowHue: 220,
-  shards: [{ ...shardCatalog[0], count: 1 }],
+  discs: [createDiscInstance('shard_azure')],
 };
+
+// Older saves tracked えんばんせき as a stacked-count "shards" list
+// (`{ id, name, ability, count }`, one entry per element). The new system
+// treats every disc as an individually ownable/renameable/fusable instance,
+// so each legacy count becomes that many separate single-technique discs.
+function migrateShardsToDiscs(saved) {
+  if (Array.isArray(saved?.discs)) return saved.discs;
+  if (Array.isArray(saved?.shards)) {
+    const legacyIdMap = { azure: 'shard_azure', ember: 'shard_ember', storm: 'shard_storm', verdant: 'shard_verdant' };
+    const migrated = [];
+    saved.shards.forEach((entry) => {
+      const shardId = legacyIdMap[entry.id] ?? entry.id;
+      const count = Math.max(1, Number(entry.count) || 1);
+      for (let i = 0; i < count; i += 1) {
+        const disc = createDiscInstance(shardId);
+        if (disc) migrated.push(disc);
+      }
+    });
+    return migrated;
+  }
+  return structuredClone(defaultProfile.discs);
+}
 
 function loadProfile() {
   try {
@@ -7890,7 +8095,7 @@ function loadProfile() {
     const merged = {
       ...structuredClone(defaultProfile),
       ...saved,
-      shards: Array.isArray(saved.shards) ? saved.shards : structuredClone(defaultProfile.shards),
+      discs: migrateShardsToDiscs(saved),
       items: { ...defaultItemInventory, ...(saved.items ?? {}) },
     };
     // Migrate the earlier status-bar-only color setting to the whole UI.
@@ -7898,6 +8103,7 @@ function loadProfile() {
     merged.items.item_potion = Number(saved.items?.item_potion ?? saved.potions ?? merged.items.item_potion);
     merged.potions = merged.items.item_potion;
     delete merged.statusHue;
+    delete merged.shards;
     return merged;
   } catch {
     return structuredClone(defaultProfile);
@@ -7985,7 +8191,7 @@ function applyCloudProfile(data) {
     items: { ...profile.items, ...(data.items ?? {}) },
     volume: Number(data.volume ?? profile.volume),
     windowHue: Number(data.windowHue ?? profile.windowHue),
-    shards: Array.isArray(data.shards) ? data.shards : profile.shards,
+    discs: Array.isArray(data.discs) || Array.isArray(data.shards) ? migrateShardsToDiscs(data) : profile.discs,
   };
   profile.items.item_potion = Number(data.items?.item_potion ?? data.potions ?? profile.items.item_potion);
   profile.potions = profile.items.item_potion;
@@ -8073,42 +8279,287 @@ function renderShop(message = '') {
   });
 }
 
+// ---------- Global toast (battle drop notifications) ----------
+let toastTimer = null;
+function showToast(message, duration = 3200) {
+  const toast = document.getElementById('global-toast');
+  if (!toast) return;
+  toast.textContent = message;
+  toast.classList.remove('hidden');
+  requestAnimationFrame(() => toast.classList.add('visible'));
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.classList.remove('visible');
+    setTimeout(() => toast.classList.add('hidden'), 300);
+  }, duration);
+}
+
+// ---------- えんばんせきガチャ (rich reveal presentation) ----------
+function gachaResultLabel(result) {
+  return result.kind === 'disc' ? (result.disc?.name ?? 'えんばんせき') : result.nameJa;
+}
+
+function gachaTierLabel(tier) {
+  return { jackpot: '大当たり！', small: '小当たり', miss: 'ハズレ' }[tier] ?? '';
+}
+
+function applyGachaResult(result) {
+  if (result.kind === 'disc' && result.disc) {
+    profile.discs.push(result.disc);
+  } else if (result.kind === 'item') {
+    addProfileItem(result.itemId, result.qty);
+  }
+}
+
+/**
+ * Renders a tap-to-open reveal sequence into the menu panel. For a 10-pull,
+ * results are opened one at a time; a 大当たり flashes a rainbow aura around
+ * the えんばんせき artwork. `preview: true` skips granting anything (used by
+ * the admin gacha-preview buttons).
+ */
+function playGachaReveal(results, { preview = false, onFinish = () => {} } = {}) {
+  let index = 0;
+  let revealed = false;
+
+  const renderStep = () => {
+    const result = results[index];
+    revealed = false;
+
+    openMenuPanel(
+      preview ? 'ガチャ演出プレビュー' : 'えんばんせきガチャ',
+      `<div class="gacha-reveal">
+        <div class="gacha-reveal-progress">${results.length > 1 ? `${index + 1} / ${results.length}` : ''}</div>
+        <button id="gacha-reveal-stage" type="button" class="gacha-reveal-stage" aria-label="タップして開封">
+          <span class="gacha-reveal-glow" aria-hidden="true"></span>
+          <span class="gacha-reveal-rays" aria-hidden="true"></span>
+          <span class="gacha-reveal-disc" aria-hidden="true"></span>
+        </button>
+        <p id="gacha-reveal-hint" class="gacha-reveal-hint">タップして開封</p>
+      </div>`
+    );
+
+    const stageEl = document.getElementById('gacha-reveal-stage');
+    const hintEl = document.getElementById('gacha-reveal-hint');
+    const stageWrap = document.querySelector('.gacha-reveal');
+
+    stageEl.addEventListener('click', () => {
+      if (!revealed) {
+        revealed = true;
+        const isJackpot = result.tier === 'jackpot';
+        stageWrap.classList.add('gacha-reveal-open');
+        if (isJackpot) stageWrap.classList.add('gacha-reveal-jackpot');
+        const qtyText = result.kind === 'item' ? ` ×${result.qty}` : '';
+        const nextText = results.length > 1 && index < results.length - 1 ? 'タップして次へ' : 'タップして閉じる';
+        hintEl.innerHTML = `<strong class="gacha-reveal-tier">${escapeHtml(gachaTierLabel(result.tier))}</strong><br>${escapeHtml(gachaResultLabel(result))}${qtyText}<br><small>${nextText}</small>`;
+        return;
+      }
+      index += 1;
+      if (index < results.length) {
+        renderStep();
+      } else {
+        onFinish();
+      }
+    });
+  };
+
+  if (!preview) results.forEach(applyGachaResult);
+  if (!preview) saveProfile();
+  renderStep();
+}
+
 function renderGacha(message = '') {
   openMenuPanel(
-    'クリスタルガチャ',
+    'えんばんせきガチャ',
     `<div class="gacha-visual" aria-hidden="true"><span></span></div>
-    <p>クリスタルに眠る技の記憶を「かけら」として呼び出します。</p>
+    <p>クリスタルに眠る技の記憶を「えんばんせき」として呼び出します。</p>
     ${message ? `<p class="menu-notice">${escapeHtml(message)}</p>` : ''}
-    <button id="draw-crystal" class="panel-button primary">1回召喚 / 300 DIAMOND</button>`
+    <div class="gacha-actions">
+      <button id="gacha-pull-1" class="panel-button primary">1回引く（${GACHA_SINGLE_COST} DIAMOND）</button>
+      <button id="gacha-pull-10" class="panel-button primary">10連引く（${GACHA_TEN_COST} DIAMOND・小当たり以上1回確定）</button>
+    </div>`
   );
-  document.getElementById('draw-crystal').addEventListener('click', () => {
-    if (profile.diamonds < 300) {
-      renderGacha('ダイヤが足りません。');
-      return;
+
+  document.getElementById('gacha-pull-1').addEventListener('click', () => performGachaPull(1));
+  document.getElementById('gacha-pull-10').addEventListener('click', () => performGachaPull(10));
+}
+
+function performGachaPull(count) {
+  const cost = count >= 10 ? GACHA_TEN_COST : GACHA_SINGLE_COST;
+  if (profile.diamonds < cost) {
+    renderGacha('ダイヤが足りません。');
+    return;
+  }
+  profile.diamonds -= cost;
+  const results = count >= 10 ? rollTenPullResults() : [rollGachaResult()];
+  playGachaReveal(results, { onFinish: () => renderGacha() });
+}
+
+// ---------- えんばんせきかんり (owned discs: view / rename / fuse) ----------
+let discMergeSelection = null;
+let discRenameUid = null;
+
+function discEquippedBy(uid) {
+  const names = [];
+  if (Array.isArray(livingParty)) {
+    livingParty.forEach((p) => {
+      if (p.crystalShardId === uid) names.push(p.name);
+    });
+  } else {
+    partyData.forEach((p) => {
+      const loadout = getUnitLoadout(p.id);
+      if (loadout?.crystalShardId === uid) names.push(p.name);
+    });
+  }
+  return names;
+}
+
+// After a fuse, the two source discs disappear; keep anyone who had one of
+// them equipped pointed at the freshly fused disc instead of an empty slot.
+function reassignDiscReferences(oldUids, newUid) {
+  const oldSet = new Set(oldUids);
+  if (Array.isArray(livingParty)) {
+    livingParty.forEach((p) => {
+      if (oldSet.has(p.crystalShardId)) p.crystalShardId = newUid;
+    });
+  }
+  partyData.forEach((p) => {
+    const loadout = getUnitLoadout(p.id);
+    if (loadout && oldSet.has(loadout.crystalShardId)) {
+      saveUnitLoadout(p.id, { ...loadout, crystalShardId: newUid });
     }
-    profile.diamonds -= 300;
-    const drawn = shardCatalog[Math.floor(Math.random() * shardCatalog.length)];
-    const owned = profile.shards.find((item) => item.id === drawn.id);
-    if (owned) owned.count += 1;
-    else profile.shards.push({ ...drawn, count: 1 });
-    saveProfile();
-    renderGacha(`${drawn.name}を入手！ アビリティ「${drawn.ability}」の記憶が輝いている。`);
   });
 }
 
-function renderKeyItems() {
-  const items = profile.shards.length
-    ? profile.shards
-        .map(
-          (item) => `<li class="shard-row">
-            <span class="shard-gem" aria-hidden="true"></span>
-            <span><strong>${escapeHtml(item.name)}</strong><small>記憶技：${escapeHtml(item.ability)}</small></span>
-            <b>×${item.count}</b>
-          </li>`
-        )
-        .join('')
-    : '<li class="empty-state">まだクリスタルのかけらを持っていません。</li>';
-  openMenuPanel('だいじなもの', `<ul class="shard-list">${items}</ul>`);
+function discCardHtml(disc) {
+  const techs = discTechniques(disc);
+  const techLine = techs.map((t) => t.techniqueNameJa).join('・') || 'なし';
+  const equippedBy = discEquippedBy(disc.uid);
+  const selected = discMergeSelection === disc.uid;
+  const renaming = discRenameUid === disc.uid;
+  const canFuse = techs.length < 4;
+
+  const body = renaming
+    ? `<form class="disc-rename-form" data-disc-uid="${disc.uid}">
+        <input type="text" name="discName" maxlength="16" value="${escapeHtml(disc.name)}" autocomplete="off">
+        <div class="disc-rename-actions">
+          <button type="submit" class="panel-button primary">決定</button>
+          <button type="button" class="panel-button disc-rename-cancel">やめる</button>
+        </div>
+      </form>`
+    : `<strong>${escapeHtml(disc.name)}</strong>
+      <small>技 ${techs.length}/4：${escapeHtml(techLine)}</small>
+      ${equippedBy.length ? `<small class="disc-equipped-tag">装備中: ${escapeHtml(equippedBy.join('・'))}</small>` : ''}
+      <div class="disc-card-actions">
+        <button type="button" class="panel-button disc-rename-button" data-disc-uid="${disc.uid}">名前を変更</button>
+        ${canFuse
+          ? `<button type="button" class="panel-button disc-merge-button" data-disc-uid="${disc.uid}">${selected ? '選択中' : '合成する'}</button>`
+          : '<span class="disc-full-tag">技4つ・合成済み</span>'}
+      </div>`;
+
+  return `<article class="disc-card${selected ? ' selected' : ''}" data-disc-uid="${disc.uid}">
+    <div class="disc-card-icon" aria-hidden="true"></div>
+    <div class="disc-card-body">${body}</div>
+  </article>`;
+}
+
+function renderDiscManagement(message = '') {
+  const discs = profile.discs;
+  const selectedDisc = discs.find((d) => d.uid === discMergeSelection) ?? null;
+
+  const list = discs.length
+    ? `<div class="disc-list">${discs.map((disc) => discCardHtml(disc)).join('')}</div>`
+    : '<p class="empty-state">まだえんばんせきを持っていません。ガチャやバトルのドロップで手に入れましょう。</p>';
+
+  const selectionBanner = selectedDisc
+    ? `<p class="menu-notice">「${escapeHtml(selectedDisc.name)}」を選択中。合成するもう一つのえんばんせきをタップしてください。</p>
+       <button id="disc-selection-cancel" class="panel-button" type="button">選択解除</button>`
+    : '';
+
+  openMenuPanel(
+    'えんばんせきかんり',
+    `${message ? `<p class="menu-notice">${escapeHtml(message)}</p>` : ''}
+    ${selectionBanner}
+    <p class="disc-management-hint">えんばんせきは最大4つの技を持てます。2つをタップして合成すると、技をまとめた1つのえんばんせきになります（ギルを消費／名前は自由に変更可能）。</p>
+    ${list}`
+  );
+
+  document.getElementById('disc-selection-cancel')?.addEventListener('click', () => {
+    discMergeSelection = null;
+    renderDiscManagement();
+  });
+
+  document.querySelectorAll('.disc-rename-button').forEach((button) => {
+    button.addEventListener('click', () => {
+      discRenameUid = button.dataset.discUid;
+      renderDiscManagement();
+    });
+  });
+  document.querySelectorAll('.disc-rename-cancel').forEach((button) => {
+    button.addEventListener('click', () => {
+      discRenameUid = null;
+      renderDiscManagement();
+    });
+  });
+  document.querySelectorAll('.disc-rename-form').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const uid = form.dataset.discUid;
+      const disc = profile.discs.find((d) => d.uid === uid);
+      const newName = new FormData(form).get('discName')?.toString().trim();
+      if (disc && newName) {
+        disc.name = newName.slice(0, 16);
+        saveProfile();
+      }
+      discRenameUid = null;
+      renderDiscManagement(disc ? 'えんばんせきの名前を変更しました。' : '');
+    });
+  });
+
+  document.querySelectorAll('.disc-merge-button').forEach((button) => {
+    button.addEventListener('click', () => {
+      const uid = button.dataset.discUid;
+      if (!discMergeSelection) {
+        discMergeSelection = uid;
+        renderDiscManagement();
+        return;
+      }
+      if (discMergeSelection === uid) {
+        discMergeSelection = null;
+        renderDiscManagement();
+        return;
+      }
+      const discA = profile.discs.find((d) => d.uid === discMergeSelection);
+      const discB = profile.discs.find((d) => d.uid === uid);
+      const check = canMergeDiscs(discA, discB);
+      if (!check.ok) {
+        discMergeSelection = null;
+        renderDiscManagement(
+          check.reason === 'duplicate'
+            ? '同じ技を持つえんばんせき同士は合成できません。'
+            : '技の数が4を超えるため合成できません。'
+        );
+        return;
+      }
+      const cost = mergeCost(check.resultCount);
+      if (profile.gil < cost) {
+        renderDiscManagement(`ギルが足りません。（必要 ${cost.toLocaleString('ja-JP')} GIL）`);
+        return;
+      }
+      const result = mergeDiscs(discA, discB);
+      if (!result.ok) {
+        discMergeSelection = null;
+        renderDiscManagement('合成に失敗しました。');
+        return;
+      }
+      profile.gil -= cost;
+      profile.discs = profile.discs.filter((d) => d.uid !== discA.uid && d.uid !== discB.uid);
+      profile.discs.push(result.disc);
+      reassignDiscReferences([discA.uid, discB.uid], result.disc.uid);
+      saveProfile();
+      discMergeSelection = null;
+      renderDiscManagement(`「${result.disc.name}」に合成しました。（${cost.toLocaleString('ja-JP')} GIL消費）`);
+    });
+  });
 }
 
 function renderOptions(message = '') {
@@ -8265,7 +8716,7 @@ const adminCatalogs = {
   magic: { label: `魔法 (${battleReadyMagic.length})`, records: battleReadyMagic },
   abilities: { label: `アビリティ・歌 (${battleReadyAbilities.length + battleReadySongs.length})`, records: [...battleReadyAbilities, ...battleReadySongs] },
   items: { label: `アイテム (${battleReadyItems.length})`, records: battleReadyItems },
-  crystals: { label: `クリスタルのかけら (${battleReadyShards.length})`, records: battleReadyShards },
+  crystals: { label: `えんばんせき基礎技 (${battleReadyShards.length})`, records: battleReadyShards },
   bossTechniques: { label: `ボス技一覧 (${bossTechniqueRecords.length})`, records: bossTechniqueRecords },
   battle: { label: 'バトル仕様', records: [ff5BattleRules] },
 };
@@ -8319,13 +8770,36 @@ function renderAdminCatalog(selectedCatalog = 'equipment') {
 
   openMenuPanel(
     '管理者モード',
-    `<div class="admin-toolbar">
+    `<div class="admin-gacha-preview">
+      <h4>ガチャ演出プレビュー</h4>
+      <div class="admin-gacha-preview-actions">
+        <button id="admin-preview-miss" type="button" class="panel-button">ハズレ</button>
+        <button id="admin-preview-small" type="button" class="panel-button">小当たり</button>
+        <button id="admin-preview-jackpot" type="button" class="panel-button">大当たり</button>
+        <button id="admin-preview-ten" type="button" class="panel-button primary">10連演出</button>
+      </div>
+    </div>
+    <div class="admin-toolbar">
       <select id="admin-catalog-select" aria-label="データ種別">${options}</select>
       <input id="admin-search" type="search" placeholder="名前・ID・効果で検索" aria-label="管理データ検索">
     </div>
     <div id="admin-count" class="admin-count">${catalog.records.length}件</div>
     <div id="admin-records" class="admin-records">${records}</div>`
   );
+
+  const backToCatalog = () => renderAdminCatalog(selectedCatalog);
+  document.getElementById('admin-preview-miss').addEventListener('click', () => {
+    playGachaReveal([rollGachaResult('miss')], { preview: true, onFinish: backToCatalog });
+  });
+  document.getElementById('admin-preview-small').addEventListener('click', () => {
+    playGachaReveal([rollGachaResult('small')], { preview: true, onFinish: backToCatalog });
+  });
+  document.getElementById('admin-preview-jackpot').addEventListener('click', () => {
+    playGachaReveal([rollGachaResult('jackpot')], { preview: true, onFinish: backToCatalog });
+  });
+  document.getElementById('admin-preview-ten').addEventListener('click', () => {
+    playGachaReveal(rollTenPullResults(), { preview: true, onFinish: backToCatalog });
+  });
 
   document.getElementById('admin-catalog-select').addEventListener('change', (event) => {
     renderAdminCatalog(event.target.value);
@@ -8348,7 +8822,7 @@ document.querySelectorAll('[data-menu-action]').forEach((button) => {
     if (action === 'battle') renderCourseSelect();
     if (action === 'shop') renderShop();
     if (action === 'gacha') renderGacha();
-    if (action === 'key-items') renderKeyItems();
+    if (action === 'key-items') renderDiscManagement();
     if (action === 'options') renderOptions();
     if (action === 'admin') renderAdminCatalog();
   });
@@ -8526,6 +9000,7 @@ function buildPartyUnits(state) {
         equipment: { ...p.equipment },
         abilityId: p.abilityId,
         crystalShardId: p.crystalShardId,
+        crystalShardTechniqueIds: resolveDiscTechniqueIds(p.crystalShardId, profile.discs),
       });
   });
 }
@@ -8608,7 +9083,7 @@ function openPartySetup(nextBoss, { canReturnToMenu = false, readyLabel = 'バ�
   );
   activeSetupUnits = partyUnits;
 
-  intermissionUI.render(partyUnits, nextBoss);
+  intermissionUI.render(partyUnits, nextBoss, profile.discs);
 
   const backButton = document.getElementById('setup-back-button');
   const readyButton = document.getElementById('ready-button');
@@ -8706,15 +9181,31 @@ function startBossBattle(restoredBattle = null) {
   else battleManager.start();
 }
 
+const BOSS_DISC_DROP_CHANCE = 0.35;
+
+function rollBossDiscDrop() {
+  if (Math.random() >= BOSS_DISC_DROP_CHANCE) return null;
+  const shard = crystalShards[Math.floor(Math.random() * crystalShards.length)];
+  return createDiscInstance(shard.id);
+}
+
 function goToIntermissionOrWin() {
   GameState.bossIndex += 1;
+  const drop = rollBossDiscDrop();
+  if (drop) {
+    profile.discs.push(drop);
+  }
+
   if (GameState.bossIndex >= bossData.length) {
     profile.gil += 300;
     saveProfile();
+    if (drop) showToast(`えんばんせき「${drop.name}」を手に入れた！`);
     GameState.set(States.VICTORY);
     return;
   }
 
+  saveProfile();
+  if (drop) showToast(`えんばんせき「${drop.name}」を手に入れた！`);
   openPartySetup(bossData[GameState.bossIndex], {
     canReturnToMenu: false,
     readyLabel: '次のバトルへ',

@@ -13,6 +13,8 @@ const sourceFiles = [
   'src/battle/ActionResolver.js',
   'src/battle/CTBEngine.js',
   'src/database/ff5Database.js',
+  'src/data/discStones.js',
+  'src/data/discGacha.js',
   'src/battle/EquipmentSystem.js',
   'src/database/battleCatalog.js',
   'src/services/FirebaseAccountService.js',

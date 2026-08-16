@@ -8,6 +8,7 @@ import {
 import { isAbilityImplemented } from '../data/abilityData.js';
 import { saveUnitLoadout } from '../core/Loadout.js';
 import { getAbilityListPosition, saveAbilityListPosition } from '../core/AbilityPosition.js';
+import { resolveDiscTechniqueIds } from '../data/discStones.js';
 
 const slotLabels = {
   weapon: '武器',
@@ -50,6 +51,7 @@ export class IntermissionUI {
     this.nextButton = document.getElementById('intermission-next');
     this.indicatorEl = document.getElementById('intermission-indicator');
     this.partyUnits = [];
+    this.ownedDiscs = [];
     this.currentIndex = 0;
     this.activePickerPosition = null;
 
@@ -188,8 +190,9 @@ export class IntermissionUI {
     this.renderCurrentCard();
   }
 
-  render(partyUnits, nextBoss) {
+  render(partyUnits, nextBoss, ownedDiscs = []) {
     this.partyUnits = partyUnits;
+    this.ownedDiscs = ownedDiscs;
     this.currentIndex = 0;
     this.nextBossLabelEl.textContent = nextBoss
       ? `つぎのボス: ${nextBoss.name}`
@@ -288,10 +291,18 @@ export class IntermissionUI {
       const abilityLine = ability
         ? `アビリティ: ${ability.nameJa} — ${ability.effect}［${isAbilityImplemented(ability.id) ? '戦闘反映' : '準備中'}］`
         : 'アビリティ: なし';
+      const discTechniqueIds = resolveDiscTechniqueIds(unit.crystalShardId, this.ownedDiscs);
+      const discTechniqueNames = discTechniqueIds
+        .map((id) => crystalShards.find((entry) => entry.id === id)?.techniqueNameJa)
+        .filter(Boolean);
+      const discLine = discTechniqueNames.length
+        ? `えんばんせきの技: ${discTechniqueNames.join('・')}`
+        : 'えんばんせきの技: なし';
       detail.textContent = [
         `戦闘能力: 攻撃 ${unit.baseAtk + bonuses.attack} / 防御 ${unit.baseDef + bonuses.defense} / 魔防 ${unit.baseMagicDef + bonuses.magicDefense} / 魔力 ${unit.baseMagic + bonuses.magic} / 素早さ ${unit.baseAgility + bonuses.agility} / 回避 ${bonuses.evasion}%`,
         ...equipmentLines,
         abilityLine,
+        discLine,
       ].join('\n');
     };
 
@@ -381,33 +392,51 @@ export class IntermissionUI {
     abilityField.append(abilityCaption, abilityPicker);
     selects.appendChild(abilityField);
 
-    // ---- Crystal shard slot ----
+    // ---- えんばんせき slot ----
     const shardField = document.createElement('div');
     shardField.className = 'formation-field';
     const shardCaption = document.createElement('span');
-    shardCaption.textContent = 'クリスタルのかけら';
+    shardCaption.textContent = 'えんばんせき';
     const shardPicker = document.createElement('button');
     shardPicker.type = 'button';
     shardPicker.className = 'picker-trigger';
     shardPicker.setAttribute('aria-haspopup', 'dialog');
 
+    const findEquippedDisc = () =>
+      this.ownedDiscs.find((entry) => entry.uid === unit.crystalShardId)
+      ?? crystalShards.find((entry) => entry.id === unit.crystalShardId);
+
     const renderShardLabel = () => {
-      const current = crystalShards.find((entry) => entry.id === unit.crystalShardId);
-      shardPicker.textContent = current ? current.nameJa : 'なし';
+      const current = findEquippedDisc();
+      shardPicker.textContent = current ? (current.name ?? current.nameJa) : 'なし';
     };
     renderShardLabel();
 
     shardPicker.addEventListener('click', () => {
-      const options = crystalShards.map((shard) => ({
-        value: shard.id,
-        name: shard.nameJa,
-        statLine: `技: ${shard.techniqueNameJa}`,
-        effectText: shard.lore,
-        selected: unit.crystalShardId === shard.id,
-      }));
-      this.openPicker(`${unit.name}のクリスタルのかけらを選択`, options, (value) => {
+      const options = [
+        ...this.ownedDiscs.map((disc) => ({
+          value: disc.uid,
+          name: disc.name,
+          statLine: `技(${disc.shardIds.length}/4): ${disc.shardIds
+            .map((id) => crystalShards.find((entry) => entry.id === id)?.techniqueNameJa ?? id)
+            .join('・')}`,
+          effectText: '',
+          selected: unit.crystalShardId === disc.uid,
+          badge: disc.shardIds.length > 1 ? '融合' : null,
+        })),
+        ...crystalShards.map((shard) => ({
+          value: shard.id,
+          name: shard.nameJa,
+          statLine: `技: ${shard.techniqueNameJa}`,
+          effectText: shard.lore,
+          selected: unit.crystalShardId === shard.id,
+        })),
+      ];
+      this.openPicker(`${unit.name}のえんばんせきを選択`, options, (value) => {
         unit.crystalShardId = value;
+        unit.crystalShardTechniqueIds = resolveDiscTechniqueIds(value, this.ownedDiscs);
         renderShardLabel();
+        updateDetails();
         persistLoadout();
       });
     });

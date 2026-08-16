@@ -2,7 +2,7 @@ import { eventBus } from '../core/EventBus.js';
 import { basicCommands, attackAction, defendAction, getAbilityActions, itemActions } from '../data/abilityData.js';
 import { elementNames } from '../data/bossData.js';
 import { selectableAbilities } from '../database/ff5Database.js';
-import { crystalShardAction } from '../database/battleCatalog.js';
+import { crystalShardActionsFor } from '../database/battleCatalog.js';
 import { getBattleEffectDescriptor, resolveBattleEffectDescriptor } from './BattleEffectRegistry.js';
 import { MessageWindow } from './MessageWindow.js';
 import { STATUS_LABELS_JA } from '../battle/StatusEngine.js';
@@ -513,8 +513,11 @@ export class BattleUI {
         break;
       }
       case 'crystal': {
-        const shardAction = crystalShardAction(actor.crystalShardId);
-        this.openSubmenu('結晶技', shardAction ? [shardAction] : [], 'crystal', actor);
+        const techniqueIds = actor.crystalShardTechniqueIds?.length
+          ? actor.crystalShardTechniqueIds
+          : (actor.crystalShardId ? [actor.crystalShardId] : []);
+        const shardActions = crystalShardActionsFor(techniqueIds);
+        this.openSubmenu('えんばんせき', shardActions, 'crystal', actor);
         break;
       }
       case 'item':

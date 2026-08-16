@@ -11,7 +11,7 @@ import { ff5MixActions } from '../battle/FF5MixCatalog.js';
 export const basicCommands = [
   { id: 'attack', label: 'たたかう' },
   { id: 'ability', label: 'アビリティ' },
-  { id: 'crystal', label: '結晶技' },
+  { id: 'crystal', label: 'えんばんせき' },
   { id: 'item', label: 'アイテム' },
   { id: 'defend', label: 'ぼうぎょ' },
 ];

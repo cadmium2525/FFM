@@ -20,12 +20,12 @@ function publicProfile(profile, loginId, loginIdKey, createdAt, updatedAt) {
     ])),
     volume: Math.min(100, Math.max(0, Math.trunc(profile.volume ?? 70))),
     windowHue: Math.min(359, Math.max(0, Math.trunc(profile.windowHue ?? 220))),
-    shards: Array.isArray(profile.shards)
-      ? profile.shards.map(({ id, name, ability, count }) => ({
-          id: String(id),
-          name: String(name),
-          ability: String(ability),
-          count: Math.max(0, Math.trunc(count || 0)),
+    shards: [],
+    discs: Array.isArray(profile.discs)
+      ? profile.discs.slice(0, 200).map(({ uid, name, shardIds }) => ({
+          uid: String(uid),
+          name: String(name).slice(0, 16),
+          shardIds: Array.isArray(shardIds) ? shardIds.slice(0, 4).map(String) : [],
         }))
       : [],
     ...(createdAt ? { createdAt } : {}),

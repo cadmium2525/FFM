@@ -735,6 +735,304 @@ body {
   flex: 0 0 auto;
 }
 
+.gacha-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.gacha-actions .panel-button {
+  width: 100%;
+}
+
+/* ---------- えんばんせきかんり (disc management) ---------- */
+.disc-management-hint {
+  margin-bottom: 12px;
+  color: #cfe0ff;
+  font-size: 7px;
+  line-height: 1.7;
+}
+
+.disc-list {
+  display: grid;
+  gap: 10px;
+}
+
+.disc-card {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(3, 11, 46, 0.5);
+  border: 1px solid rgba(190, 215, 255, 0.46);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.disc-card.selected {
+  background: rgba(75, 224, 255, 0.16);
+  border-color: #79e8ff;
+  box-shadow: 0 0 0 2px rgba(121, 232, 255, 0.4) inset;
+}
+
+.disc-card-icon {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  background: url('../assets/images/ui/enbanseki-thumb.png') center / contain no-repeat;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 6px rgba(255, 200, 110, 0.5));
+}
+
+.disc-card-body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.disc-card-body strong {
+  color: #fff;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.disc-card-body small {
+  display: block;
+  color: #bcd3ff;
+  font-size: 7px;
+  line-height: 1.6;
+}
+
+.disc-equipped-tag {
+  color: #ffe9a8 !important;
+}
+
+.disc-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.disc-card-actions .panel-button {
+  padding: 7px 10px;
+  font-size: 7px;
+}
+
+.disc-full-tag {
+  padding: 7px 10px;
+  color: #99a6c9;
+  font-size: 7px;
+  border: 1px dashed rgba(190, 215, 255, 0.3);
+}
+
+.disc-rename-form {
+  display: grid;
+  gap: 8px;
+}
+
+.disc-rename-form input {
+  width: 100%;
+  padding: 8px;
+  color: #fff;
+  background: var(--ff5-blue-bottom);
+  border: 2px solid #d7e3ff;
+  font-family: inherit;
+  font-size: 8px;
+}
+
+.disc-rename-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.disc-rename-actions .panel-button {
+  padding: 7px 10px;
+  font-size: 7px;
+}
+
+/* ---------- Gacha reveal presentation ---------- */
+.gacha-reveal {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 10px 0 4px;
+}
+
+.gacha-reveal-progress {
+  color: #ffe9a8;
+  font-size: 8px;
+  min-height: 10px;
+}
+
+.gacha-reveal-stage {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle, rgba(40, 60, 130, 0.6), rgba(6, 10, 30, 0.2) 70%);
+  border: 2px solid rgba(190, 215, 255, 0.4);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.gacha-reveal-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(255, 233, 168, 0.55), transparent 65%);
+  opacity: 0.5;
+  animation: gacha-pulse 1.6s ease-in-out infinite;
+}
+
+.gacha-reveal-rays {
+  position: absolute;
+  inset: -30%;
+  background: conic-gradient(from 0deg, rgba(255, 255, 255, 0.12) 0deg, transparent 20deg, rgba(255, 255, 255, 0.12) 40deg, transparent 60deg, rgba(255, 255, 255, 0.12) 80deg, transparent 100deg, rgba(255, 255, 255, 0.12) 120deg, transparent 140deg, rgba(255, 255, 255, 0.12) 160deg, transparent 180deg, rgba(255, 255, 255, 0.12) 200deg, transparent 220deg, rgba(255, 255, 255, 0.12) 240deg, transparent 260deg, rgba(255, 255, 255, 0.12) 280deg, transparent 300deg, rgba(255, 255, 255, 0.12) 320deg, transparent 340deg);
+  animation: gacha-spin 8s linear infinite;
+  opacity: 0.7;
+}
+
+.gacha-reveal-disc {
+  position: relative;
+  z-index: 1;
+  width: 108px;
+  height: 108px;
+  background: url('../assets/images/ui/enbanseki.png') center / contain no-repeat;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 10px rgba(255, 210, 130, 0.55));
+  animation: gacha-bob 2.4s ease-in-out infinite;
+  transition: transform 0.4s ease;
+}
+
+.gacha-reveal-stage:active .gacha-reveal-disc {
+  transform: scale(0.94);
+}
+
+.gacha-reveal-open .gacha-reveal-glow {
+  opacity: 0.85;
+  animation: none;
+}
+
+.gacha-reveal-open .gacha-reveal-disc {
+  animation: gacha-reveal-pop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.gacha-reveal-jackpot .gacha-reveal-stage {
+  border-color: #ffe9a8;
+}
+
+.gacha-reveal-jackpot .gacha-reveal-glow {
+  background: conic-gradient(
+    from 0deg,
+    #ff5ecb,
+    #ffb15e,
+    #fff45e,
+    #6dff8f,
+    #5ee4ff,
+    #7f6dff,
+    #ff5ecb
+  );
+  opacity: 0.75;
+  filter: blur(6px);
+  animation: gacha-spin 3.2s linear infinite;
+}
+
+.gacha-reveal-jackpot .gacha-reveal-disc {
+  filter: drop-shadow(0 0 16px #fff2b0) drop-shadow(0 0 26px #ff9ee8);
+}
+
+.gacha-reveal-hint {
+  min-height: 34px;
+  color: #cfe0ff;
+  font-size: 8px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.gacha-reveal-tier {
+  color: #ffe9a8;
+  font-size: 10px;
+}
+
+.gacha-reveal-jackpot .gacha-reveal-tier {
+  color: #ff9ee8;
+}
+
+@keyframes gacha-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.75; }
+}
+
+@keyframes gacha-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes gacha-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes gacha-reveal-pop {
+  0% { transform: scale(0.7) rotate(-6deg); opacity: 0.3; }
+  60% { transform: scale(1.12) rotate(3deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+/* ---------- Admin gacha preview ---------- */
+.admin-gacha-preview {
+  margin-bottom: 14px;
+  padding: 10px;
+  background: rgba(3, 11, 46, 0.5);
+  border: 1px solid rgba(255, 229, 143, 0.4);
+}
+
+.admin-gacha-preview h4 {
+  margin-bottom: 8px;
+  color: #ffe9a8;
+  font-size: 8px;
+}
+
+.admin-gacha-preview-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.admin-gacha-preview-actions .panel-button {
+  padding: 8px;
+  font-size: 7px;
+}
+
+/* ---------- Global toast ---------- */
+.global-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  z-index: 40;
+  max-width: 82%;
+  padding: 10px 16px;
+  color: #fff;
+  font-size: 8px;
+  line-height: 1.6;
+  text-align: center;
+  background: rgba(10, 16, 46, 0.92);
+  border: 1px solid rgba(255, 229, 143, 0.6);
+  box-shadow: 0 0 0 2px rgba(3, 11, 46, 0.6), 0 6px 18px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, 12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.global-toast.hidden {
+  display: none;
+}
+
+.global-toast.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .options-form {
   display: grid;
   gap: 18px;

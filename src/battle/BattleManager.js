@@ -79,6 +79,7 @@ function snapshotUnit(unit) {
     equipment: cloneSerializable(unit.equipment, {}),
     abilityId: unit.abilityId,
     crystalShardId: unit.crystalShardId,
+    crystalShardTechniqueIds: [...(unit.crystalShardTechniqueIds ?? [])],
     size: unit.size,
     ai: unit.ai,
     counterOnHit: cloneSerializable(unit.counterOnHit, null),
@@ -661,7 +662,7 @@ export class BattleManager {
           operations: shard.operations ?? shard.battle?.operations,
         };
         targets = resolveTargets(shard.target ?? shard.battle?.target?.id ?? 'one_enemy', targetUnit);
-        this.log(`${actor.name} の結晶技 ${shard.name ?? shard.techniqueNameJa}！`);
+        this.log(`${actor.name} のえんばんせき ${shard.name ?? shard.techniqueNameJa}！`);
         break;
       }
       case 'item':
@@ -715,7 +716,7 @@ export class BattleManager {
         : actor.statuses?.has('toad')
           ? 'カエル状態'
           : '行動不能状態';
-      const commandName = isSummon ? '召喚' : isCrystal ? '結晶技' : '魔法';
+      const commandName = isSummon ? '召喚' : isCrystal ? 'えんばんせき' : '魔法';
       this.log(`${actor.name} は${reason}のため${commandName}を使えない！`, 'unavailable');
       return false;
     }

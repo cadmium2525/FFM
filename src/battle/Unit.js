@@ -74,6 +74,14 @@ export class Unit {
     };
     this.abilityId = config.abilityId ?? 'ability_guard';
     this.crystalShardId = config.crystalShardId ?? 'shard_azure';
+    // A disc can carry 1-4 techniques once fused; this is the resolved list
+    // of technique ids the equipped えんばんせき currently grants in battle.
+    // Callers that know the real owned-disc composition (main.js, battle
+    // snapshot restore) pass this explicitly. Anything else falls back to
+    // treating crystalShardId as a single base technique id.
+    this.crystalShardTechniqueIds = Array.isArray(config.crystalShardTechniqueIds)
+      ? config.crystalShardTechniqueIds
+      : (this.crystalShardId ? [this.crystalShardId] : []);
 
     this.size = config.size ?? 1.0;
     this.ai = config.ai ?? null;
