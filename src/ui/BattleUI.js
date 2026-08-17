@@ -48,6 +48,18 @@ function effectDuration(descriptor) {
   return reducedMotion ? 360 : Math.min(1600, Math.max(620, descriptor.duration));
 }
 
+// Attacks/techniques were reading as too fast to actually watch — this
+// scales the whole effect playback (both the procedural DOM/CSS effects and
+// the pixel-canvas spell scenes) evenly slower. Doesn't apply under
+// prefers-reduced-motion, which intentionally stays snappy.
+const BATTLE_EFFECT_SPEED_SCALE = 1.35;
+
+// Matches BattleManager's AUTO_ADVANCE_DELAY_MS — the breathing room a
+// normal turn changeover gets between one actor's action and the next.
+// Counter-attacks (see runNextBattleEffect) get the same pause inserted
+// before they play, instead of chaining instantly off the triggering hit.
+const TURN_CHANGE_PAUSE_MS = 550;
+
 function clonePresentationValue(value) {
   if (value instanceof Set) return new Set([...value].map(clonePresentationValue));
   if (value instanceof Map) return new Map([...value].map(([key, entry]) => [key, clonePresentationValue(entry)]));
@@ -165,6 +177,7 @@ export class BattleUI {
     this.pendingSpellOrItem = null;
     this.effectQueue = [];
     this.activeEffect = null;
+    this.effectStartPending = false;
     this.effectTimer = null;
     this.activeEffectDeadline = 0;
     this.deferredBattleState = null;
@@ -356,6 +369,9 @@ export class BattleUI {
   renderPartyField(party, currentActor) {
     this.partyFieldEl.innerHTML = '';
     party.forEach((unit, idx) => {
+      // Characters removed from battle (e.g. オメガ「サークル」) vanish from
+      // the field entirely — distinct from KO, which still shows the sprite.
+      if (unit.removedFromBattle) return;
       const row = document.createElement('div');
       row.className = 'party-unit-row';
 
@@ -457,7 +473,7 @@ export class BattleUI {
     this.partyStatusEl.innerHTML = '';
     party.forEach((unit, idx) => {
       const row = document.createElement('div');
-      row.className = `status-row${unit === this.battleManager?.currentActor ? ' current-actor' : ''}${unit.isAlive() ? '' : ' is-ko'}`;
+      row.className = `status-row${unit === this.battleManager?.currentActor ? ' current-actor' : ''}${unit.isAlive() ? '' : ' is-ko'}${unit.removedFromBattle ? ' is-removed' : ''}`;
       const statuses = [...(unit.statuses ?? [])];
       const statusMarkup = statuses.length
         ? `<span class="status-chips">${statuses.slice(0, 3).map((status) => {
@@ -465,8 +481,9 @@ export class BattleUI {
           return `<i>${statusNamesJa[status] ?? status}${turns ? `<b>${turns}</b>` : ''}</i>`;
         }).join('')}</span>`
         : '';
+      const removedTag = unit.removedFromBattle ? '<i class="removed-tag">除外</i>' : '';
       row.innerHTML = `
-        <div class="p-name"><b>${String(idx + 1).padStart(2, '0')}</b>${unit.name}<small>ATK ${unit.atk} ・ DEF ${unit.def} ・ MDEF ${unit.magicDef}</small>${statusMarkup}</div>
+        <div class="p-name"><b>${String(idx + 1).padStart(2, '0')}</b>${unit.name}${removedTag}<small>ATK ${unit.atk} ・ DEF ${unit.def} ・ MDEF ${unit.magicDef}</small>${statusMarkup}</div>
         <div class="p-nums">
           <span><em>HP</em> ${unit.hp}<small>/ ${unit.maxHp}</small></span>
           <div class="stat-bar-track"><div class="stat-bar-fill hp ${hpBarClass(unit)}" style="width:${Math.max(0, unit.hpRatio() * 100)}%"></div></div>
@@ -739,7 +756,7 @@ export class BattleUI {
   playActionPulse(actor, results, action = {}, presentationLogs = []) {
     const actorEl = actor ? document.querySelector(`[data-uid="${actor.uid}"]`) : null;
     actorEl?.classList.add('action-pulse');
-    setTimeout(() => actorEl?.classList.remove('action-pulse'), 420);
+    setTimeout(() => actorEl?.classList.remove('action-pulse'), Math.round(420 * BATTLE_EFFECT_SPEED_SCALE));
     if (actorEl && (action?.id || action?.sourceId || action?.visualId || action?.name)) {
       const castDescriptor = getBattleEffectDescriptor(action.commandSourceId) ?? resolveBattleEffectDescriptor(action);
       const castClass = `cast-motion-${safeToken(castDescriptor.castMotion)}`;
@@ -752,7 +769,7 @@ export class BattleUI {
       actorEl.style.setProperty('--cast-distance-half-positive', `${Math.round(castDistance * 0.6)}px`);
       actorEl.style.setProperty('--cast-angle-negative', `${castDescriptor.motion.rotationDegrees * -0.15}deg`);
       actorEl.style.setProperty('--cast-angle-positive', `${castDescriptor.motion.rotationDegrees * 0.12}deg`);
-      setTimeout(() => actorEl.classList.remove('casting-effect', castClass), 720);
+      setTimeout(() => actorEl.classList.remove('casting-effect', castClass), Math.round(720 * BATTLE_EFFECT_SPEED_SCALE));
     }
 
     if (!this.battleFieldEl || results.length === 0) return false;
@@ -898,7 +915,7 @@ export class BattleUI {
       const targetEl = document.querySelector(`[data-uid="${result.targetUid}"]`);
       if (targetEl) {
         targetEl.classList.add('flash');
-        setTimeout(() => targetEl.classList.remove('flash'), 440);
+        setTimeout(() => targetEl.classList.remove('flash'), Math.round(440 * BATTLE_EFFECT_SPEED_SCALE));
         if (descriptor) this.playTargetReaction(targetEl, descriptor, result);
       }
       this.showCombatResult(result, targetEl);
@@ -924,7 +941,7 @@ export class BattleUI {
     targetEl.classList.remove('target-reaction');
     requestAnimationFrame(() => {
       targetEl.classList.add('target-reaction', reactionClass);
-      setTimeout(() => targetEl.classList.remove('target-reaction', reactionClass), 720);
+      setTimeout(() => targetEl.classList.remove('target-reaction', reactionClass), Math.round(720 * BATTLE_EFFECT_SPEED_SCALE));
     });
   }
 
@@ -933,17 +950,32 @@ export class BattleUI {
     const descriptor = resolveBattleEffectDescriptor(action);
     const pixelDuration = spellChoreographyDuration(action);
     const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const duration = pixelDuration ? (reducedMotion ? 360 : pixelDuration) : effectDuration(descriptor);
-    this.effectQueue.push({ actor, action, results, visualType, descriptor, duration, presentationLogs });
+    const rawDuration = pixelDuration ? (reducedMotion ? 360 : pixelDuration) : effectDuration(descriptor);
+    const duration = reducedMotion ? rawDuration : Math.round(rawDuration * BATTLE_EFFECT_SPEED_SCALE);
+    // Counter-attacks (e.g. オメガ「サークル」) fire back-to-back with zero
+    // gap by default, which reads as abnormally fast compared to a normal
+    // turn changeover. Give them the same breathing room a real turn gets.
+    const startDelay = action.isCounterAction && !reducedMotion ? TURN_CHANGE_PAUSE_MS : 0;
+    this.effectQueue.push({ actor, action, results, visualType, descriptor, duration, presentationLogs, startDelay });
     const remainingMs = Math.max(0, this.activeEffectDeadline - Date.now());
-    const queuedMs = this.effectQueue.reduce((total, queued) => total + queued.duration + 180, 0);
+    const queuedMs = this.effectQueue.reduce((total, queued) => total + queued.duration + (queued.startDelay ?? 0) + 180, 0);
     this.battleManager?.deferNextTurnFor(remainingMs + queuedMs + 20);
     this.runNextBattleEffect();
     return true;
   }
 
   runNextBattleEffect() {
-    if (this.activeEffect || !this.effectsEl || this.effectQueue.length === 0) return;
+    if (this.activeEffect || this.effectStartPending || !this.effectsEl || this.effectQueue.length === 0) return;
+    const startDelay = this.effectQueue[0].startDelay ?? 0;
+    if (startDelay > 0) {
+      this.effectQueue[0].startDelay = 0;
+      this.effectStartPending = true;
+      setTimeout(() => {
+        this.effectStartPending = false;
+        this.runNextBattleEffect();
+      }, startDelay);
+      return;
+    }
     const effectState = this.effectQueue.shift();
     const { actor, action, results, visualType, descriptor, duration, presentationLogs = [] } = effectState;
     this.applyPresentationMpCost(actor, action);
@@ -1177,6 +1209,7 @@ export class BattleUI {
     this.effectTimer = null;
     this.effectQueue = [];
     this.activeEffect = null;
+    this.effectStartPending = false;
     this.activeEffectDeadline = 0;
     this.deferredBattleState = null;
     if (this.effectsEl) {

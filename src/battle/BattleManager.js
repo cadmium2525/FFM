@@ -583,7 +583,7 @@ export class BattleManager {
     for (let i = 0; i < times; i += 1) {
       const aliveParty = this.party.filter((unit) => unit.isAlive() && !unit.hidden && !unit.removedFromBattle);
       if (!aliveParty.length || !this.boss.isAlive()) break;
-      const counterAction = pool[Math.floor(Math.random() * pool.length)];
+      const counterAction = { ...pool[Math.floor(Math.random() * pool.length)], isCounterAction: true };
       const focusTarget = aliveParty.includes(originalActor) ? originalActor : aliveParty[Math.floor(Math.random() * aliveParty.length)];
       const counterTargets = counterAction.target === 'all_enemies' ? aliveParty : [focusTarget];
 
