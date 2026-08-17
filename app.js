@@ -8349,13 +8349,6 @@ const GACHA_CRACK_FRAMES = [
   'assets/images/gacha/crystal-crack-3.webp',
 ];
 
-// Item-specific reveal art isn't drawn yet. Drop files named
-// `assets/images/items/<itemId>.webp` (e.g. item_potion.webp) in later and
-// they'll be picked up automatically; until then the reveal falls back to
-// the plain/gold crystal art.
-const GACHA_ITEM_ICON_DIR = 'assets/images/items/';
-const gachaItemIconCache = new Map();
-
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -8415,48 +8408,28 @@ function gachaCrackStageHtml() {
 
 const GACHA_TONE_ORDER = ['blue', 'gold', 'rainbow'];
 
+// ★ (ハズレ) と ★★ (小当たり) のアイテム袋アート。
+const GACHA_BAG_ART = {
+  miss: 'bag-miss',
+  small: 'bag-small',
+};
+
 function setArtTone(artEl, tone) {
-  artEl.classList.remove('tone-blue', 'tone-gold', 'tone-rainbow', 'gacha-result-disc', 'gacha-result-jackpot');
+  artEl.classList.remove('tone-blue', 'tone-gold', 'tone-rainbow', 'tone-bag-miss', 'tone-bag-small', 'gacha-result-disc', 'gacha-result-jackpot');
   artEl.style.backgroundImage = '';
   artEl.classList.add(`tone-${tone}`);
 }
 
 function setArtDisc(artEl) {
-  artEl.classList.remove('tone-blue', 'tone-gold', 'tone-rainbow');
+  artEl.classList.remove('tone-blue', 'tone-gold', 'tone-rainbow', 'tone-bag-miss', 'tone-bag-small');
   artEl.style.backgroundImage = '';
   artEl.classList.add('gacha-result-disc', 'gacha-result-jackpot');
 }
 
-function checkImageExists(path) {
-  if (gachaItemIconCache.has(path)) return Promise.resolve(gachaItemIconCache.get(path));
-  return new Promise((resolve) => {
-    const probe = new Image();
-    let settled = false;
-    const settle = (ok) => {
-      if (settled) return;
-      settled = true;
-      gachaItemIconCache.set(path, ok);
-      resolve(ok);
-    };
-    probe.onload = () => settle(true);
-    probe.onerror = () => settle(false);
-    // Safety net: never let a missing/slow image stall the reveal sequence.
-    setTimeout(() => settle(false), 800);
-    probe.src = path;
-  });
-}
-
-function setArtItemIcon(artEl, itemId, fallbackTone) {
-  // Show the crystal immediately so the reveal never waits on a network
-  // round-trip; swap to the real item art in the background if it exists.
-  setArtTone(artEl, fallbackTone);
-  const path = `${GACHA_ITEM_ICON_DIR}${itemId}.webp`;
-  checkImageExists(path).then((exists) => {
-    if (exists) {
-      artEl.style.backgroundImage = `url('${path}')`;
-      artEl.classList.remove('tone-blue', 'tone-gold', 'tone-rainbow');
-    }
-  });
+function setArtBag(artEl, tier) {
+  artEl.classList.remove('tone-blue', 'tone-gold', 'tone-rainbow', 'gacha-result-disc', 'gacha-result-jackpot');
+  artEl.style.backgroundImage = '';
+  artEl.classList.add(`tone-${GACHA_BAG_ART[tier]}`);
 }
 
 async function pulseShakeFlash(el, duration) {
@@ -8489,7 +8462,7 @@ async function revealFinalArt(artEl, result, fromTone, { slow = false } = {}) {
   if (result.kind === 'disc') {
     setArtDisc(artEl);
   } else {
-    setArtItemIcon(artEl, result.itemId, targetTone);
+    setArtBag(artEl, result.tier);
   }
   await wait(settleDuration);
 }

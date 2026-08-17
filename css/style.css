@@ -970,6 +970,17 @@ body {
   animation: gacha-rainbow-shimmer 2.2s ease-in-out infinite;
 }
 
+.gacha-result-shard.tone-bag-miss,
+.shard-tile-art.tone-bag-miss {
+  background-image: url('../assets/images/gacha/bag-miss.webp');
+}
+
+.gacha-result-shard.tone-bag-small,
+.shard-tile-art.tone-bag-small {
+  background-image: url('../assets/images/gacha/bag-small.webp');
+  filter: drop-shadow(0 0 10px rgba(120, 160, 255, 0.55));
+}
+
 .gacha-result-disc {
   background: url('../assets/images/ui/enbanseki.png') center / contain no-repeat;
   image-rendering: pixelated;
