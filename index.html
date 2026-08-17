@@ -8668,6 +8668,7 @@ function playSingleGachaReveal(result, { preview = false, onFinish = () => {} } 
     preview ? 'ガチャ演出プレビュー' : 'えんばんせきガチャ',
     `<div class="gacha-reveal">
       ${gachaCrackStageHtml()}
+      <p id="gacha-result-label" class="gacha-result-label"></p>
       <p id="gacha-reveal-hint" class="gacha-reveal-hint">タップして開封</p>
     </div>`,
     { wide: true }
@@ -8676,6 +8677,7 @@ function playSingleGachaReveal(result, { preview = false, onFinish = () => {} } 
   const stageEl = document.getElementById('gacha-crack-stage');
   const imgEl = document.getElementById('gacha-crack-img');
   const tapEl = document.getElementById('gacha-crack-tap');
+  const labelEl = document.getElementById('gacha-result-label');
   const hintEl = document.getElementById('gacha-reveal-hint');
 
   let phase = 'idle';
@@ -8703,7 +8705,8 @@ function playSingleGachaReveal(result, { preview = false, onFinish = () => {} } 
 
     const isJackpot = result.tier === 'jackpot';
     const qtyText = result.kind === 'item' ? ` ×${result.qty}` : '';
-    hintEl.innerHTML = `<strong class="gacha-reveal-tier${isJackpot ? ' is-jackpot' : ''}">${escapeHtml(gachaTierLabel(result.tier))}</strong><br>${escapeHtml(gachaResultLabel(result))}${qtyText}<br><small>タップして閉じる</small>`;
+    labelEl.innerHTML = `<strong class="gacha-reveal-tier${isJackpot ? ' is-jackpot' : ''}">${escapeHtml(gachaTierLabel(result.tier))}</strong><br>${escapeHtml(gachaResultLabel(result))}${qtyText}`;
+    hintEl.innerHTML = '<small>タップして閉じる</small>';
     phase = 'revealed';
   });
 }
@@ -8711,7 +8714,8 @@ function playSingleGachaReveal(result, { preview = false, onFinish = () => {} } 
 /** 10連引く: tap the big crystal → it cracks apart and shatters into 10
  * shards laid out left-to-right, top-to-bottom → each shard auto-opens in
  * turn, shaking through its own color reveal (大当たり gets a longer, more
- * dramatic beat than the rest). */
+ * dramatic beat than the rest). Each shard keeps its own name label once
+ * revealed, since the auto-play moves on too fast to read a shared line. */
 async function playTenGachaReveal(results, { preview = false, onFinish = () => {} } = {}) {
   if (!preview) {
     results.forEach(applyGachaResult);
@@ -8746,7 +8750,8 @@ async function playTenPullShardGrid({ results, preview, onFinish }) {
     .map((result, index) => {
       const lineupTone = result.tell === 'blue' ? 'blue' : (result.tell === 'gold-upgrade' ? 'gold' : result.tell);
       return `<div class="shard-tile shard-tile-hidden" id="shard-tile-${index}" data-tone="${lineupTone}">
-        <div class="shard-tile-art tone-${lineupTone}"></div>
+        <div class="shard-tile-box"><div class="shard-tile-art tone-${lineupTone}"></div></div>
+        <p class="shard-tile-label" id="shard-tile-label-${index}"></p>
       </div>`;
     })
     .join('');
@@ -8776,6 +8781,7 @@ async function playTenPullShardGrid({ results, preview, onFinish }) {
     const result = results[i];
     const tileEl = tileEls[i];
     const artEl = tileEl.querySelector('.shard-tile-art');
+    const labelEl = document.getElementById(`shard-tile-label-${i}`);
     const isJackpot = result.tier === 'jackpot';
     const startTone = tileEl.dataset.tone;
 
@@ -8786,7 +8792,7 @@ async function playTenPullShardGrid({ results, preview, onFinish }) {
 
     tileEl.classList.add('shard-tile-revealed', `tile-tier-${result.tier}`);
     const qtyText = result.kind === 'item' ? ` ×${result.qty}` : '';
-    hintEl.innerHTML = `<strong class="gacha-reveal-tier${isJackpot ? ' is-jackpot' : ''}">${escapeHtml(gachaTierLabel(result.tier))}</strong> ${escapeHtml(gachaResultLabel(result))}${qtyText}`;
+    labelEl.textContent = `${gachaResultLabel(result)}${qtyText}`;
 
     await wait(isJackpot ? 700 : 220);
     tileEl.classList.remove('shard-tile-active');

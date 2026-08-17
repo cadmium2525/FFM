@@ -1023,24 +1023,29 @@ body {
 .shard-grid {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
   gap: 9px;
   width: 100%;
 }
 
 .shard-tile {
-  position: relative;
   width: calc((100% - 36px) / 5);
   display: block;
-  background: radial-gradient(circle, rgba(40, 60, 130, 0.45), rgba(6, 10, 30, 0.1) 75%);
-  border: 1px solid rgba(190, 215, 255, 0.25);
   opacity: 1;
   transform: scale(1);
-  transition: opacity 0.25s ease, transform 0.25s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.shard-tile-box {
+  position: relative;
+  background: radial-gradient(circle, rgba(40, 60, 130, 0.45), rgba(6, 10, 30, 0.1) 75%);
+  border: 1px solid rgba(190, 215, 255, 0.25);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 /* Square-aspect fallback that works without CSS aspect-ratio support:
    a full-width block whose height tracks its own width via padding. */
-.shard-tile::before {
+.shard-tile-box::before {
   content: '';
   display: block;
   padding-top: 100%;
@@ -1049,6 +1054,16 @@ body {
 .shard-tile-art {
   position: absolute;
   inset: 5px;
+}
+
+.shard-tile-label {
+  margin-top: 3px;
+  min-height: 15px;
+  color: #cfe0ff;
+  font-size: 6px;
+  line-height: 1.35;
+  text-align: center;
+  word-break: break-word;
 }
 
 .shard-tile-hidden {
@@ -1060,7 +1075,7 @@ body {
   animation: gacha-shard-appear 0.32s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
 
-.shard-tile-active {
+.shard-tile-active .shard-tile-box {
   border-color: #ffe9a8;
   box-shadow: 0 0 0 2px rgba(255, 233, 168, 0.35) inset;
 }
@@ -1069,13 +1084,29 @@ body {
   animation: gacha-shard-pulse 0.9s ease-in-out infinite;
 }
 
-.shard-tile-revealed.tile-tier-jackpot {
+.shard-tile-revealed.tile-tier-jackpot .shard-tile-box {
   border-color: #ff9ee8;
   box-shadow: 0 0 10px rgba(255, 158, 232, 0.5);
 }
 
-.shard-tile-revealed.tile-tier-small {
+.shard-tile-revealed.tile-tier-jackpot .shard-tile-label {
+  color: #ff9ee8;
+}
+
+.shard-tile-revealed.tile-tier-small .shard-tile-box {
   border-color: rgba(255, 210, 110, 0.7);
+}
+
+.shard-tile-revealed.tile-tier-small .shard-tile-label {
+  color: #ffe9a8;
+}
+
+.gacha-result-label {
+  min-height: 32px;
+  color: #ffe9a8;
+  font-size: 9px;
+  line-height: 1.7;
+  text-align: center;
 }
 
 @keyframes gacha-tap-blink {
