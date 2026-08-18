@@ -1000,22 +1000,6 @@ body {
   filter: grayscale(.7);
 }
 
-#battle-screen .status-row.is-removed {
-  opacity: .38;
-  filter: grayscale(1);
-}
-
-#battle-screen .status-row .removed-tag {
-  margin-left: 6px;
-  padding: 1px 5px;
-  border: 1px solid rgba(255, 150, 150, .5);
-  border-radius: 3px;
-  color: #ff9e9e;
-  font-size: 6px;
-  font-style: normal;
-  vertical-align: middle;
-}
-
 #battle-screen .status-row .p-name {
   min-width: 0;
   overflow: hidden;

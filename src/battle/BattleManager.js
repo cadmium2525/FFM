@@ -3,7 +3,7 @@ import { resolveAction } from './ActionResolver.js';
 import { defendAction, itemActions, magicSets } from '../data/abilityData.js';
 import { eventBus } from '../core/EventBus.js';
 import { isIncapacitated, statusLabels } from './StatusEngine.js';
-import { bossActionsFor, bossPhaseIndex, counterPoolFor, nextBossActionFor } from './BossActionProfiles.js';
+import { bossActionsFor, bossPhaseIndex, counterSequenceFor, nextBossActionFor } from './BossActionProfiles.js';
 import { Unit } from './Unit.js';
 import { resolveFF5SpecialCommand } from './FF5CommandSystem.js';
 
@@ -506,6 +506,50 @@ export class BattleManager {
     }
   }
 
+  /**
+   * Resolves and presents a single enemy action against its target(s),
+   * including the enemy-side mirror of Reflect redirection (a reflectable
+   * move cast at a target with Reflect bounces to the opposite side, same
+   * as the player-cast path in submitPlayerAction).
+   */
+  performEnemyAction(actor, action, fallbackTarget) {
+    let targets = action.target === 'all_enemies'
+      ? this.party.filter((unit) => unit.isAlive() && !unit.hidden && !unit.removedFromBattle)
+      : [fallbackTarget];
+    if (!targets.length || !targets[0]) return [];
+
+    if (action.reflectable) {
+      targets = targets.map((target) => {
+        if (!target.statuses?.has('reflect')) return target;
+        const reflected = this.units.filter((unit) => unit.isAlive() && unit.isEnemy === actor.isEnemy);
+        const redirect = reflected[Math.floor(Math.random() * reflected.length)] ?? actor;
+        this.log(`${target.name} のリフレク！ ${redirect.name} へ反射した！`);
+        return redirect;
+      });
+    }
+
+    const actionStartSequence = this.logSequence;
+    eventBus.emit('battle:actionStarted', { actor, action });
+    this.log(`${actor.name} の ${action.name ?? 'こうげき'}！`, action.power >= 2 ? 'danger' : 'action');
+    const results = action.kind === 'physical-attack' && targets.length > 1
+      ? targets.flatMap((eachTarget) => resolveAction({ actor, action, targets: [eachTarget], battleUnits: this.units }))
+      : resolveAction({ actor, action, targets, battleUnits: this.units });
+
+    results.forEach((r) => {
+      const affected = this.units.find((unit) => unit.uid === r.targetUid) ?? fallbackTarget;
+      if (r.type === 'damage') {
+        this.log(`${affected.name} に ${r.amount} の ダメージ！`);
+      } else if (r.type === 'miss') {
+        this.log(`${actor.name} の こうげきは はずれた！`);
+      } else if (r.type === 'blocked') {
+        this.log(`${affected.name} は こうげきを ふせいだ！`);
+      }
+    });
+
+    this.emitActionResolved(actor, results, actionStartSequence, action);
+    return results;
+  }
+
   enemyAct(actor) {
     if (this.finished) return;
     const target = this.pickEnemyTarget();
@@ -518,10 +562,27 @@ export class BattleManager {
       return;
     }
 
-    const actionStartSequence = this.logSequence;
     const pendingAction = this.pendingEnemyActions.get(actor.uid);
     if (pendingAction) this.pendingEnemyActions.delete(actor.uid);
-    const scriptedAction = nextBossActionFor(actor, this.enemyActionCursor);
+    const scriptedAction = pendingAction ?? nextBossActionFor(actor, this.enemyActionCursor);
+
+    // Turns with two actions in a row (e.g. Omega's turn-5 "2回攻撃").
+    if (scriptedAction.multi?.length) {
+      scriptedAction.multi.forEach((subAction) => {
+        if (!this.boss.isAlive()) return;
+        const subTarget = subAction.target === 'all_enemies' ? target : this.pickEnemyTarget();
+        if (!subTarget && subAction.target !== 'all_enemies') return;
+        this.performEnemyAction(actor, subAction, subTarget ?? target);
+      });
+      this.enemyActionCursor += 1;
+      this.ctb.consumeTurn(actor, FF5_ENEMY_TURN_COST);
+      this.currentActor = null;
+      this.broadcastState();
+      if (this.checkBattleEnd()) return;
+      this.scheduleNextTurn();
+      return;
+    }
+
     const chosenAction = pendingAction ?? (actor.canAffordMp(scriptedAction.mpCost ?? 0) ? scriptedAction : { id: 'enemy-attack', name: 'こうげき', kind: 'physical-attack' });
     if (chosenAction.telegraph && !pendingAction) {
       const preparedAction = { ...chosenAction, telegraph: null };
@@ -534,27 +595,8 @@ export class BattleManager {
       this.scheduleNextTurn(420);
       return;
     }
-    const targets = chosenAction.target === 'all_enemies'
-      ? this.party.filter((unit) => unit.isAlive() && !unit.hidden && !unit.removedFromBattle)
-      : [target];
-    eventBus.emit('battle:actionStarted', { actor, action: chosenAction });
-    this.log(`${actor.name} の ${chosenAction.name ?? 'こうげき'}！`, chosenAction.power >= 2 ? 'danger' : 'action');
-    const results = chosenAction.kind === 'physical-attack' && targets.length > 1
-      ? targets.flatMap((eachTarget) => resolveAction({ actor, action: chosenAction, targets: [eachTarget], battleUnits: this.units }))
-      : resolveAction({ actor, action: chosenAction, targets, battleUnits: this.units });
 
-    results.forEach((r) => {
-      if (r.type === 'damage') {
-        const affected = this.units.find((unit) => unit.uid === r.targetUid) ?? target;
-        this.log(`${affected.name} に ${r.amount} の ダメージ！`);
-      } else if (r.type === 'miss') {
-        this.log(`${actor.name} の こうげきは はずれた！`);
-      } else if (r.type === 'blocked') {
-        this.log(`${target.name} は こうげきを ふせいだ！`);
-      }
-    });
-
-    this.emitActionResolved(actor, results, actionStartSequence, chosenAction);
+    this.performEnemyAction(actor, chosenAction, target);
     this.enemyActionCursor += 1;
     this.ctb.consumeTurn(actor, FF5_ENEMY_TURN_COST);
     this.currentActor = null;
@@ -567,23 +609,28 @@ export class BattleManager {
   /**
    * Some bosses (e.g. Omega) always retaliate with a burst of counter-moves
    * immediately after taking damage, independent of the CTB turn order.
-   * Faithful to the source game's "反撃行動: 2つ選んで行動" pattern.
+   * Faithful to the source game's "反撃行動: 2つ選んで行動" pattern — each
+   * of the `times` slots draws from its own fixed pool (Omega's 1st counter
+   * is ロケットパンチ/マスタードボム, the 2nd is ロケットパンチ/サークル).
    */
   resolveCounterAttacks(originalActor) {
-    const pool = counterPoolFor(this.boss);
+    const counterSequence = counterSequenceFor(this.boss);
     const counterConfig = this.boss.counterOnHit;
-    if (!pool.length || !counterConfig || !this.boss.isAlive()) return;
+    if (!counterSequence.length || !counterConfig || !this.boss.isAlive()) return;
     // Faithful to the source game: a boss frozen by Stop (or otherwise
     // incapacitated — paralyzed, asleep, petrified) cannot act at all,
     // including its automatic counterattack.
     if (isIncapacitated(this.boss)) return;
     if (Math.random() > (counterConfig.chance ?? 1)) return;
 
-    const times = counterConfig.times ?? 1;
+    const times = Math.min(counterConfig.times ?? 1, counterSequence.length);
     for (let i = 0; i < times; i += 1) {
       const aliveParty = this.party.filter((unit) => unit.isAlive() && !unit.hidden && !unit.removedFromBattle);
       if (!aliveParty.length || !this.boss.isAlive()) break;
-      const counterAction = { ...pool[Math.floor(Math.random() * pool.length)], isCounterAction: true };
+      const slot = counterSequence[i];
+      const pick = slot?.choices?.length ? slot.choices[Math.floor(Math.random() * slot.choices.length)] : slot;
+      if (!pick) continue;
+      const counterAction = { ...pick, isCounterAction: true };
       const focusTarget = aliveParty.includes(originalActor) ? originalActor : aliveParty[Math.floor(Math.random() * aliveParty.length)];
       const counterTargets = counterAction.target === 'all_enemies' ? aliveParty : [focusTarget];
 

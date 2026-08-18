@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { Unit } from '../src/battle/Unit.js';
 import { ff5MagicDamage, ff5MonsterDamage, ff5PhysicalDamage, ff5PhysicalHit, ff5ThrowDamage, ff5Zeninage } from '../src/battle/FF5FormulaEngine.js';
 import { resolveFF5SpecialCommand } from '../src/battle/FF5CommandSystem.js';
-import { nextBossActionFor } from '../src/battle/BossActionProfiles.js';
+import { nextBossActionFor, counterSequenceFor } from '../src/battle/BossActionProfiles.js';
 import { getAbilityActions, itemActions } from '../src/data/abilityData.js';
 
 const makeUnit = (overrides = {}) => new Unit({
@@ -146,7 +146,19 @@ for (const abilityId of ['ability_steal', 'ability_mug', 'ability_mimic', 'abili
 }
 
 const omegaCycle = Array.from({ length: 8 }, (_, cursor) => nextBossActionFor(makeUnit({ id: 'omega', isEnemy: true }), cursor));
-[1, 3, 5, 7].forEach((index) => assert.equal(omegaCycle[index].id, 'omega-wave-cannon', `Omega slot ${index + 1} must be Wave Cannon`));
-assert.equal(omegaCycle[6].id, 'omega-targeting', 'Omega slot 7 must be Targeting');
+[1, 3, 7].forEach((index) => assert.equal(omegaCycle[index].id, 'omega-wave-cannon', `Omega slot ${index + 1} must be Wave Cannon`));
+assert.equal(omegaCycle[5].id, 'omega-targeting', 'Omega slot 6 must be Targeting');
+assert.equal(omegaCycle[5].reflectable, true, 'Omega Targeting must be reflectable');
+assert.ok(Array.isArray(omegaCycle[4].multi) && omegaCycle[4].multi.length === 2, 'Omega slot 5 must be a double-action turn');
+
+const omegaBoss = makeUnit({ id: 'omega', isEnemy: true, permanentStatuses: ['shell', 'reflect'] });
+assert.ok(omegaBoss.statuses.has('shell') && omegaBoss.statuses.has('reflect'), 'Omega must start with permanent Shell/Reflect');
+assert.equal(omegaBoss.removeStatus('reflect'), false, "Dispel must not be able to strip Omega's permanent Reflect");
+assert.ok(omegaBoss.statuses.has('reflect'), 'Omega must retain Reflect after a dispel attempt');
+
+const omegaCounters = counterSequenceFor(omegaBoss);
+assert.equal(omegaCounters.length, 2, 'Omega must have two counter slots');
+assert.deepEqual(omegaCounters[0].choices.map((c) => c.id).sort(), ['omega-mustard-bomb', 'omega-rocket-punch'], 'Omega 1st counter slot must be ロケットパンチ/マスタードボム only');
+assert.deepEqual(omegaCounters[1].choices.map((c) => c.id).sort(), ['omega-circle', 'omega-rocket-punch'], 'Omega 2nd counter slot must be ロケットパンチ/サークル only');
 
 console.log(JSON.stringify({ formulas: 12, specialCommandScenarios: 15, mixRecipes: mixActions.length, spellblades: spellblades.length, battleItems: itemActions.length, omegaAiSlots: omegaCycle.length, status: 'ok' }, null, 2));

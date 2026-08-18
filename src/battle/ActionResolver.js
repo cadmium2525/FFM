@@ -275,12 +275,14 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
       break;
     }
     case 'critical-damage': {
-      // Brings each target down to 1 HP ("瀕死状態にする" / near-death), e.g. Maelstrom.
-      // Never finishes a target off outright, matching the source move's described effect.
+      // Brings each target down to a random single-digit HP value (1-9),
+      // i.e. "HPを1桁にする" — never finishes a target off outright,
+      // matching the source move's described effect (e.g. Maelstrom).
       targets.forEach((target) => {
         if (action.heavyImmune && target.heavy) { results.push({ type: 'blocked', targetUid: target.uid, hits: 1 }); return; }
         if (!target.isAlive()) return;
-        const amount = target.applyDamage(Math.max(0, target.hp - 1));
+        const finalHp = Math.min(target.hp, 1 + Math.floor(Math.random() * 9));
+        const amount = target.applyDamage(target.hp - finalHp);
         results.push({ type: 'damage', targetUid: target.uid, amount });
       });
       break;

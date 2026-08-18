@@ -1230,12 +1230,14 @@ function resolveAction({ actor, action, targets, battleUnits = targets }) {
       break;
     }
     case 'critical-damage': {
-      // Brings each target down to 1 HP ("瀕死状態にする" / near-death), e.g. Maelstrom.
-      // Never finishes a target off outright, matching the source move's described effect.
+      // Brings each target down to a random single-digit HP value (1-9),
+      // i.e. "HPを1桁にする" — never finishes a target off outright,
+      // matching the source move's described effect (e.g. Maelstrom).
       targets.forEach((target) => {
         if (action.heavyImmune && target.heavy) { results.push({ type: 'blocked', targetUid: target.uid, hits: 1 }); return; }
         if (!target.isAlive()) return;
-        const amount = target.applyDamage(Math.max(0, target.hp - 1));
+        const finalHp = Math.min(target.hp, 1 + Math.floor(Math.random() * 9));
+        const amount = target.applyDamage(target.hp - finalHp);
         results.push({ type: 'damage', targetUid: target.uid, amount });
       });
       break;
@@ -3330,6 +3332,8 @@ const bossData = [
     // （サークル/マスタードボム/ロケットパンチから選択）。
     // BossActionProfiles.js の counterPool と BattleManager.resolveCounterAttacks で再現。
     counterOnHit: { chance: 1, times: 2 },
+    // 常時シェル・リフレク状態(ディスペルで解除不可)。原作仕様に準拠。
+    permanentStatuses: ['shell', 'reflect'],
     size: 1.4,
     ai: 'random',
   },
@@ -3944,6 +3948,9 @@ const magic = (id, name, ff5Power, element, extra = {}) => ({ id, name, kind: 'm
 const scripted = (id, name, operations, extra = {}) => ({ id, name, kind: 'scripted', operations, ctbCost: 1.2, ...extra });
 const phase = (maxHpRatio, sequence) => ({ maxHpRatio, sequence, actions: sequence });
 const randomChoice = (...choices) => Object.freeze({ choices: Object.freeze(choices) });
+// A single CTB turn that fires two actions back-to-back (each may itself be
+// a randomChoice). Faithful to Omega's turn-5 "2回攻撃".
+const doubleAction = (...entries) => Object.freeze({ multi: Object.freeze(entries) });
 
 const omegaActions = Object.freeze({
   atomicRay: magic('omega-atomic-ray', 'アトミックレイ', 95, 'fire', { target: 'all_enemies' }),
@@ -3955,16 +3962,25 @@ const omegaActions = Object.freeze({
   rainbowWind: scripted('omega-rainbow-wind', 'にじいろのかぜ', [
     { op: 'status.apply', statuses: ['blind', 'silence', 'sap'], statusChance: 0.85 },
   ], { target: 'one_enemy' }),
+  // 最大HPの半分のダメージ(状態異常なし)。
   waveCannon: scripted('omega-wave-cannon', 'はどうほう', [
     { op: 'damage.max_hp_ratio', ratio: 0.5 },
-    { op: 'status.apply', statuses: ['sap'], statusChance: 1 },
   ], { target: 'all_enemies', ctbCost: 1.55 }),
-  blasterParalyze: { id: 'omega-blaster-paralyze', name: 'ブラスター', kind: 'status', statuses: ['paralyze'], statusChance: 0.85, target: 'one_enemy', ctbCost: 1 },
-  blasterDeath: { id: 'omega-blaster-death', name: 'ブラスター', kind: 'status', statuses: ['ko'], statusChance: 0.66, target: 'one_enemy', ctbCost: 1 },
+  // 即死 or マヒのどちらか一方のみが発生する(両方同時には発生しない)。
+  blaster: randomChoice(
+    { id: 'omega-blaster-paralyze', name: 'ブラスター', kind: 'status', statuses: ['paralyze'], statusChance: 0.85, target: 'one_enemy', ctbCost: 1 },
+    { id: 'omega-blaster-death', name: 'ブラスター', kind: 'status', statuses: ['ko'], statusChance: 0.66, target: 'one_enemy', ctbCost: 1 },
+  ),
   maelstrom: scripted('omega-maelstrom', 'ミールストーム', [{ op: 'damage.to_critical' }], { target: 'all_enemies', ctbCost: 1.4 }),
   quake: magic('omega-quake', 'じしん', 110, 'earth', { target: 'all_enemies' }),
-  targeting: physical('omega-targeting', 'ターゲッティング', 1.6, { target: 'one_enemy', ignoreEvasion: true }),
+  // ターゲッティングはリフレクで反射される特殊技(物理相当のダメージだが
+  // 反射判定の扱いは魔法と同じ)。
+  targeting: physical('omega-targeting', 'ターゲッティング', 1.6, { target: 'one_enemy', ignoreEvasion: true, reflectable: true }),
 });
+
+// にじいろのかぜ・かえんほうしゃ・アトミックレイの3択は、行動パターン表の
+// 3ターン目と7ターン目で全く同じ選択肢として再利用されている。
+const windOrFireOrRayChoice = randomChoice(omegaActions.rainbowWind, omegaActions.flameThrower, omegaActions.atomicRay);
 
 const BOSS_ACTION_PROFILES = Object.freeze({
   boss1: Object.freeze({
@@ -3973,28 +3989,45 @@ const BOSS_ACTION_PROFILES = Object.freeze({
       physical('granite-fist', '花崗岩の拳', 1.25),
       magic('fault-line', '断層波', 70, 'earth', { target: 'all_enemies' }),
     ])],
-    counterPool: [],
+    counterSequence: [],
   }),
   omega: Object.freeze({
-    // SFC Omega's eight-slot loop alternates a choice group with Wave Cannon.
-    // Choice selection is derived from the persisted cursor, so suspend/resume
-    // cannot reroll a more convenient move.
+    // FF5原作のオメガ行動パターン(8ターン周期):
+    // 1: アトミックレイ/デルタアタック/ブラスター(いずれか1つ)
+    // 2: はどうほう
+    // 3: にじいろのかぜ/かえんほうしゃ/アトミックレイ(いずれか1つ)
+    // 4: はどうほう
+    // 5: 2回攻撃 (1)デルタアタック/ブラスター/はどうほう (2)ミールストーム/じしん/にじいろのかぜ
+    // 6: ターゲッティング
+    // 7: にじいろのかぜ/かえんほうしゃ/アトミックレイ(3ターン目と同一)
+    // 8: はどうほう
     phases: [
       phase(1, [
-        randomChoice(omegaActions.atomicRay, omegaActions.deltaAttack, omegaActions.blasterParalyze, omegaActions.blasterDeath),
+        randomChoice(omegaActions.atomicRay, omegaActions.deltaAttack, omegaActions.blaster),
         omegaActions.waveCannon,
-        randomChoice(omegaActions.rainbowWind, omegaActions.flameThrower, omegaActions.atomicRay),
+        windOrFireOrRayChoice,
         omegaActions.waveCannon,
-        randomChoice(omegaActions.maelstrom, omegaActions.quake, omegaActions.rainbowWind),
-        omegaActions.waveCannon,
+        doubleAction(
+          randomChoice(omegaActions.deltaAttack, omegaActions.blaster, omegaActions.waveCannon),
+          randomChoice(omegaActions.maelstrom, omegaActions.quake, omegaActions.rainbowWind),
+        ),
         omegaActions.targeting,
+        windOrFireOrRayChoice,
         omegaActions.waveCannon,
       ]),
     ],
-    counterPool: [
-      { id: 'omega-circle', name: 'サークル', kind: 'remove-from-battle', target: 'one_enemy', ctbCost: 0 },
-      scripted('omega-mustard-bomb', 'マスタードボム', [{ op: 'damage.magic', formula: 'ff5_magic', ff5Power: 85 }, { op: 'status.apply', statuses: ['sap'], statusChance: 0.85 }], { target: 'one_enemy', ctbCost: 0 }),
-      scripted('omega-rocket-punch', 'ロケットパンチ', [{ op: 'damage.hp_ratio', ratio: 0.5 }, { op: 'status.apply', statuses: ['confuse'], statusChance: 0.85 }], { target: 'one_enemy', ctbCost: 0 }),
+    // ダメージを受けると必ず2回のカウンター行動を行う。1回目は
+    // ロケットパンチ/マスタードボムのいずれか、2回目はロケットパンチ/
+    // サークルのいずれか(原作の反撃仕様に準拠)。
+    counterSequence: [
+      randomChoice(
+        scripted('omega-rocket-punch', 'ロケットパンチ', [{ op: 'damage.hp_ratio', ratio: 0.5 }, { op: 'status.apply', statuses: ['confuse'], statusChance: 0.85 }], { target: 'one_enemy', ctbCost: 0 }),
+        scripted('omega-mustard-bomb', 'マスタードボム', [{ op: 'damage.magic', formula: 'ff5_magic', ff5Power: 85 }], { target: 'one_enemy', ctbCost: 0 }),
+      ),
+      randomChoice(
+        scripted('omega-rocket-punch', 'ロケットパンチ', [{ op: 'damage.hp_ratio', ratio: 0.5 }, { op: 'status.apply', statuses: ['confuse'], statusChance: 0.85 }], { target: 'one_enemy', ctbCost: 0 }),
+        { id: 'omega-circle', name: 'サークル', kind: 'remove-from-battle', target: 'one_enemy', ctbCost: 0 },
+      ),
     ],
   }),
   boss2: Object.freeze({
@@ -4002,7 +4035,7 @@ const BOSS_ACTION_PROFILES = Object.freeze({
       phase(1, [physical('garuda-talon', '裂空爪', 1.15), magic('garuda-gale', '真空連刃', 45, 'wind', { hits: 3 }), { id: 'garuda-cry', name: '天鳴', kind: 'status', statuses: ['silence'], statusChance: 0.7, target: 'all_enemies' }]),
       phase(0.5, [magic('garuda-tempest', '蒼穹の嵐', 90, 'wind', { target: 'all_enemies' }), physical('garuda-dive', '天墜衝', 1.9), magic('garuda-eye', '嵐の風眼', 145, 'wind', { target: 'all_enemies', telegraph: '風が一点へ収束する――次の行動で風眼が荒れ狂う！', ctbCost: 1.8 })]),
     ],
-    counterPool: [],
+    counterSequence: [],
   }),
   boss3: Object.freeze({
     phases: [
@@ -4010,7 +4043,7 @@ const BOSS_ACTION_PROFILES = Object.freeze({
       phase(0.6, [magic('bahamut-breath', '雷嵐の息吹', 120, 'thunder', { target: 'all_enemies' }), physical('bahamut-tail', '震天尾撃', 1.7, { target: 'all_enemies' }), magic('bahamut-collapse', '星砕メガフレア', 210, null, { target: 'all_enemies', telegraph: '星光が竜の胸へ集う――守りを固めろ！', ctbCost: 2 })]),
       phase(0.25, [magic('bahamut-nova', '終焉新星', 185, 'fire', { target: 'all_enemies' }), physical('bahamut-rush', '破滅の四連撃', 0.58, { hits: 4 }), magic('bahamut-collapse-plus', '極星砕メガフレア', 250, null, { target: 'all_enemies', telegraph: '空間が砕け始めた――これが最後の予兆だ！', ctbCost: 2.2 })]),
     ],
-    counterPool: [],
+    counterSequence: [],
   }),
 });
 
@@ -4024,15 +4057,38 @@ function bossActionsFor(unit) {
   return activePhase(unit)?.sequence ?? unit.aiActions ?? [];
 }
 
+function resolveChoiceIndex(entry, safeCursor, sequenceLength, depth) {
+  const cycle = Math.floor(safeCursor / sequenceLength);
+  const seed = Math.imul(cycle + 1 + depth * 7919, 1103515245) + safeCursor * 12345 + depth * 97;
+  return (seed >>> 16) % entry.choices.length;
+}
+
+function resolveEntry(entry, safeCursor, sequenceLength) {
+  let resolved = entry;
+  let depth = 0;
+  while (resolved?.choices?.length) {
+    resolved = resolved.choices[resolveChoiceIndex(resolved, safeCursor, sequenceLength, depth)];
+    depth += 1;
+    if (depth > 5) break; // safety net against a misconfigured cyclic choice
+  }
+  return resolved;
+}
+
+/**
+ * Returns either a single resolved action, or `{ multi: [actionA, actionB] }`
+ * for turns that fire more than one action (e.g. Omega's turn-5 "2回攻撃").
+ * Resolution is a deterministic hash of the cursor, so suspend/resume can't
+ * reroll into a more convenient move.
+ */
 function nextBossActionFor(unit, cursor = 0) {
   const sequence = bossActionsFor(unit);
   if (!sequence.length) return { id: 'enemy-attack', name: 'こうげき', kind: 'physical-attack', ctbCost: 1 };
   const safeCursor = Math.max(0, cursor);
   const entry = sequence[safeCursor % sequence.length];
-  if (!entry?.choices?.length) return entry;
-  const cycle = Math.floor(safeCursor / sequence.length);
-  const choiceIndex = ((Math.imul(cycle + 1, 1103515245) + safeCursor * 12345) >>> 16) % entry.choices.length;
-  return entry.choices[choiceIndex];
+  if (entry?.multi?.length) {
+    return { multi: entry.multi.map((subEntry) => resolveEntry(subEntry, safeCursor, sequence.length)) };
+  }
+  return resolveEntry(entry, safeCursor, sequence.length);
 }
 
 function bossPhaseIndex(unit) {
@@ -4041,8 +4097,8 @@ function bossPhaseIndex(unit) {
   return Math.max(0, profile.phases.indexOf(activePhase(unit)));
 }
 
-function counterPoolFor(unit) {
-  return BOSS_ACTION_PROFILES[unit.id]?.counterPool ?? [];
+function counterSequenceFor(unit) {
+  return BOSS_ACTION_PROFILES[unit.id]?.counterSequence ?? [];
 }
 
 // ---- src/battle/FF5CommandSystem.js ----
@@ -4977,6 +5033,50 @@ class BattleManager {
     }
   }
 
+  /**
+   * Resolves and presents a single enemy action against its target(s),
+   * including the enemy-side mirror of Reflect redirection (a reflectable
+   * move cast at a target with Reflect bounces to the opposite side, same
+   * as the player-cast path in submitPlayerAction).
+   */
+  performEnemyAction(actor, action, fallbackTarget) {
+    let targets = action.target === 'all_enemies'
+      ? this.party.filter((unit) => unit.isAlive() && !unit.hidden && !unit.removedFromBattle)
+      : [fallbackTarget];
+    if (!targets.length || !targets[0]) return [];
+
+    if (action.reflectable) {
+      targets = targets.map((target) => {
+        if (!target.statuses?.has('reflect')) return target;
+        const reflected = this.units.filter((unit) => unit.isAlive() && unit.isEnemy === actor.isEnemy);
+        const redirect = reflected[Math.floor(Math.random() * reflected.length)] ?? actor;
+        this.log(`${target.name} のリフレク！ ${redirect.name} へ反射した！`);
+        return redirect;
+      });
+    }
+
+    const actionStartSequence = this.logSequence;
+    eventBus.emit('battle:actionStarted', { actor, action });
+    this.log(`${actor.name} の ${action.name ?? 'こうげき'}！`, action.power >= 2 ? 'danger' : 'action');
+    const results = action.kind === 'physical-attack' && targets.length > 1
+      ? targets.flatMap((eachTarget) => resolveAction({ actor, action, targets: [eachTarget], battleUnits: this.units }))
+      : resolveAction({ actor, action, targets, battleUnits: this.units });
+
+    results.forEach((r) => {
+      const affected = this.units.find((unit) => unit.uid === r.targetUid) ?? fallbackTarget;
+      if (r.type === 'damage') {
+        this.log(`${affected.name} に ${r.amount} の ダメージ！`);
+      } else if (r.type === 'miss') {
+        this.log(`${actor.name} の こうげきは はずれた！`);
+      } else if (r.type === 'blocked') {
+        this.log(`${affected.name} は こうげきを ふせいだ！`);
+      }
+    });
+
+    this.emitActionResolved(actor, results, actionStartSequence, action);
+    return results;
+  }
+
   enemyAct(actor) {
     if (this.finished) return;
     const target = this.pickEnemyTarget();
@@ -4989,10 +5089,27 @@ class BattleManager {
       return;
     }
 
-    const actionStartSequence = this.logSequence;
     const pendingAction = this.pendingEnemyActions.get(actor.uid);
     if (pendingAction) this.pendingEnemyActions.delete(actor.uid);
-    const scriptedAction = nextBossActionFor(actor, this.enemyActionCursor);
+    const scriptedAction = pendingAction ?? nextBossActionFor(actor, this.enemyActionCursor);
+
+    // Turns with two actions in a row (e.g. Omega's turn-5 "2回攻撃").
+    if (scriptedAction.multi?.length) {
+      scriptedAction.multi.forEach((subAction) => {
+        if (!this.boss.isAlive()) return;
+        const subTarget = subAction.target === 'all_enemies' ? target : this.pickEnemyTarget();
+        if (!subTarget && subAction.target !== 'all_enemies') return;
+        this.performEnemyAction(actor, subAction, subTarget ?? target);
+      });
+      this.enemyActionCursor += 1;
+      this.ctb.consumeTurn(actor, FF5_ENEMY_TURN_COST);
+      this.currentActor = null;
+      this.broadcastState();
+      if (this.checkBattleEnd()) return;
+      this.scheduleNextTurn();
+      return;
+    }
+
     const chosenAction = pendingAction ?? (actor.canAffordMp(scriptedAction.mpCost ?? 0) ? scriptedAction : { id: 'enemy-attack', name: 'こうげき', kind: 'physical-attack' });
     if (chosenAction.telegraph && !pendingAction) {
       const preparedAction = { ...chosenAction, telegraph: null };
@@ -5005,27 +5122,8 @@ class BattleManager {
       this.scheduleNextTurn(420);
       return;
     }
-    const targets = chosenAction.target === 'all_enemies'
-      ? this.party.filter((unit) => unit.isAlive() && !unit.hidden && !unit.removedFromBattle)
-      : [target];
-    eventBus.emit('battle:actionStarted', { actor, action: chosenAction });
-    this.log(`${actor.name} の ${chosenAction.name ?? 'こうげき'}！`, chosenAction.power >= 2 ? 'danger' : 'action');
-    const results = chosenAction.kind === 'physical-attack' && targets.length > 1
-      ? targets.flatMap((eachTarget) => resolveAction({ actor, action: chosenAction, targets: [eachTarget], battleUnits: this.units }))
-      : resolveAction({ actor, action: chosenAction, targets, battleUnits: this.units });
 
-    results.forEach((r) => {
-      if (r.type === 'damage') {
-        const affected = this.units.find((unit) => unit.uid === r.targetUid) ?? target;
-        this.log(`${affected.name} に ${r.amount} の ダメージ！`);
-      } else if (r.type === 'miss') {
-        this.log(`${actor.name} の こうげきは はずれた！`);
-      } else if (r.type === 'blocked') {
-        this.log(`${target.name} は こうげきを ふせいだ！`);
-      }
-    });
-
-    this.emitActionResolved(actor, results, actionStartSequence, chosenAction);
+    this.performEnemyAction(actor, chosenAction, target);
     this.enemyActionCursor += 1;
     this.ctb.consumeTurn(actor, FF5_ENEMY_TURN_COST);
     this.currentActor = null;
@@ -5038,23 +5136,28 @@ class BattleManager {
   /**
    * Some bosses (e.g. Omega) always retaliate with a burst of counter-moves
    * immediately after taking damage, independent of the CTB turn order.
-   * Faithful to the source game's "反撃行動: 2つ選んで行動" pattern.
+   * Faithful to the source game's "反撃行動: 2つ選んで行動" pattern — each
+   * of the `times` slots draws from its own fixed pool (Omega's 1st counter
+   * is ロケットパンチ/マスタードボム, the 2nd is ロケットパンチ/サークル).
    */
   resolveCounterAttacks(originalActor) {
-    const pool = counterPoolFor(this.boss);
+    const counterSequence = counterSequenceFor(this.boss);
     const counterConfig = this.boss.counterOnHit;
-    if (!pool.length || !counterConfig || !this.boss.isAlive()) return;
+    if (!counterSequence.length || !counterConfig || !this.boss.isAlive()) return;
     // Faithful to the source game: a boss frozen by Stop (or otherwise
     // incapacitated — paralyzed, asleep, petrified) cannot act at all,
     // including its automatic counterattack.
     if (isIncapacitated(this.boss)) return;
     if (Math.random() > (counterConfig.chance ?? 1)) return;
 
-    const times = counterConfig.times ?? 1;
+    const times = Math.min(counterConfig.times ?? 1, counterSequence.length);
     for (let i = 0; i < times; i += 1) {
       const aliveParty = this.party.filter((unit) => unit.isAlive() && !unit.hidden && !unit.removedFromBattle);
       if (!aliveParty.length || !this.boss.isAlive()) break;
-      const counterAction = { ...pool[Math.floor(Math.random() * pool.length)], isCounterAction: true };
+      const slot = counterSequence[i];
+      const pick = slot?.choices?.length ? slot.choices[Math.floor(Math.random() * slot.choices.length)] : slot;
+      if (!pick) continue;
+      const counterAction = { ...pick, isCounterAction: true };
       const focusTarget = aliveParty.includes(originalActor) ? originalActor : aliveParty[Math.floor(Math.random() * aliveParty.length)];
       const counterTargets = counterAction.target === 'all_enemies' ? aliveParty : [focusTarget];
 
@@ -7016,8 +7119,12 @@ class BattleUI {
   renderPartyStatus(party) {
     this.partyStatusEl.innerHTML = '';
     party.forEach((unit, idx) => {
+      // Characters removed from battle (e.g. オメガ「サークル」) vanish from
+      // the status list entirely too, matching the field — distinct from
+      // KO, which still shows the row.
+      if (unit.removedFromBattle) return;
       const row = document.createElement('div');
-      row.className = `status-row${unit === this.battleManager?.currentActor ? ' current-actor' : ''}${unit.isAlive() ? '' : ' is-ko'}${unit.removedFromBattle ? ' is-removed' : ''}`;
+      row.className = `status-row${unit === this.battleManager?.currentActor ? ' current-actor' : ''}${unit.isAlive() ? '' : ' is-ko'}`;
       const statuses = [...(unit.statuses ?? [])];
       const statusMarkup = statuses.length
         ? `<span class="status-chips">${statuses.slice(0, 3).map((status) => {
@@ -7025,9 +7132,8 @@ class BattleUI {
           return `<i>${statusNamesJa[status] ?? status}${turns ? `<b>${turns}</b>` : ''}</i>`;
         }).join('')}</span>`
         : '';
-      const removedTag = unit.removedFromBattle ? '<i class="removed-tag">除外</i>' : '';
       row.innerHTML = `
-        <div class="p-name"><b>${String(idx + 1).padStart(2, '0')}</b>${unit.name}${removedTag}<small>ATK ${unit.atk} ・ DEF ${unit.def} ・ MDEF ${unit.magicDef}</small>${statusMarkup}</div>
+        <div class="p-name"><b>${String(idx + 1).padStart(2, '0')}</b>${unit.name}<small>ATK ${unit.atk} ・ DEF ${unit.def} ・ MDEF ${unit.magicDef}</small>${statusMarkup}</div>
         <div class="p-nums">
           <span><em>HP</em> ${unit.hp}<small>/ ${unit.maxHp}</small></span>
           <div class="stat-bar-track"><div class="stat-bar-fill hp ${hpBarClass(unit)}" style="width:${Math.max(0, unit.hpRatio() * 100)}%"></div></div>
@@ -9564,6 +9670,7 @@ function buildBossUnit(bossConfig) {
     statusResistance: bossConfig.statusResistance,
     counterOnHit: bossConfig.counterOnHit,
     creatureTypes: bossConfig.creatureTypes,
+    permanentStatuses: bossConfig.permanentStatuses,
   });
 }
 
@@ -9732,10 +9839,9 @@ function goToIntermissionOrWin() {
 
   saveProfile();
   if (drop) showToast(`えんばんせき「${drop.name}」を手に入れた！`);
-  openPartySetup(bossData[GameState.bossIndex], {
-    canReturnToMenu: false,
-    readyLabel: '次のバトルへ',
-  });
+  // 3連戦は完全な連戦。編成・装備・持ち越しHP/MPはそのまま(livingParty)に、
+  // 途中で編成変更を挟まず次のバトルへ直接進む。
+  startBossBattle();
 }
 
 // ---------- Title / restart wiring ----------

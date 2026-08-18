@@ -47,6 +47,8 @@ export const bossData = [
     // （サークル/マスタードボム/ロケットパンチから選択）。
     // BossActionProfiles.js の counterPool と BattleManager.resolveCounterAttacks で再現。
     counterOnHit: { chance: 1, times: 2 },
+    // 常時シェル・リフレク状態(ディスペルで解除不可)。原作仕様に準拠。
+    permanentStatuses: ['shell', 'reflect'],
     size: 1.4,
     ai: 'random',
   },

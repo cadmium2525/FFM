@@ -472,8 +472,12 @@ export class BattleUI {
   renderPartyStatus(party) {
     this.partyStatusEl.innerHTML = '';
     party.forEach((unit, idx) => {
+      // Characters removed from battle (e.g. オメガ「サークル」) vanish from
+      // the status list entirely too, matching the field — distinct from
+      // KO, which still shows the row.
+      if (unit.removedFromBattle) return;
       const row = document.createElement('div');
-      row.className = `status-row${unit === this.battleManager?.currentActor ? ' current-actor' : ''}${unit.isAlive() ? '' : ' is-ko'}${unit.removedFromBattle ? ' is-removed' : ''}`;
+      row.className = `status-row${unit === this.battleManager?.currentActor ? ' current-actor' : ''}${unit.isAlive() ? '' : ' is-ko'}`;
       const statuses = [...(unit.statuses ?? [])];
       const statusMarkup = statuses.length
         ? `<span class="status-chips">${statuses.slice(0, 3).map((status) => {
@@ -481,9 +485,8 @@ export class BattleUI {
           return `<i>${statusNamesJa[status] ?? status}${turns ? `<b>${turns}</b>` : ''}</i>`;
         }).join('')}</span>`
         : '';
-      const removedTag = unit.removedFromBattle ? '<i class="removed-tag">除外</i>' : '';
       row.innerHTML = `
-        <div class="p-name"><b>${String(idx + 1).padStart(2, '0')}</b>${unit.name}${removedTag}<small>ATK ${unit.atk} ・ DEF ${unit.def} ・ MDEF ${unit.magicDef}</small>${statusMarkup}</div>
+        <div class="p-name"><b>${String(idx + 1).padStart(2, '0')}</b>${unit.name}<small>ATK ${unit.atk} ・ DEF ${unit.def} ・ MDEF ${unit.magicDef}</small>${statusMarkup}</div>
         <div class="p-nums">
           <span><em>HP</em> ${unit.hp}<small>/ ${unit.maxHp}</small></span>
           <div class="stat-bar-track"><div class="stat-bar-fill hp ${hpBarClass(unit)}" style="width:${Math.max(0, unit.hpRatio() * 100)}%"></div></div>

@@ -1333,6 +1333,7 @@ function buildBossUnit(bossConfig) {
     statusResistance: bossConfig.statusResistance,
     counterOnHit: bossConfig.counterOnHit,
     creatureTypes: bossConfig.creatureTypes,
+    permanentStatuses: bossConfig.permanentStatuses,
   });
 }
 
@@ -1501,10 +1502,9 @@ function goToIntermissionOrWin() {
 
   saveProfile();
   if (drop) showToast(`えんばんせき「${drop.name}」を手に入れた！`);
-  openPartySetup(bossData[GameState.bossIndex], {
-    canReturnToMenu: false,
-    readyLabel: '次のバトルへ',
-  });
+  // 3連戦は完全な連戦。編成・装備・持ち越しHP/MPはそのまま(livingParty)に、
+  // 途中で編成変更を挟まず次のバトルへ直接進む。
+  startBossBattle();
 }
 
 // ---------- Title / restart wiring ----------
