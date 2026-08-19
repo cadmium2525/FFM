@@ -1,44 +1,68 @@
-/** Boss-specific action scripts.  No shared "pick any weighted move" AI. */
-const physical = (id, name, power, extra = {}) => ({ id, name, kind: 'physical-attack', power, ctbCost: 1, ...extra });
-const magic = (id, name, ff5Power, element, extra = {}) => ({ id, name, kind: 'magic-attack', ff5Power, formula: 'ff5_magic', element, ctbCost: 1.15, ...extra });
-const scripted = (id, name, operations, extra = {}) => ({ id, name, kind: 'scripted', operations, ctbCost: 1.2, ...extra });
-const phase = (maxHpRatio, sequence) => ({ maxHpRatio, sequence, actions: sequence });
+// Resolves boss action patterns (src/data/bosses.json's `actionPattern`,
+// referencing techniques by id from src/data/techniqueCatalog.json) into the
+// runtime action objects ActionResolver/BattleManager consume. See the
+// "Boss / stage data architecture" section in README.md for the full
+// JSON → .js → bundle pipeline this depends on.
+import { techniqueCatalogById } from '../data/techniqueCatalog.js';
+import { bossRegistry } from '../data/bosses.js';
+
+/** Converts one techniqueCatalog.json entry into the action-object shape
+ * ActionResolver expects (id/name/kind/target/ctbCost + kind-specific
+ * fields). `name` is always the bare technique name — never boss-prefixed —
+ * so a technique reused on a different boss automatically attributes
+ * correctly via the battle log's own "${actor.name} の ${action.name}！"
+ * template, with no risk of leaking the technique's original owner. */
+function techniqueToAction(id) {
+  const t = techniqueCatalogById[id];
+  if (!t) throw new Error(`Unknown technique id in actionPattern: ${id}`);
+  const action = { id: t.id, name: t.baseName, kind: t.kind, target: t.target, ctbCost: t.ctbCost };
+  if (t.power != null) action.power = t.power;
+  if (t.ff5Power != null) action.ff5Power = t.ff5Power;
+  if (t.formula) action.formula = t.formula;
+  if ('element' in t) action.element = t.element;
+  if (t.operations) action.operations = t.operations;
+  if (t.statuses) action.statuses = t.statuses;
+  if (t.statusChance != null) action.statusChance = t.statusChance;
+  if (t.options) action.options = t.options;
+  if (t.hits != null) action.hits = t.hits;
+  if (t.telegraph) action.telegraph = t.telegraph;
+  if (t.ignoreEvasion) action.ignoreEvasion = t.ignoreEvasion;
+  if (t.reflectable) action.reflectable = t.reflectable;
+  return action;
+}
+
 const randomChoice = (...choices) => Object.freeze({ choices: Object.freeze(choices) });
 // A single CTB turn that fires two actions back-to-back (each may itself be
 // a randomChoice). Faithful to Omega's turn-5 "2回攻撃".
 const doubleAction = (...entries) => Object.freeze({ multi: Object.freeze(entries) });
 
-const omegaActions = Object.freeze({
-  atomicRay: magic('omega-atomic-ray', 'アトミックレイ', 95, 'fire', { target: 'all_enemies' }),
-  flameThrower: magic('omega-flame-thrower', 'かえんほうしゃ', 70, 'fire', { target: 'one_enemy' }),
-  deltaAttack: scripted('omega-delta-attack', 'デルタアタック', [
-    { op: 'damage.magic', formula: 'ff5_magic', ff5Power: 65 },
-    { op: 'status.apply', statuses: ['petrify'], statusChance: 0.66 },
-  ], { target: 'one_enemy' }),
-  rainbowWind: scripted('omega-rainbow-wind', 'にじいろのかぜ', [
-    { op: 'status.apply', statuses: ['blind', 'silence', 'sap'], statusChance: 0.85 },
-  ], { target: 'one_enemy' }),
-  // 最大HPの半分のダメージ(状態異常なし)。
-  waveCannon: scripted('omega-wave-cannon', 'はどうほう', [
-    { op: 'damage.max_hp_ratio', ratio: 0.5 },
-  ], { target: 'all_enemies', ctbCost: 1.55 }),
-  // 即死 or マヒのどちらか一方のみが発生する(両方同時には発生しない)。
-  blaster: randomChoice(
-    { id: 'omega-blaster-paralyze', name: 'ブラスター', kind: 'status', statuses: ['paralyze'], statusChance: 0.85, target: 'one_enemy', ctbCost: 1 },
-    { id: 'omega-blaster-death', name: 'ブラスター', kind: 'status', statuses: ['ko'], statusChance: 0.66, target: 'one_enemy', ctbCost: 1 },
-  ),
-  maelstrom: scripted('omega-maelstrom', 'ミールストーム', [{ op: 'damage.to_critical' }], { target: 'all_enemies', ctbCost: 1.4 }),
-  quake: magic('omega-quake', 'じしん', 110, 'earth', { target: 'all_enemies' }),
-  // ターゲッティングはリフレクで反射される特殊技(物理相当のダメージだが
-  // 反射判定の扱いは魔法と同じ)。
-  targeting: physical('omega-targeting', 'ターゲッティング', 1.6, { target: 'one_enemy', ignoreEvasion: true, reflectable: true }),
-});
+/** Resolves one entry of a JSON actionPattern.sequence/counterSequence into
+ * the runtime shape (a plain action, a randomChoice, or a doubleAction). */
+function resolvePatternEntry(entry) {
+  if (entry.multi) return doubleAction(...entry.multi.map(resolvePatternEntry));
+  if (entry.choiceOf) return randomChoice(...entry.choiceOf.map(techniqueToAction));
+  return techniqueToAction(entry.techniqueId);
+}
 
-// にじいろのかぜ・かえんほうしゃ・アトミックレイの3択は、行動パターン表の
-// 3ターン目と7ターン目で全く同じ選択肢として再利用されている。
-const windOrFireOrRayChoice = randomChoice(omegaActions.rainbowWind, omegaActions.flameThrower, omegaActions.atomicRay);
+function resolveActionPattern(actionPattern) {
+  return {
+    phases: actionPattern.phases.map((p) => ({
+      maxHpRatio: p.maxHpRatio,
+      sequence: p.sequence.map(resolvePatternEntry),
+      actions: p.sequence.map(resolvePatternEntry),
+    })),
+    counterSequence: (actionPattern.counterSequence ?? []).map(resolvePatternEntry),
+  };
+}
+
+const physical = (id, name, power, extra = {}) => ({ id, name, kind: 'physical-attack', power, ctbCost: 1, ...extra });
+const magic = (id, name, ff5Power, element, extra = {}) => ({ id, name, kind: 'magic-attack', ff5Power, formula: 'ff5_magic', element, ctbCost: 1.15, ...extra });
+const phase = (maxHpRatio, sequence) => ({ maxHpRatio, sequence, actions: sequence });
 
 export const BOSS_ACTION_PROFILES = Object.freeze({
+  // boss1 is a lightweight test/scaffold fixture only (see
+  // scripts/test-battle-runtime.mjs) — it isn't a registered boss in
+  // bosses.json and never appears in a real stage.
   boss1: Object.freeze({
     phases: [phase(1, [
       magic('granite-fall', '大陸落とし', 120, 'earth', { target: 'all_enemies', telegraph: '巨岩を天高く掲げた――次の行動で落下する！', ctbCost: 1.8 }),
@@ -47,60 +71,11 @@ export const BOSS_ACTION_PROFILES = Object.freeze({
     ])],
     counterSequence: [],
   }),
-  omega: Object.freeze({
-    // FF5原作のオメガ行動パターン(8ターン周期):
-    // 1: アトミックレイ/デルタアタック/ブラスター(いずれか1つ)
-    // 2: はどうほう
-    // 3: にじいろのかぜ/かえんほうしゃ/アトミックレイ(いずれか1つ)
-    // 4: はどうほう
-    // 5: 2回攻撃 (1)デルタアタック/ブラスター/はどうほう (2)ミールストーム/じしん/にじいろのかぜ
-    // 6: ターゲッティング
-    // 7: にじいろのかぜ/かえんほうしゃ/アトミックレイ(3ターン目と同一)
-    // 8: はどうほう
-    phases: [
-      phase(1, [
-        randomChoice(omegaActions.atomicRay, omegaActions.deltaAttack, omegaActions.blaster),
-        omegaActions.waveCannon,
-        windOrFireOrRayChoice,
-        omegaActions.waveCannon,
-        doubleAction(
-          randomChoice(omegaActions.deltaAttack, omegaActions.blaster, omegaActions.waveCannon),
-          randomChoice(omegaActions.maelstrom, omegaActions.quake, omegaActions.rainbowWind),
-        ),
-        omegaActions.targeting,
-        windOrFireOrRayChoice,
-        omegaActions.waveCannon,
-      ]),
-    ],
-    // ダメージを受けると必ず2回のカウンター行動を行う。1回目は
-    // ロケットパンチ/マスタードボムのいずれか、2回目はロケットパンチ/
-    // サークルのいずれか(原作の反撃仕様に準拠)。
-    counterSequence: [
-      randomChoice(
-        scripted('omega-rocket-punch', 'ロケットパンチ', [{ op: 'damage.hp_ratio', ratio: 0.5 }, { op: 'status.apply', statuses: ['confuse'], statusChance: 0.85 }], { target: 'one_enemy', ctbCost: 0 }),
-        scripted('omega-mustard-bomb', 'マスタードボム', [{ op: 'damage.magic', formula: 'ff5_magic', ff5Power: 85 }], { target: 'one_enemy', ctbCost: 0 }),
-      ),
-      randomChoice(
-        scripted('omega-rocket-punch', 'ロケットパンチ', [{ op: 'damage.hp_ratio', ratio: 0.5 }, { op: 'status.apply', statuses: ['confuse'], statusChance: 0.85 }], { target: 'one_enemy', ctbCost: 0 }),
-        { id: 'omega-circle', name: 'サークル', kind: 'remove-from-battle', target: 'one_enemy', ctbCost: 0 },
-      ),
-    ],
-  }),
-  boss2: Object.freeze({
-    phases: [
-      phase(1, [physical('garuda-talon', '裂空爪', 1.15), magic('garuda-gale', '真空連刃', 45, 'wind', { hits: 3 }), { id: 'garuda-cry', name: '天鳴', kind: 'status', statuses: ['silence'], statusChance: 0.7, target: 'all_enemies' }]),
-      phase(0.5, [magic('garuda-tempest', '蒼穹の嵐', 90, 'wind', { target: 'all_enemies' }), physical('garuda-dive', '天墜衝', 1.9), magic('garuda-eye', '嵐の風眼', 145, 'wind', { target: 'all_enemies', telegraph: '風が一点へ収束する――次の行動で風眼が荒れ狂う！', ctbCost: 1.8 })]),
-    ],
-    counterSequence: [],
-  }),
-  boss3: Object.freeze({
-    phases: [
-      phase(1, [physical('bahamut-claw', '竜爪連撃', 0.75, { hits: 2 }), magic('bahamut-flare', 'ダークフレア', 130, null), { id: 'bahamut-roar', name: '竜威', kind: 'status', statuses: ['sap'], statusChance: 0.8, target: 'all_enemies' }]),
-      phase(0.6, [magic('bahamut-breath', '雷嵐の息吹', 120, 'thunder', { target: 'all_enemies' }), physical('bahamut-tail', '震天尾撃', 1.7, { target: 'all_enemies' }), magic('bahamut-collapse', '星砕メガフレア', 210, null, { target: 'all_enemies', telegraph: '星光が竜の胸へ集う――守りを固めろ！', ctbCost: 2 })]),
-      phase(0.25, [magic('bahamut-nova', '終焉新星', 185, 'fire', { target: 'all_enemies' }), physical('bahamut-rush', '破滅の四連撃', 0.58, { hits: 4 }), magic('bahamut-collapse-plus', '極星砕メガフレア', 250, null, { target: 'all_enemies', telegraph: '空間が砕け始めた――これが最後の予兆だ！', ctbCost: 2.2 })]),
-    ],
-    counterSequence: [],
-  }),
+  ...Object.fromEntries(
+    bossRegistry
+      .filter((boss) => boss.actionPattern)
+      .map((boss) => [boss.id, Object.freeze(resolveActionPattern(boss.actionPattern))]),
+  ),
 });
 
 function activePhase(unit) {

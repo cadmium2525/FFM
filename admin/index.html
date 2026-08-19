@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>FFM管理者ツール</title>
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+<header id="admin-header">
+  <h1>FFM管理者ツール</h1>
+  <div id="connection-badge" class="hidden">
+    <span id="connection-label"></span>
+    <button id="disconnect-button" type="button" class="danger-button">トークン削除</button>
+  </div>
+</header>
+
+<main id="admin-root">
+
+  <!-- ============ CONNECT PANEL ============ -->
+  <section id="connect-panel" class="panel">
+    <h2>GitHubリポジトリへ接続</h2>
+    <p class="hint">
+      対象リポジトリへの書き込み権限を持つ Personal Access Token (classic か fine-grained、
+      <code>repo</code> スコープ) を入力してください。トークンはこのブラウザの localStorage
+      にのみ保存され、GitHub API (api.github.com) 以外へは送信されません。次回以降このブラウザ
+      からアクセスした際は自動的に再接続されます。
+    </p>
+    <form id="connect-form">
+      <label>Personal Access Token
+        <input type="password" id="input-token" autocomplete="off" required placeholder="ghp_...">
+      </label>
+      <label>リポジトリ (owner/repo)
+        <input type="text" id="input-repo" required placeholder="cadmium2525/FFM">
+      </label>
+      <label>ブランチ
+        <input type="text" id="input-branch" required value="main">
+      </label>
+      <button type="submit" id="connect-button">接続</button>
+    </form>
+    <p id="connect-status" class="status-message"></p>
+  </section>
+
+  <!-- ============ MAIN TOOL ============ -->
+  <section id="tool-panel" class="hidden">
+    <nav id="tab-bar">
+      <button type="button" class="tab-button active" data-tab="bosses">ボススタジオ</button>
+      <button type="button" class="tab-button" data-tab="stages">ステージスタジオ</button>
+    </nav>
+
+    <div id="tab-bosses" class="tab-content active">
+      <aside class="sidebar">
+        <button type="button" id="new-boss-button" class="primary-button">＋ 新規ボス</button>
+        <ul id="boss-list" class="entity-list"></ul>
+      </aside>
+      <div id="boss-editor" class="editor-pane">
+        <p class="empty-hint">左のリストからボスを選択するか、新規ボスを作成してください。</p>
+      </div>
+    </div>
+
+    <div id="tab-stages" class="tab-content">
+      <aside class="sidebar">
+        <button type="button" id="new-stage-button" class="primary-button">＋ 新規ステージ</button>
+        <ul id="stage-list" class="entity-list"></ul>
+      </aside>
+      <div id="stage-editor" class="editor-pane">
+        <p class="empty-hint">左のリストからステージを選択するか、新規ステージを作成してください。</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div id="toast" class="hidden"></div>
+
+<script type="module" src="admin.js"></script>
+</body>
+</html>

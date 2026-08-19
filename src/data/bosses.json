@@ -1,0 +1,451 @@
+[
+  {
+    "id": "omega",
+    "name": "オメガ",
+    "spriteUrl": "assets/images/bosses/omega.webp",
+    "effectAnchor": {
+      "x": -15,
+      "y": 3
+    },
+    "maxHp": 55530,
+    "maxMp": 60700,
+    "level": 119,
+    "atk": 115,
+    "monsterM": 12,
+    "def": 190,
+    "magic": 199,
+    "magicDef": 150,
+    "evasion": 95,
+    "agility": 76,
+    "weakness": "thunder",
+    "resist": null,
+    "equipmentEffects": {
+      "absorbs": [
+        "fire",
+        "ice",
+        "poison",
+        "holy",
+        "earth",
+        "wind",
+        "water"
+      ],
+      "weaknesses": [
+        "sound"
+      ]
+    },
+    "statusImmunities": [
+      "poison",
+      "blind",
+      "silence",
+      "old",
+      "mini",
+      "toad",
+      "petrify",
+      "ko",
+      "doom",
+      "berserk",
+      "confuse",
+      "sleep",
+      "paralyze"
+    ],
+    "counterOnHit": {
+      "chance": 1,
+      "times": 2
+    },
+    "permanentStatuses": [
+      "shell",
+      "reflect"
+    ],
+    "size": 1.4,
+    "ai": "random",
+    "actionPattern": {
+      "phases": [
+        {
+          "maxHpRatio": 1,
+          "sequence": [
+            {
+              "choiceOf": [
+                "atomic-ray",
+                "delta-attack",
+                "blaster"
+              ]
+            },
+            {
+              "techniqueId": "wave-cannon"
+            },
+            {
+              "choiceOf": [
+                "rainbow-wind",
+                "flame-thrower",
+                "atomic-ray"
+              ]
+            },
+            {
+              "techniqueId": "wave-cannon"
+            },
+            {
+              "multi": [
+                {
+                  "choiceOf": [
+                    "delta-attack",
+                    "blaster",
+                    "wave-cannon"
+                  ]
+                },
+                {
+                  "choiceOf": [
+                    "maelstrom",
+                    "quake",
+                    "rainbow-wind"
+                  ]
+                }
+              ]
+            },
+            {
+              "techniqueId": "targeting"
+            },
+            {
+              "choiceOf": [
+                "rainbow-wind",
+                "flame-thrower",
+                "atomic-ray"
+              ]
+            },
+            {
+              "techniqueId": "wave-cannon"
+            }
+          ]
+        }
+      ],
+      "counterSequence": [
+        {
+          "choiceOf": [
+            "rocket-punch",
+            "mustard-bomb"
+          ]
+        },
+        {
+          "choiceOf": [
+            "rocket-punch",
+            "circle"
+          ]
+        }
+      ]
+    },
+    "controllable": false,
+    "capturable": false,
+    "categoryWeaknesses": {
+      "whiteMagic": "-",
+      "blackMagic": "-",
+      "timeMagic": "-",
+      "summonMagic": "-",
+      "enemySkill": "-",
+      "sound": "弱点",
+      "melee": "-",
+      "ranged": "-"
+    },
+    "statusResistanceTable": {
+      "blind": "耐性",
+      "zombie": "有効",
+      "poison": "耐性",
+      "mini": "耐性",
+      "toad": "耐性",
+      "petrify": "耐性",
+      "ko": "耐性",
+      "silence": "耐性",
+      "berserk": "耐性",
+      "confuse": "耐性",
+      "paralyze": "耐性",
+      "sleep": "耐性",
+      "old": "耐性",
+      "slow": "有効",
+      "stop": "有効",
+      "boss": "耐性"
+    },
+    "techniqueRoster": [
+      "atomic-ray",
+      "delta-attack",
+      "blaster",
+      "wave-cannon",
+      "flame-thrower",
+      "rainbow-wind",
+      "maelstrom",
+      "quake",
+      "targeting",
+      "rocket-punch",
+      "mustard-bomb",
+      "circle"
+    ]
+  },
+  {
+    "id": "boss2",
+    "name": "ガルーダ",
+    "maxHp": 4200,
+    "level": 30,
+    "atk": 65,
+    "monsterM": 7,
+    "def": 20,
+    "magic": 15,
+    "agility": 34,
+    "weakness": "ice",
+    "resist": "wind",
+    "size": 1.1,
+    "ai": "random",
+    "actionPattern": {
+      "phases": [
+        {
+          "maxHpRatio": 1,
+          "sequence": [
+            {
+              "techniqueId": "garuda-talon"
+            },
+            {
+              "techniqueId": "garuda-gale"
+            },
+            {
+              "techniqueId": "garuda-cry"
+            }
+          ]
+        },
+        {
+          "maxHpRatio": 0.5,
+          "sequence": [
+            {
+              "techniqueId": "garuda-tempest"
+            },
+            {
+              "techniqueId": "garuda-dive"
+            },
+            {
+              "techniqueId": "garuda-eye"
+            }
+          ]
+        }
+      ],
+      "counterSequence": []
+    },
+    "techniqueRoster": [
+      "garuda-talon",
+      "garuda-gale",
+      "garuda-cry",
+      "garuda-tempest",
+      "garuda-dive",
+      "garuda-eye"
+    ]
+  },
+  {
+    "id": "boss3",
+    "name": "邪竜バハムート",
+    "maxHp": 6000,
+    "level": 50,
+    "atk": 80,
+    "monsterM": 9,
+    "def": 30,
+    "magic": 40,
+    "agility": 26,
+    "weakness": "thunder",
+    "resist": null,
+    "size": 1.3,
+    "ai": "lowestHp",
+    "actionPattern": {
+      "phases": [
+        {
+          "maxHpRatio": 1,
+          "sequence": [
+            {
+              "techniqueId": "bahamut-claw"
+            },
+            {
+              "techniqueId": "bahamut-flare"
+            },
+            {
+              "techniqueId": "bahamut-roar"
+            }
+          ]
+        },
+        {
+          "maxHpRatio": 0.6,
+          "sequence": [
+            {
+              "techniqueId": "bahamut-breath"
+            },
+            {
+              "techniqueId": "bahamut-tail"
+            },
+            {
+              "techniqueId": "bahamut-collapse"
+            }
+          ]
+        },
+        {
+          "maxHpRatio": 0.25,
+          "sequence": [
+            {
+              "techniqueId": "bahamut-nova"
+            },
+            {
+              "techniqueId": "bahamut-rush"
+            },
+            {
+              "techniqueId": "bahamut-collapse-plus"
+            }
+          ]
+        }
+      ],
+      "counterSequence": []
+    },
+    "techniqueRoster": [
+      "bahamut-claw",
+      "bahamut-flare",
+      "bahamut-roar",
+      "bahamut-breath",
+      "bahamut-tail",
+      "bahamut-collapse",
+      "bahamut-nova",
+      "bahamut-rush",
+      "bahamut-collapse-plus"
+    ]
+  },
+  {
+    "id": "kyuubi",
+    "name": "きゅうび",
+    "spriteUrl": null,
+    "controllable": false,
+    "capturable": false,
+    "maxHp": 9999,
+    "maxMp": 999,
+    "level": 111,
+    "atk": 92,
+    "monsterM": 9,
+    "def": 100,
+    "magic": 199,
+    "magicDef": 150,
+    "evasion": 80,
+    "agility": 40,
+    "weakness": null,
+    "resist": null,
+    "equipmentEffects": {
+      "absorbs": [
+        "wind"
+      ],
+      "weaknesses": [
+        "ice",
+        "thunder",
+        "poison"
+      ],
+      "resistances": [],
+      "nullElements": [
+        "earth"
+      ]
+    },
+    "categoryWeaknesses": {
+      "whiteMagic": "-",
+      "blackMagic": "-",
+      "timeMagic": "-",
+      "summonMagic": "-",
+      "enemySkill": "-",
+      "sound": "-",
+      "melee": "-",
+      "ranged": "-"
+    },
+    "statusResistanceTable": {
+      "blind": "耐性",
+      "zombie": "有効",
+      "poison": "有効",
+      "mini": "耐性",
+      "toad": "耐性",
+      "petrify": "耐性",
+      "ko": "耐性",
+      "silence": "耐性",
+      "berserk": "有効",
+      "confuse": "耐性",
+      "paralyze": "耐性",
+      "sleep": "有効",
+      "old": "耐性",
+      "slow": "有効",
+      "stop": "有効",
+      "boss": "耐性"
+    },
+    "statusImmunities": [
+      "blind",
+      "mini",
+      "toad",
+      "petrify",
+      "ko",
+      "silence",
+      "confuse",
+      "paralyze",
+      "old",
+      "boss"
+    ],
+    "counterOnHit": {
+      "chance": 1,
+      "times": 1
+    },
+    "size": 1.2,
+    "ai": "random",
+    "actionPattern": {
+      "phases": [
+        {
+          "maxHpRatio": 1,
+          "sequence": [
+            {
+              "choiceOf": [
+                "temptation",
+                "heat-haze"
+              ]
+            },
+            {
+              "techniqueId": "firaga-all"
+            },
+            {
+              "choiceOf": [
+                "divine-light-flint",
+                "heavenly-river-ascension"
+              ]
+            },
+            {
+              "techniqueId": "aeroga-all"
+            },
+            {
+              "techniqueId": "normal-attack-kyuubi"
+            },
+            {
+              "techniqueId": "purgatory-ninetails-array"
+            },
+            {
+              "choiceOf": [
+                "ninefold-divine-eye",
+                "eight-storms-heaven-thrust"
+              ]
+            },
+            {
+              "techniqueId": "normal-attack-kyuubi"
+            }
+          ]
+        }
+      ],
+      "counterSequence": [
+        {
+          "choiceOf": [
+            "super-foxfire",
+            "temptation"
+          ]
+        }
+      ]
+    },
+    "techniqueRoster": [
+      "normal-attack-kyuubi",
+      "super-foxfire",
+      "temptation",
+      "heat-haze",
+      "eight-storms-heaven-thrust",
+      "divine-light-flint",
+      "heavenly-river-ascension",
+      "purgatory-ninetails-array",
+      "ninefold-divine-eye",
+      "firaga-all",
+      "aeroga-all"
+    ]
+  }
+]

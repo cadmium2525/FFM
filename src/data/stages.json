@@ -1,0 +1,12 @@
+[
+  {
+    "id": "1-1",
+    "name": "1-1",
+    "subtitle": "3連戦 / 1戦目「オメガ」実装検証",
+    "background": null,
+    "bgm": null,
+    "restrictions": [],
+    "firstClearReward": { "gil": 300 },
+    "bossSequence": ["omega", "boss2", "boss3"]
+  }
+]

@@ -105,7 +105,7 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
   }
   const sealedMagicAction = action.usesMagic !== false
     && !['ability', 'song'].includes(action.sourceType)
-    && ['magic-attack', 'heal', 'status', 'cleanse', 'dispel', 'revive'].includes(action.kind);
+    && ['magic-attack', 'heal', 'status', 'status-choice', 'cleanse', 'dispel', 'revive'].includes(action.kind);
   if (!action._compiledOperation && sealedMagicAction && !actor.canUseMagic?.()) {
     return [{ type: 'sealed', targetUid: actor.uid }];
   }
@@ -351,7 +351,14 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
       });
       break;
     }
-    case 'status': {
+    case 'status':
+    case 'status-choice': {
+      // status-choice (e.g. Omega's ブラスター: 即死 or マヒ) rolls ONE of its
+      // options up front, then applies exactly like a normal 'status' action —
+      // never both effects at once.
+      const resolvedAction = action.kind === 'status-choice'
+        ? { ...action, ...action.options[Math.floor(Math.random() * action.options.length)] }
+        : action;
       targets.forEach((target) => {
         const appliedStatuses = [];
         const resistedStatuses = [];
@@ -360,23 +367,23 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
         // techniques such as Romeo's Ballad). A weakness to the delivery
         // element guarantees the status lands, bypassing normal chance and
         // status resistance, just like FF5's own accuracy formula.
-        const guaranteedByWeakness = action.element && equipmentElementState(target, action.element) === 'weak';
-        (action.statuses ?? []).forEach((status) => {
-          if (status === 'ko' && action.heavyImmune && target.heavy) {
+        const guaranteedByWeakness = resolvedAction.element && equipmentElementState(target, resolvedAction.element) === 'weak';
+        (resolvedAction.statuses ?? []).forEach((status) => {
+          if (status === 'ko' && resolvedAction.heavyImmune && target.heavy) {
             resistedStatuses.push(status);
             return;
           }
           const guaranteedBuff = target.isEnemy === actor.isEnemy && POSITIVE_STATUSES.includes(status);
-          if (action.toggle && target.statuses.has(status)) target.removeStatus(status);
+          if (resolvedAction.toggle && target.statuses.has(status)) target.removeStatus(status);
           else if (target.addStatus?.(status, {
-            duration: action.duration,
-            chance: guaranteedByWeakness || guaranteedBuff ? 1 : (action.statusChance ?? action.chance ?? 0.85),
+            duration: resolvedAction.duration,
+            chance: guaranteedByWeakness || guaranteedBuff ? 1 : (resolvedAction.statusChance ?? resolvedAction.chance ?? 0.85),
             guaranteed: guaranteedByWeakness || guaranteedBuff,
           })) appliedStatuses.push(status);
           else resistedStatuses.push(status);
         });
-        if (action.imageHits) target.imageHits = Math.max(target.imageHits, action.imageHits);
-        if (appliedStatuses.length || action.imageHits) results.push({ type: 'status', targetUid: target.uid, statuses: appliedStatuses });
+        if (resolvedAction.imageHits) target.imageHits = Math.max(target.imageHits, resolvedAction.imageHits);
+        if (appliedStatuses.length || resolvedAction.imageHits) results.push({ type: 'status', targetUid: target.uid, statuses: appliedStatuses });
         if (resistedStatuses.length) results.push({ type: 'status-resist', targetUid: target.uid, statuses: resistedStatuses });
       });
       break;
