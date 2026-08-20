@@ -47,6 +47,22 @@ function markDirty(kind) {
   state.dirty[kind] = true;
   if (kind === 'bosses') renderBossList();
   if (kind === 'stages') renderStageList();
+  renderCommitBar();
+}
+
+function anyDirty() {
+  return state.dirty.bosses || state.dirty.stages || state.dirty.techniques;
+}
+
+function renderCommitBar() {
+  const bar = $('commit-bar');
+  if (!anyDirty()) { bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+  const kinds = [];
+  if (state.dirty.bosses) kinds.push('ボス');
+  if (state.dirty.stages) kinds.push('ステージ');
+  if (state.dirty.techniques) kinds.push('技カタログ');
+  $('commit-bar-label').textContent = `未コミットの変更があります（${kinds.join('・')}）`;
 }
 
 // ---------- boot / connection ----------
@@ -57,6 +73,13 @@ async function boot() {
   $('new-boss-button').addEventListener('click', handleNewBoss);
   $('new-stage-button').addEventListener('click', handleNewStage);
   $('disconnect-button').addEventListener('click', handleDisconnect);
+  $('review-commit-button').addEventListener('click', openCommitModal);
+  $('commit-modal-close').addEventListener('click', closeCommitModal);
+  $('commit-modal').addEventListener('click', (e) => { if (e.target.id === 'commit-modal') closeCommitModal(); });
+  $('confirm-commit-button').addEventListener('click', handleConfirmCommit);
+  window.addEventListener('beforeunload', (e) => {
+    if (anyDirty()) { e.preventDefault(); e.returnValue = ''; }
+  });
 
   const saved = AdminAuth.load();
   if (saved) {
@@ -129,12 +152,13 @@ async function loadAllData() {
     state.client.getFile(DATA_PATHS.bosses),
     state.client.getFile(DATA_PATHS.stages),
   ]);
-  state.files.techniques = { ...techniques, data: JSON.parse(techniques.content) };
-  state.files.bosses = { ...bosses, data: JSON.parse(bosses.content) };
-  state.files.stages = { ...stages, data: JSON.parse(stages.content) };
+  state.files.techniques = { ...techniques, data: JSON.parse(techniques.content), pristine: JSON.parse(techniques.content) };
+  state.files.bosses = { ...bosses, data: JSON.parse(bosses.content), pristine: JSON.parse(bosses.content) };
+  state.files.stages = { ...stages, data: JSON.parse(stages.content), pristine: JSON.parse(stages.content) };
   state.dirty = { bosses: false, stages: false, techniques: false };
   renderBossList();
   renderStageList();
+  renderCommitBar();
 }
 
 function showToolPanel() {
@@ -246,8 +270,14 @@ function renderBossEditor() {
   pane.innerHTML = `
     <h3>${escapeHtml(boss.name)} <button type="button" id="delete-boss-button" class="small-button danger-button">このボスを削除</button></h3>
 
+    <h4>モンスター画像</h4>
+    <div id="boss-sprite-field"></div>
+
     <h4>基本情報</h4>
     <div class="field-grid" id="boss-basic-fields"></div>
+
+    <h4>常時状態異常</h4>
+    <div id="boss-permanent-status-field"></div>
 
     <h4>属性耐性</h4>
     <div id="boss-element-table"></div>
@@ -304,7 +334,7 @@ function renderBossEditor() {
 
 function renderBasicFields(boss) {
   const fields = [
-    ['name', '名称', 'text'], ['spriteUrl', '画像URL(暫定)', 'text'],
+    ['name', '名称', 'text'],
     ['level', 'レベル', 'number'], ['maxHp', 'HP', 'number'], ['maxMp', 'MP', 'number'],
     ['atk', '攻撃力', 'number'], ['def', '物理防御', 'number'], ['evasion', '回避', 'number'],
     ['magicDef', '魔法防御', 'number'], ['magic', '魔力', 'number'], ['agility', '素早さ', 'number'],
@@ -321,6 +351,9 @@ function renderBasicFields(boss) {
       <select data-key="capturable">${Schema.YES_NO.map(([v, l]) => `<option value="${v}" ${String(!!boss.capturable) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
     </label>
   `;
+
+  renderSpriteField(boss);
+  renderPermanentStatusField(boss);
 }
 
 function collectBasicFields(boss) {
@@ -336,6 +369,112 @@ function collectBasicFields(boss) {
   });
 }
 
+// ---------- monster image upload ----------
+
+/** Draws `file` onto a canvas (capped to 512px on the long edge, matching
+ * the sizing already used for other in-game art) and re-encodes it as webp,
+ * to keep repo image sizes small regardless of what the admin uploads. */
+function fileToWebpBlob(file, maxSize = 512, quality = 0.9) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('webp変換に失敗しました'))), 'image/webp', quality);
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function getExistingSha(path) {
+  try {
+    const f = await state.client.getFile(path);
+    return f.sha;
+  } catch (err) {
+    if (err instanceof GitHubApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+function renderSpriteField(boss) {
+  const box = $('boss-sprite-field');
+  const previewSrc = boss._localSpritePreview ?? (boss.spriteUrl ? spritePreviewSrc(boss.spriteUrl) : null);
+  box.innerHTML = `
+    <label>モンスター画像
+      ${previewSrc ? `<img class="sprite-preview" src="${escapeAttr(previewSrc)}" alt="">` : ''}
+      <input type="file" id="sprite-file-input" accept="image/*">
+    </label>
+    <p class="hint" id="sprite-status">${boss.spriteUrl ? `現在: ${escapeHtml(boss.spriteUrl)}` : '未設定です。ファイルを選ぶと自動でwebpに変換してアップロードします。'}</p>
+  `;
+  $('sprite-file-input').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const statusEl = $('sprite-status');
+    statusEl.textContent = 'アップロード中…';
+    try {
+      const webpBlob = await fileToWebpBlob(file);
+      const path = `assets/images/bosses/${boss.id}.webp`;
+      const expectedSha = await getExistingSha(path);
+      await state.client.putBinaryFile(path, await webpBlob.arrayBuffer(), {
+        message: `Update boss sprite: ${boss.name} (${boss.id})`,
+        expectedSha,
+      });
+      boss.spriteUrl = path;
+      // GitHub's raw-content CDN can lag a few seconds behind a fresh
+      // commit, so show the just-uploaded blob directly rather than
+      // immediately re-fetching from raw.githubusercontent.com.
+      boss._localSpritePreview = URL.createObjectURL(webpBlob);
+      markDirty('bosses');
+      showToast(`画像をアップロードしました（${path}）`);
+      renderSpriteField(boss);
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = `アップロードに失敗しました: ${err.message}`;
+      showToast('画像のアップロードに失敗しました', true);
+    }
+  });
+}
+
+/** Sprite files are committed straight to the repo, so previewing them
+ * means reading them back from GitHub's raw content endpoint. */
+function spritePreviewSrc(spriteUrl) {
+  if (/^https?:\/\//.test(spriteUrl)) return spriteUrl;
+  const { owner, repo, branch } = state.client;
+  return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${spriteUrl}`;
+}
+
+// ---------- permanent statuses (常時状態異常) ----------
+
+const PERMANENT_STATUS_OPTIONS = [
+  ['reflect', 'リフレク'], ['shell', 'シェル'], ['protect', 'プロテス'],
+  ['haste', 'ヘイスト'], ['regen', 'リジェネ'], ['float', 'フロート'],
+  ['image', 'イメージ'], ['barrier', 'バリア'],
+];
+
+function renderPermanentStatusField(boss) {
+  const box = $('boss-permanent-status-field');
+  const active = boss.permanentStatuses ?? [];
+  box.innerHTML = `
+    <p class="hint">常時付与し、ディスペルでも解除されない状態異常です（オメガの常時リフレク・シェルなど）。</p>
+    <div class="choice-checks">${PERMANENT_STATUS_OPTIONS.map(([id, label]) => `
+      <label><input type="checkbox" data-permanent-status="${id}" ${active.includes(id) ? 'checked' : ''}> ${label}</label>
+    `).join('')}</div>
+  `;
+  box.querySelectorAll('[data-permanent-status]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const checked = [...box.querySelectorAll('[data-permanent-status]:checked')].map((c) => c.dataset.permanentStatus);
+      boss.permanentStatuses = checked;
+      markDirty('bosses');
+    });
+  });
+}
+
 function renderElementTable(boss) {
   const effects = boss.equipmentEffects ?? (boss.equipmentEffects = { absorbs: [], weaknesses: [], resistances: [], nullElements: [] });
   const stateFor = (elId) => {
@@ -346,12 +485,12 @@ function renderElementTable(boss) {
     }
     return '-';
   };
-  $('boss-element-table').innerHTML = `
+  $('boss-element-table').innerHTML = `<div class="table-scroll">
     <table class="matrix-table"><thead><tr>${Schema.ELEMENTS.map(([, l]) => `<th>${l}</th>`).join('')}</tr></thead>
     <tbody><tr>${Schema.ELEMENTS.map(([id]) => `
       <td><select data-el="${id}">${Schema.ELEMENT_STATES.map((s) => `<option ${stateFor(id) === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
     `).join('')}</tr></tbody></table>
-  `;
+  </div>`;
   $('boss-element-table').querySelectorAll('select').forEach((sel) => {
     sel.addEventListener('change', () => {
       const elId = sel.dataset.el;
@@ -369,12 +508,12 @@ function renderElementTable(boss) {
 
 function renderCategoryTable(boss) {
   const table = boss.categoryWeaknesses ?? (boss.categoryWeaknesses = Object.fromEntries(Schema.CATEGORIES.map(([id]) => [id, '-'])));
-  $('boss-category-table').innerHTML = `
+  $('boss-category-table').innerHTML = `<div class="table-scroll">
     <table class="matrix-table"><thead><tr>${Schema.CATEGORIES.map(([, l]) => `<th>${l}</th>`).join('')}</tr></thead>
     <tbody><tr>${Schema.CATEGORIES.map(([id]) => `
       <td><select data-cat="${id}">${Schema.CATEGORY_STATES.map((s) => `<option ${table[id] === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
     `).join('')}</tr></tbody></table>
-  `;
+  </div>`;
   $('boss-category-table').querySelectorAll('select').forEach((sel) => {
     sel.addEventListener('change', () => { table[sel.dataset.cat] = sel.value; markDirty('bosses'); });
   });
@@ -383,12 +522,12 @@ function renderCategoryTable(boss) {
 function renderStatusTable(boss) {
   const table = boss.statusResistanceTable ?? (boss.statusResistanceTable = Object.fromEntries(Schema.STATUS_ROWS.map(([id]) => [id, '有効'])));
   const rows = [Schema.STATUS_ROWS.slice(0, 8), Schema.STATUS_ROWS.slice(8)];
-  $('boss-status-table').innerHTML = rows.map((row) => `
+  $('boss-status-table').innerHTML = rows.map((row) => `<div class="table-scroll">
     <table class="matrix-table"><thead><tr>${row.map(([, l]) => `<th>${l}</th>`).join('')}</tr></thead>
     <tbody><tr>${row.map(([id]) => `
       <td><select data-status="${id}">${Schema.STATUS_STATES.map((s) => `<option ${table[id] === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
     `).join('')}</tr></tbody></table>
-  `).join('');
+  </div>`).join('');
   $('boss-status-table').querySelectorAll('select').forEach((sel) => {
     sel.addEventListener('change', () => {
       table[sel.dataset.status] = sel.value;
@@ -413,7 +552,7 @@ function renderRoster(boss) {
       const t = techniqueById(id);
       return `<span class="roster-chip">${escapeHtml(t ? techniqueCatalogLabel(t) : `(不明: ${id})`)}<button type="button" data-remove="${escapeAttr(id)}" title="ロスターから外す">×</button></span>`;
     }).join('') || '<span class="hint">技が登録されていません</span>'}</div>
-    <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+    <div class="roster-add-row">
       <select id="roster-add-select"><option value="">-- 既存の技から選択 --</option>${catalogOptions}</select>
       <button type="button" id="roster-add-button" class="small-button">追加</button>
       <button type="button" id="roster-new-button" class="small-button">＋ 新規技を作成</button>
@@ -676,7 +815,7 @@ function renderStageEditor() {
 
     <h4>連戦順(1戦目から順番に)</h4>
     <div id="stage-boss-sequence"></div>
-    <div style="margin-top:8px; display:flex; gap:8px;">
+    <div class="roster-add-row">
       <select id="stage-add-boss"><option value="">-- ボスを選択 --</option>${bossOptions}</select>
       <button type="button" id="stage-add-boss-button" class="small-button">追加</button>
     </div>
@@ -778,6 +917,163 @@ function escapeHtml(str) {
 }
 function escapeAttr(str) {
   return escapeHtml(str);
+}
+
+// ---------- diff + commit ----------
+
+const FILE_LABELS = { techniques: '技カタログ (techniqueCatalog.json)', bosses: 'ボス (bosses.json)', stages: 'ステージ (stages.json)' };
+const ENTITY_LABELS = {
+  techniques: (t) => t.baseName ?? t.id,
+  bosses: (b) => b.name ?? b.id,
+  stages: (s) => s.name ?? s.id,
+};
+
+/** Compares two id-keyed arrays and returns { added, removed, changed }.
+ * `changed` entries include a best-effort field-level summary — nested
+ * object/array fields are flagged as changed but not recursively diffed
+ * (the raw JSON before/after is also shown in the UI for those cases). */
+function diffArraysById(oldArr, newArr) {
+  const oldMap = new Map(oldArr.map((x) => [x.id, x]));
+  const newMap = new Map(newArr.map((x) => [x.id, x]));
+  const added = [...newMap.values()].filter((x) => !oldMap.has(x.id));
+  const removed = [...oldMap.values()].filter((x) => !newMap.has(x.id));
+  const changed = [];
+  newMap.forEach((after, id) => {
+    if (!oldMap.has(id)) return;
+    const before = oldMap.get(id);
+    if (JSON.stringify(before) !== JSON.stringify(after)) changed.push({ id, before, after, fields: fieldDiffLines(before, after) });
+  });
+  return { added, removed, changed };
+}
+
+function fieldDiffLines(before, after) {
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  const lines = [];
+  keys.forEach((k) => {
+    const b = before[k];
+    const a = after[k];
+    const bStr = JSON.stringify(b);
+    const aStr = JSON.stringify(a);
+    if (bStr === aStr) return;
+    if (b && a && typeof b === 'object' && typeof a === 'object') {
+      lines.push(`${k}: 変更あり（詳細は下の生データを参照）`);
+    } else {
+      lines.push(`${k}: ${bStr ?? '(未設定)'} → ${aStr ?? '(未設定)'}`);
+    }
+  });
+  return lines;
+}
+
+function buildAllDiffs() {
+  return {
+    techniques: diffArraysById(state.files.techniques.pristine, state.files.techniques.data),
+    bosses: diffArraysById(state.files.bosses.pristine, state.files.bosses.data),
+    stages: diffArraysById(state.files.stages.pristine, state.files.stages.data),
+  };
+}
+
+function openCommitModal() {
+  const diffs = buildAllDiffs();
+  const body = $('commit-diff-body');
+  const blocks = Object.entries(diffs)
+    .filter(([, d]) => d.added.length || d.removed.length || d.changed.length)
+    .map(([kind, d]) => renderDiffBlock(kind, d));
+  body.innerHTML = blocks.join('') || '<p class="hint">未コミットの変更はありません。</p>';
+
+  const defaultMessage = summarizeForCommitMessage(diffs);
+  $('commit-message-input').value = defaultMessage;
+  $('commit-modal').classList.remove('hidden');
+}
+
+function closeCommitModal() {
+  $('commit-modal').classList.add('hidden');
+}
+
+function renderDiffBlock(kind, d) {
+  const label = ENTITY_LABELS[kind];
+  const parts = [];
+  d.added.forEach((entity) => parts.push(`
+    <details class="diff-entity added"><summary><span class="diff-tag">追加</span>${escapeHtml(label(entity))}</summary>
+      <pre class="diff-raw">${escapeHtml(JSON.stringify(entity, null, 2))}</pre>
+    </details>
+  `));
+  d.removed.forEach((entity) => parts.push(`
+    <details class="diff-entity removed"><summary><span class="diff-tag">削除</span>${escapeHtml(label(entity))}</summary>
+      <pre class="diff-raw">${escapeHtml(JSON.stringify(entity, null, 2))}</pre>
+    </details>
+  `));
+  d.changed.forEach(({ after, fields, before }) => parts.push(`
+    <details class="diff-entity changed"><summary><span class="diff-tag">変更</span>${escapeHtml(label(after))}</summary>
+      ${fields.map((line) => `<div class="diff-field-line">${escapeHtml(line)}</div>`).join('')}
+      <details><summary class="hint">生データを比較表示</summary>
+        <pre class="diff-raw">--- 変更前 ---\n${escapeHtml(JSON.stringify(before, null, 2))}\n\n--- 変更後 ---\n${escapeHtml(JSON.stringify(after, null, 2))}</pre>
+      </details>
+    </details>
+  `));
+  return `<div class="diff-file-block"><h4>${escapeHtml(FILE_LABELS[kind])}</h4>${parts.join('')}</div>`;
+}
+
+function summarizeForCommitMessage(diffs) {
+  const bits = [];
+  Object.entries(diffs).forEach(([kind, d]) => {
+    const label = ENTITY_LABELS[kind];
+    [...d.added, ...d.changed.map((c) => c.after)].forEach((e) => bits.push(label(e)));
+  });
+  const unique = [...new Set(bits)];
+  if (!unique.length) return '管理ツールからの更新';
+  return `${unique.slice(0, 3).join('・')}${unique.length > 3 ? ' 他' : ''} を更新`;
+}
+
+async function handleConfirmCommit() {
+  const message = $('commit-message-input').value.trim() || '管理ツールからの更新';
+  const btn = $('confirm-commit-button');
+  btn.disabled = true;
+  btn.textContent = 'コミット中…';
+
+  const results = [];
+  for (const kind of ['techniques', 'bosses', 'stages']) {
+    if (!state.dirty[kind]) continue;
+    const file = state.files[kind];
+    const content = `${JSON.stringify(file.data, null, 2)}\n`;
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const res = await state.client.putFile(file.path, content, {
+        message: `${message} (${DATA_PATHS[kind].split('/').pop()})`,
+        expectedSha: file.sha,
+      });
+      file.sha = res.content.sha;
+      file.pristine = JSON.parse(JSON.stringify(file.data));
+      state.dirty[kind] = false;
+      results.push({ kind, ok: true });
+    } catch (err) {
+      console.error(err);
+      results.push({ kind, ok: false, error: err });
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'この内容でコミットする';
+
+  const failed = results.filter((r) => !r.ok);
+  if (failed.length) {
+    const detail = failed.map((f) => `${FILE_LABELS[f.kind]}: ${describeCommitError(f.error)}`).join(' / ');
+    showToast(`一部のコミットに失敗しました（${detail}）`, true);
+  } else if (results.length) {
+    showToast('コミットしました。GitHub Actionsによる自動反映をお待ちください。');
+    closeCommitModal();
+  } else {
+    closeCommitModal();
+  }
+  renderCommitBar();
+  renderBossList();
+  renderStageList();
+}
+
+function describeCommitError(err) {
+  if (err instanceof GitHubApiError && err.status === 409) {
+    return 'サーバー側が更新されています。ページを再読み込みしてから再度お試しください。';
+  }
+  return err?.message ?? '不明なエラー';
 }
 
 boot();

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ff-crystal-rush-pwa-v42';
+const CACHE_NAME = 'ff-crystal-rush-pwa-v36';
 const APP_SHELL = [
   './',
   './index.html',

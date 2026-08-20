@@ -44,6 +44,11 @@
 
   <!-- ============ MAIN TOOL ============ -->
   <section id="tool-panel" class="hidden">
+    <div id="commit-bar" class="hidden">
+      <span id="commit-bar-label"></span>
+      <button type="button" id="review-commit-button" class="primary-button">変更を確認してコミット</button>
+    </div>
+
     <nav id="tab-bar">
       <button type="button" class="tab-button active" data-tab="bosses">ボススタジオ</button>
       <button type="button" class="tab-button" data-tab="stages">ステージスタジオ</button>
@@ -71,6 +76,27 @@
   </section>
 
 </main>
+
+<!-- ============ COMMIT REVIEW MODAL ============ -->
+<div id="commit-modal" class="modal-overlay hidden">
+  <div class="modal-panel">
+    <div class="modal-header">
+      <h2>変更内容の確認</h2>
+      <button type="button" id="commit-modal-close" class="small-button">閉じる</button>
+    </div>
+    <div id="commit-diff-body" class="modal-body"></div>
+    <div class="modal-footer">
+      <label>コミットメッセージ
+        <input type="text" id="commit-message-input" placeholder="例：オメガの技を追加">
+      </label>
+      <p class="hint">
+        コミット後、GitHub Actionsがゲーム側の反映用ファイル(<code>.js</code>ミラー / <code>app.js</code> / <code>index.html</code>)を
+        自動的に再生成してコミットします。実際にゲームへ反映されるまで数分かかる場合があります。
+      </p>
+      <button type="button" id="confirm-commit-button" class="primary-button">この内容でコミットする</button>
+    </div>
+  </div>
+</div>
 
 <div id="toast" class="hidden"></div>
 
