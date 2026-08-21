@@ -1071,6 +1071,7 @@ export class BattleUI {
         actorIsEnemy: Boolean(actor?.isEnemy),
         odinOutcome,
         banishOutcome,
+        chocoboOutcome: action?.chocoboOutcome ?? null,
         resultTypes: results.map((result) => result.type),
       };
       // direction-player mirrors the complete sequence so its logical

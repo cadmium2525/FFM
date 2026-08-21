@@ -190,6 +190,34 @@ assert.equal(ifritAction.sourceType, 'magic');
 assert.equal(summonManager.submitPlayerAction({ type: 'ability', ability: ifritAction }, summonBoss), true);
 assert.equal(summonFaris.mp, 350 - ifritAction.mpCost);
 
+// Chocobo Kick and the rare Fat Chocobo outcome keep distinct target patterns
+// and expose the chosen branch to the VFX timeline.
+const runChocoboOutcome = (roll) => {
+  const caster = makeUnit({ id: `chocobo-${roll}`, maxMp: 99, mp: 99, ctValue: BASE_THRESHOLD });
+  const target = makeUnit({ id: `chocobo-target-${roll}`, isEnemy: true, hp: 9999, maxHp: 9999 });
+  const battle = new BattleManager([caster], target);
+  battle.scheduleNextTurn = () => {};
+  battle.broadcastState = () => {};
+  battle.currentActor = caster;
+  battle.awaitingPlayerInput = true;
+  let resolvedAction = null;
+  const offResolved = eventBus.on('battle:actionResolved', ({ actor: resolvedActor, action }) => {
+    if (resolvedActor.uid === caster.uid) resolvedAction = action;
+  });
+  Math.random = () => roll;
+  const chocoboAction = magicAction('magic_chocobo');
+  assert.equal(battle.submitPlayerAction({ type: 'ability', ability: chocoboAction }, target), true);
+  offResolved();
+  return resolvedAction;
+};
+const chocoboKickAction = runChocoboOutcome(0.5);
+assert.equal(chocoboKickAction.chocoboOutcome, 'kick');
+assert.equal(chocoboKickAction.target, 'one_enemy');
+const fatChocoboAction = runChocoboOutcome(0.01);
+assert.equal(fatChocoboAction.chocoboOutcome, 'fat');
+assert.equal(fatChocoboAction.target, 'all_enemies');
+Math.random = oldRandom;
+
 // Phoenix is a hybrid summon: all enemies receive the fire hit, but only the
 // KO ally explicitly selected by the player is revived. A living ally must
 // neither be revived nor produce an invalid-target cancellation.
@@ -325,6 +353,24 @@ itemManager.awaitingPlayerInput = true;
 assert.equal(itemManager.submitPlayerAction({ type: 'item', item: { id: 'potion', name: 'ポーション', healAmount: 400 } }, itemHero), false);
 assert.equal(itemHero.ctValue, ctBeforeRejectedItem);
 assert.equal(persistCalls, 1);
+
+// The Magic Lamp is an item, so Silence must not block the summoned effect.
+// Its sequence index advances only after the resolved action is accepted.
+const lampHero = makeUnit({ id: 'lamp-hero', hp: 2000, ctValue: BASE_THRESHOLD });
+lampHero.addStatus('silence', { force: true });
+const lampBoss = makeUnit({ id: 'lamp-boss', isEnemy: true, hp: 99999, maxHp: 99999 });
+const lampManager = new BattleManager([lampHero], lampBoss, {
+  getItemStock: (id) => id === 'item_magic_lamp' ? 1 : 0,
+});
+lampManager.scheduleNextTurn = () => {};
+lampManager.broadcastState = () => {};
+lampManager.currentActor = lampHero;
+lampManager.awaitingPlayerInput = true;
+const lampItem = { id: 'item_magic_lamp', sourceId: 'item_magic_lamp', name: 'Magic Lamp', target: 'enemy_group', consumable: false, operations: [{ op: 'item.magic_lamp' }] };
+assert.equal(lampManager.magicLampUse, 0);
+assert.equal(lampManager.submitPlayerAction({ type: 'item', item: lampItem }, lampBoss), true, 'Silence must not seal an item-triggered summon');
+assert.equal(lampManager.magicLampUse, 1, 'Magic Lamp must advance exactly once after a successful summon');
+assert.ok(lampBoss.hp < lampBoss.maxHp, 'Magic Lamp summon must resolve against the enemy');
 Math.random = oldRandom;
 
 console.log(JSON.stringify({ spellsResolved: battleReadyMagic.length, shardsResolved: battleReadyShards.length, bossesAudited: 3, status: 'ok' }, null, 2));

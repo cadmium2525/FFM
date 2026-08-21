@@ -4,7 +4,7 @@ import { SPELL_CHOREOGRAPHIES, spellChoreographyForAction } from '../src/ui/Spel
 import { ff5Magic } from '../src/database/ff5Database.js';
 
 const sequences = Object.entries(SPELL_PIXEL_SEQUENCES);
-assert.ok(sequences.length >= 99, 'the analysis/status-time pixel VFX production set regressed');
+assert.ok(sequences.length >= 109, 'the complete magic pixel VFX production set regressed');
 
 for (const [sceneId, spec] of sequences) {
   assert.equal(spec.referenceVersion, 'SFC-JP-1992', `${sceneId}: wrong reference target`);
@@ -43,11 +43,26 @@ const expectedOriginalHeaders = {
   float: '24 20 43 80 24',
   old: '21 26 0F 00 0F',
   mute: '00 10 A9 00 02',
+  slow: '2A 19 2C 8F 39',
+  slowga: '2A 19 2C 8F 39',
+  haste: '2A 10 2D 00 6B',
+  hastega: '2A 10 2D 00 6B',
+  remora: '1C 2C 25 99 7C',
+  catoblepas: '42 10 A5 00 14',
+  chocobo: '76 68 DD 00 29',
+  ramuh: '07 11 80 78 44',
+  titan: '00 00 82 F8 74',
+  syldra: '07 12 9D 5B 78',
+  leviathan: '35 2F 37 54 4A',
+  teleport: '00 00 79 00 40',
 };
 for (const [sceneId, header] of Object.entries(expectedOriginalHeaders)) {
   assert.equal(SPELL_PIXEL_SEQUENCES[sceneId].originalEffectHeader, header, `${sceneId}: SFC effect header regressed`);
 }
 assert.equal(SPELL_PIXEL_SEQUENCES.speed.sharedOriginalFamily, SPELL_PIXEL_SEQUENCES.mute.sharedOriginalFamily, 'Speed and Mute must share the original A9 rendering family');
+assert.equal(SPELL_PIXEL_SEQUENCES.slow.sharedOriginalFamily, SPELL_PIXEL_SEQUENCES.slowga.sharedOriginalFamily, 'Slow and Slowga must share their original rendering family');
+assert.equal(SPELL_PIXEL_SEQUENCES.haste.sharedOriginalFamily, SPELL_PIXEL_SEQUENCES.hastega.sharedOriginalFamily, 'Haste and Hastega must share their original rendering family');
+assert.equal(SPELL_PIXEL_SEQUENCES.chocobo.originalVariantHeaders?.fat, '00 10 98 C0 2E', 'Fat Chocobo SFC branch header regressed');
 for (const sceneId of ['poison', 'sleep', 'old']) {
   assert.equal(SPELL_PIXEL_SEQUENCES[sceneId].sharedOriginalFamily, 'status-script-0f', `${sceneId}: SFC status script 0F family regressed`);
 }
@@ -78,6 +93,8 @@ for (const required of [
   'blink', 'berserk', 'dispel', 'esuna', 'confuse',
   'libra', 'poisona', 'silence', 'poison', 'sleep',
   'bio', 'speed', 'regen', 'float', 'old',
+  'slowga', 'hastega', 'remora', 'catoblepas', 'chocobo',
+  'ramuh', 'titan', 'syldra', 'leviathan', 'teleport',
 ]) {
   assert.ok(SPELL_PIXEL_SEQUENCES[required], `${required}: dedicated cross-category sequence missing`);
 }
@@ -154,6 +171,16 @@ const reachabilityCases = [
   [{ sourceId: 'magic_regen' }, 'regen'],
   [{ sourceId: 'magic_float' }, 'float'],
   [{ sourceId: 'magic_old' }, 'old'],
+  [{ sourceId: 'magic_slowga' }, 'slowga'],
+  [{ sourceId: 'magic_hastega' }, 'hastega'],
+  [{ sourceId: 'magic_remora' }, 'remora'],
+  [{ sourceId: 'magic_catoblepas' }, 'catoblepas'],
+  [{ sourceId: 'magic_chocobo' }, 'chocobo'],
+  [{ sourceId: 'magic_ramuh' }, 'ramuh'],
+  [{ sourceId: 'magic_titan' }, 'titan'],
+  [{ sourceId: 'magic_syldra' }, 'syldra'],
+  [{ sourceId: 'magic_leviathan' }, 'leviathan'],
+  [{ sourceId: 'magic_teleport' }, 'teleport'],
 ];
 for (const [action, expectedScene] of reachabilityCases) {
   assert.equal(spellChoreographyForAction(action)?.id, expectedScene, `${expectedScene}: runtime action cannot reach its dedicated scene`);

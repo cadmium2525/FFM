@@ -5945,6 +5945,7 @@ class BattleManager {
 
     let action;
     let targets;
+    let advanceMagicLampOnSuccess = false;
     const resolveTargets = (targetId, fallback) => {
       if (targetId === 'self') return [actor];
       if (['all_allies', 'party'].includes(targetId)) {
@@ -6010,8 +6011,8 @@ class BattleManager {
           const summonId = lampOrder[Math.min(this.magicLampUse, lampOrder.length - 1)];
           const summon = Object.values(magicSets).flat().find((spell) => spell.sourceId === summonId);
           if (summon) {
-            this.magicLampUse += 1;
-            action = { ...summon, kind: summon.actionKind, mpCost: 0, name: `${choice.item.name}：${summon.name}` };
+            advanceMagicLampOnSuccess = true;
+            action = { ...summon, kind: summon.actionKind, mpCost: 0, usesMagic: false, name: `${choice.item.name}：${summon.name}` };
             targets = resolveTargets(summon.target, this.boss);
           }
         }
@@ -6024,6 +6025,18 @@ class BattleManager {
         break;
       default:
         return false;
+    }
+
+    // Chocobo is the source game's one summon with two target patterns:
+    // Chocobo Kick normally strikes one enemy, while the rare Fat Chocobo
+    // outcome hits the enemy group. Keep the selected outcome on the action
+    // so presentation can choose the matching dedicated timeline.
+    if (action.sourceId === 'magic_chocobo') {
+      const fatChocobo = Math.random() < 0.08;
+      action = { ...action, chocoboOutcome: fatChocobo ? 'fat' : 'kick', target: fatChocobo ? 'all_enemies' : 'one_enemy' };
+      targets = fatChocobo
+        ? this.units.filter((unit) => unit.isAlive() && unit.isEnemy !== actor.isEnemy)
+        : [targetUnit ?? this.boss];
     }
 
     if (!actor.canAffordMp(action.mpCost ?? 0)) {
@@ -6039,7 +6052,7 @@ class BattleManager {
     const isCrystal = choice.type === 'crystal';
     const isMagicLike = choice.type === 'magic'
       || isCrystal
-      || action.sourceType === 'magic'
+      || (action.sourceType === 'magic' && !advanceMagicLampOnSuccess)
       || (choice.type === 'ability' && (action.mpCost ?? 0) > 0);
     if (isMagicLike && !actor.canUseMagic()) {
       const reason = actor.statuses?.has('silence')
@@ -6089,6 +6102,7 @@ class BattleManager {
       eventBus.emit('battle:playerTurn', { actor });
       return false;
     }
+    if (advanceMagicLampOnSuccess) this.magicLampUse += 1;
     results
       .filter((result) => result.type === 'scan')
       .forEach((result) => this.revealBossIntel(action, this.units.find((unit) => unit.uid === result.targetUid)));
@@ -6661,6 +6675,7 @@ const sequence = (frameCount, impactFrames, phases, options = {}) => Object.free
   sceneSpace: options.sceneSpace ?? 'target-local',
   originalEffectHeader: options.originalEffectHeader ?? null,
   sharedOriginalFamily: options.sharedOriginalFamily ?? null,
+  originalVariantHeaders: options.originalVariantHeaders ? Object.freeze({ ...options.originalVariantHeaders }) : null,
   fps: 60,
   frameCount,
   impactFrames: Object.freeze(impactFrames),
@@ -6685,8 +6700,8 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
   holy: sequence(118, [78], [phase('stars', 0, 26), phase('judgment', 27, 77), phase('holy-impact', 78, 98), phase('decay', 99, 117)]),
   shell: sequence(88, [60], [phase('prism-seed', 0, 21), phase('shell-weave', 22, 59), phase('prism-lock', 60, 74), phase('decay', 75, 87)]),
   reflect: sequence(96, [68], [phase('mirror-shards', 0, 24), phase('mirror-form', 25, 67), phase('reflect-lock', 68, 82), phase('decay', 83, 95)]),
-  haste: sequence(72, [49], [phase('clock', 0, 20), phase('accelerate', 21, 48), phase('latch', 49, 60), phase('decay', 61, 71)]),
-  slow: sequence(76, [52], [phase('clock', 0, 20), phase('drag', 21, 51), phase('latch', 52, 64), phase('decay', 65, 75)]),
+  haste: sequence(72, [49], [phase('clock', 0, 20), phase('accelerate', 21, 48), phase('latch', 49, 60), phase('decay', 61, 71)], { originalEffectHeader: '2A 10 2D 00 6B', sharedOriginalFamily: 'haste-header-2a-10-2d-00-6b' }),
+  slow: sequence(76, [52], [phase('clock', 0, 20), phase('drag', 21, 51), phase('latch', 52, 64), phase('decay', 65, 75)], { originalEffectHeader: '2A 19 2C 8F 39', sharedOriginalFamily: 'slow-header-2a-19-2c-8f-39' }),
   stop: sequence(84, [57], [phase('clock', 0, 23), phase('freeze', 24, 56), phase('latch', 57, 70), phase('decay', 71, 83)]),
   comet: sequence(78, [53], [phase('sky', 0, 18), phase('fall', 19, 52), phase('crater', 53, 66), phase('decay', 67, 77)]),
   meteor: sequence(118, [62, 72, 82, 91], [phase('rift', 0, 27), phase('fall', 28, 61), phase('barrage', 62, 98), phase('decay', 99, 117)], { resultPolicy: 'split-amount', placement: 'centroid', sceneSpace: 'stage' }),
@@ -6770,6 +6785,16 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
   regen: sequence(114, [76], [phase('pulse-seed', 0, 25), phase('heartbeat-cycle', 26, 75), phase('renewal-lock', 76, 95), phase('decay', 96, 113)], { originalEffectHeader: '20 12 A4 00 13' }),
   float: sequence(108, [73], [phase('ground-mark', 0, 24), phase('target-liftoff', 25, 72), phase('air-cushion-lock', 73, 90), phase('decay', 91, 107)], { originalEffectHeader: '24 20 43 80 24' }),
   old: sequence(104, [70], [phase('script-0f-seed', 0, 24), phase('script-0f-motion', 25, 69), phase('status-lock', 70, 87), phase('decay', 88, 103)], { originalEffectHeader: '21 26 0F 00 0F', sharedOriginalFamily: 'status-script-0f' }),
+  slowga: sequence(76, [52], [phase('clock', 0, 20), phase('drag', 21, 51), phase('latch', 52, 64), phase('decay', 65, 75)], { originalEffectHeader: '2A 19 2C 8F 39', sharedOriginalFamily: 'slow-header-2a-19-2c-8f-39' }),
+  hastega: sequence(72, [49], [phase('clock', 0, 20), phase('accelerate', 21, 48), phase('latch', 49, 60), phase('decay', 61, 71)], { originalEffectHeader: '2A 10 2D 00 6B', sharedOriginalFamily: 'haste-header-2a-10-2d-00-6b' }),
+  remora: sequence(106, [71], [phase('chain-soul-crystal', 0, 24), phase('hook-converge', 25, 70), phase('chain-lock', 71, 89), phase('decay', 90, 105)], { originalEffectHeader: '1C 2C 25 99 7C' }),
+  catoblepas: sequence(118, [80], [phase('gaze-soul-crystal', 0, 27), phase('facet-scan', 28, 79), phase('petrify-gaze-lock', 80, 99), phase('decay', 100, 117)], { originalEffectHeader: '42 10 A5 00 14' }),
+  chocobo: sequence(116, [78], [phase('feather-soul-crystal', 0, 26), phase('diagonal-charge', 27, 77), phase('comet-stamp', 78, 97), phase('decay', 98, 115)], { originalEffectHeader: '76 68 DD 00 29', originalVariantHeaders: { fat: '00 10 98 C0 2E' } }),
+  ramuh: sequence(134, [90], [phase('thunder-soul-crystal', 0, 30), phase('staff-judgment', 31, 89), phase('sky-arc-impact', 90, 111), phase('decay', 112, 133)], { placement: 'centroid', sceneSpace: 'stage', originalEffectHeader: '07 11 80 78 44' }),
+  titan: sequence(138, [92], [phase('earth-soul-crystal', 0, 31), phase('fault-pressure', 32, 91), phase('continental-break', 92, 114), phase('decay', 115, 137)], { placement: 'centroid', sceneSpace: 'stage', originalEffectHeader: '00 00 82 F8 74' }),
+  syldra: sequence(136, [91], [phase('wind-soul-crystal', 0, 30), phase('serpentine-current', 31, 90), phase('wind-tide-impact', 91, 113), phase('decay', 114, 135)], { placement: 'centroid', sceneSpace: 'stage', originalEffectHeader: '07 12 9D 5B 78' }),
+  leviathan: sequence(144, [96], [phase('abyss-soul-crystal', 0, 32), phase('tidal-wall-rise', 33, 95), phase('tsunami-impact', 96, 119), phase('decay', 120, 143)], { placement: 'centroid', sceneSpace: 'stage', originalEffectHeader: '35 2F 37 54 4A' }),
+  teleport: sequence(116, [78], [phase('space-aperture', 0, 27), phase('target-fold', 28, 77), phase('iris-translation', 78, 97), phase('decay', 98, 115)], { placement: 'centroid', sceneSpace: 'stage', originalEffectHeader: '00 00 79 00 40' }),
 });
 
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
@@ -7579,6 +7604,26 @@ function sceneGroupPoint(sceneContext, key, fallback) {
     x: points.reduce((sum, point) => sum + Number(point.x ?? fallback.x), 0) / points.length,
     y: points.reduce((sum, point) => sum + Number(point.y ?? fallback.y), 0) / points.length,
   }, fallback);
+}
+
+function sceneTargetBand(sceneContext, fallback = { x: 68, y: 50 }) {
+  const hostile = Array.isArray(sceneContext?.hostileTargets) ? sceneContext.hostileTargets : [];
+  const supplied = hostile.length ? hostile : (Array.isArray(sceneContext?.targets) ? sceneContext.targets : []);
+  const points = supplied.length
+    ? supplied.map((point) => scenePercentPoint(sceneContext, point, fallback))
+    : [scenePoint(sceneContext, 'target', fallback)];
+  const xs = points.map((point) => point.x); const ys = points.map((point) => point.y);
+  return {
+    points,
+    center: {
+      x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
+      y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
+    },
+    minX: Math.max(18, Math.min(...xs) - 24),
+    maxX: Math.min(174, Math.max(...xs) + 24),
+    minY: Math.max(24, Math.min(...ys) - 28),
+    maxY: Math.min(166, Math.max(...ys) + 28),
+  };
 }
 
 function drawRoulette(ctx, frame, sceneContext) {
@@ -8591,6 +8636,243 @@ function drawOld(ctx, frame) {
   return drawScript0FStatus(ctx, frame, 'old');
 }
 
+function drawRemora(ctx, frame) {
+  const alpha = fade(frame, 8, 90, 106);
+  const seal = easeOut(segment(frame, 0, 25));
+  diamond(ctx, 96, 93, 16 + seal * 13, '#6b8b9b', alpha * seal, '#e8fbff');
+  ring(ctx, 96, 93, 27 + seal * 32, '#8bb5c3', 4, alpha * seal, -.5, Math.PI * 1.6);
+  if (frame >= 24) {
+    const bind = easeOut(segment(frame, 24, 71));
+    const anchors = [[38, 45], [154, 45], [164, 130], [28, 130]];
+    anchors.forEach(([x, y], index) => {
+      const links = 5;
+      for (let linkIndex = 0; linkIndex < links; linkIndex += 1) {
+        const t = (linkIndex + 1) / links * bind;
+        const px = x + (96 - x) * t; const py = y + (96 - y) * t;
+        ring(ctx, px, py, 7, index % 2 ? '#a8d2db' : '#637d89', 3, alpha * bind, index % 2 ? 0 : Math.PI / 2, index % 2 ? Math.PI * 2 : Math.PI * 2.5);
+      }
+      poly(ctx, [[x, y], [x + (index % 2 ? -12 : 12), y + 19], [x + (index % 2 ? 6 : -6), y + 27]], '#758f99', alpha * bind, '#e7f6f7', 2);
+    });
+  }
+  if (frame >= 71) {
+    const p = easeOut(segment(frame, 71, 90));
+    poly(ctx, [[51 - p * 9, 54], [141 + p * 9, 54], [152 + p * 8, 100], [132, 145 + p * 7], [60, 145 + p * 7], [40 - p * 8, 100]], 'rgba(73,94,104,.3)', alpha * p, '#d9ecef', 5);
+    for (let i = 0; i < 6; i += 1) line(ctx, 47, 62 + i * 16, 145, 72 + i * 12, '#657d86', 3, alpha * p);
+  }
+}
+
+function drawCatoblepas(ctx, frame) {
+  const alpha = fade(frame, 9, 100, 118);
+  const seal = easeOut(segment(frame, 0, 28));
+  diamond(ctx, 96, 68, 18 + seal * 15, '#8a718f', alpha * seal, '#f1e2f4');
+  poly(ctx, [[35, 96], [65, 69], [96, 59], [127, 69], [157, 96], [127, 123], [96, 133], [65, 123]], 'rgba(94,73,102,.25)', alpha * seal, '#c9b6d2', 3);
+  ring(ctx, 96, 96, 18 + seal * 14, '#d7c4db', 5, alpha);
+  diamond(ctx, 96, 96, 8 + seal * 6, '#433747', alpha, '#ffffff');
+  if (frame >= 27) {
+    const scan = easeOut(segment(frame, 27, 80));
+    poly(ctx, [[96, 96], [54 - scan * 22, 153], [138 + scan * 22, 153]], 'rgba(154,137,161,.28)', alpha * scan, '#e2d9e4', 3);
+    for (let i = 0; i < 7; i += 1) line(ctx, 61 + i * 12, 107, 42 + i * 18, 151, i % 2 ? '#817783' : '#c2b7c5', 3, alpha * scan);
+  }
+  if (frame >= 80) {
+    const p = easeOut(segment(frame, 80, 100));
+    const shards = [[48, 134], [69, 112], [96, 122], [123, 111], [145, 135], [112, 153], [78, 153]];
+    shards.forEach(([x, y], index) => diamond(ctx, x + (x - 96) * p * .35, y, 10 + index % 3 * 3, index % 2 ? '#817b78' : '#a19a93', alpha, '#ddd7d0'));
+    ring(ctx, 96, 114, 17 + p * 60, '#bfb6c2', 5, alpha);
+  }
+}
+
+function drawChocobo(ctx, frame, sceneContext) {
+  const alpha = fade(frame, 8, 98, 116);
+  const target = { x: 96, y: 96 };
+  const caster = { x: sceneContext?.actorIsEnemy ? 31 : 161, y: 137 };
+  const seal = easeOut(segment(frame, 0, 27));
+  diamond(ctx, caster.x, caster.y - 38, 15 + seal * 13, '#e7b74f', alpha * seal, '#fff2bc');
+  for (let i = 0; i < 7; i += 1) {
+    const a = -1.3 + i * .43;
+    poly(ctx, [[caster.x, caster.y - 38], [caster.x + Math.cos(a - .12) * (22 + seal * 42), caster.y - 38 + Math.sin(a - .12) * (17 + seal * 34)], [caster.x + Math.cos(a + .12) * (22 + seal * 42), caster.y - 38 + Math.sin(a + .12) * (17 + seal * 34)]], i % 2 ? '#f2cf67' : '#c78c3a', alpha * seal, '#fff6ca', 1);
+  }
+  if (frame >= 26) {
+    const charge = easeInOut(segment(frame, 26, 78));
+    const x = caster.x + (target.x - caster.x) * charge; const y = caster.y + (target.y - caster.y) * charge;
+    const trailDirection = Math.sign(caster.x - target.x) || 1;
+    for (let trail = 1; trail <= 7; trail += 1) line(ctx, x + trailDirection * trail * 13, y + trail * 5, x + trailDirection * trail * 4, y + trail * 2, trail % 2 ? '#ffe383' : '#d39736', 5 - Math.floor(trail / 3), alpha * (1 - trail * .1));
+    diamond(ctx, x, y, 13, '#fff2a4', alpha, '#d69b35');
+    for (let step = 0; step < 5; step += 1) diamond(ctx, caster.x + (target.x - caster.x) * step / 4, caster.y + (target.y - caster.y) * step / 4 + (step % 2 ? 7 : -4), 5, '#d8a849', alpha * charge, '#fff0ab');
+  }
+  if (frame >= 78) {
+    const p = easeOut(segment(frame, 78, 98));
+    const outcome = String(sceneContext?.chocoboOutcome ?? sceneContext?.outcome ?? sceneContext?.resultType ?? 'normal').toLowerCase();
+    const fat = outcome.includes('fat') || outcome.includes('heavy') || outcome.includes('6e');
+    if (fat) {
+      poly(ctx, [[96, 22 - p * 17], [139 + p * 17, 43], [163 + p * 10, 97], [137, 153 + p * 8], [55, 153 + p * 8], [29 - p * 10, 97], [53 - p * 17, 43]], '#c99c47', alpha, '#fff0ad', 5);
+      for (let i = 0; i < 12; i += 1) {
+        const a = i * Math.PI / 6;
+        line(ctx, 96 + Math.cos(a) * 23, 96 + Math.sin(a) * 23, 96 + Math.cos(a) * (39 + p * 53), 96 + Math.sin(a) * (39 + p * 53), i % 2 ? '#8d6939' : '#ffe696', 4, alpha * p);
+      }
+      ring(ctx, 96, 139, 17 + p * 73, '#e7bd62', 7, alpha);
+    } else {
+      burst(ctx, target.x, target.y, 16 + p * 59, 11, '#fff1a5', alpha, .12);
+      poly(ctx, [[target.x, target.y - 30 - p * 8], [target.x + 13 + p * 19, target.y - 11], [target.x + 21 + p * 18, target.y + 9], [target.x - 1, target.y + 30 + p * 8], [target.x - 22 - p * 17, target.y + 9], [target.x - 15 - p * 14, target.y - 12]], '#eab94f', alpha * (1 - p * .35), '#fff7cd', 3);
+    }
+  }
+}
+
+function drawRamuh(ctx, frame, sceneContext) {
+  const alpha = fade(frame, 9, 112, 134);
+  const band = sceneTargetBand(sceneContext, { x: sceneContext?.actorIsEnemy ? 72 : 28, y: 50 });
+  const cx = clamp(band.center.x, 35, 157); const cy = clamp(band.center.y, 58, 145);
+  const seal = easeOut(segment(frame, 0, 31));
+  diamond(ctx, cx, Math.max(27, cy - 54), 17 + seal * 13, '#9e91d8', alpha * seal, '#f4f1ff');
+  line(ctx, cx, Math.max(35, cy - 47), cx, Math.min(161, cy + 49), '#d8d0f0', 7, alpha * seal);
+  poly(ctx, [[cx, cy - 31], [cx - 35, cy - 56], [cx - 23, cy - 19], [cx, cy - 6], [cx + 23, cy - 19], [cx + 35, cy - 56]], null, alpha * seal, '#c5b9e8', 4);
+  if (frame >= 30) {
+    const judge = easeOut(segment(frame, 30, 90));
+    ring(ctx, cx, Math.max(24, cy - 63), 14 + judge * 49, '#efeaaa', 4, alpha, frame * .04, frame * .04 + Math.PI * 1.55);
+    band.points.forEach((point, index) => lightning(ctx, point.x, band.minY, Math.min(168, point.y + 31), 2 + index % 3, index % 2 ? '#b9a8ef' : '#fffbc7', alpha * judge, 3 + index % 2));
+  }
+  if (frame >= 90) {
+    const p = easeOut(segment(frame, 90, 112));
+    for (let i = 0; i < 9; i += 1) {
+      const x = band.minX + (band.maxX - band.minX) * i / 8;
+      lightning(ctx, x, Math.max(19, band.minY - 31 - i % 2 * 11), Math.min(170, band.maxY), 1 + i % 3, i % 2 ? '#fff6ad' : '#bca9ff', alpha * p, 2 + i % 2);
+    }
+    ring(ctx, cx, Math.min(168, band.maxY), 15 + p * Math.min(68, (band.maxX - band.minX) * .7 + 22), '#f8f3b5', 5, alpha);
+  }
+}
+
+function drawTitan(ctx, frame, sceneContext) {
+  const alpha = fade(frame, 9, 115, 138);
+  const band = sceneTargetBand(sceneContext, { x: sceneContext?.actorIsEnemy ? 72 : 28, y: 50 });
+  const cx = clamp(band.center.x, 42, 150); const groundY = clamp(band.maxY + 12, 112, 170);
+  const seal = easeOut(segment(frame, 0, 32));
+  diamond(ctx, cx, Math.max(29, groundY - 92), 20 + seal * 15, '#94704d', alpha * seal, '#eed7ad');
+  poly(ctx, [[band.minX, groundY], [cx - 38, groundY - 55], [cx - 18, groundY - 32], [cx, groundY - 91], [cx + 21, groundY - 35], [cx + 43, groundY - 62], [band.maxX, groundY]], '#5f4a39', alpha * seal, '#c8ad82', 3);
+  if (frame >= 31) {
+    const pressure = easeOut(segment(frame, 31, 92));
+    for (let i = 0; i < 9; i += 1) {
+      const x = band.minX + (band.maxX - band.minX) * i / 8;
+      const lift = pressure * (14 + i % 3 * 13);
+      poly(ctx, [[x, groundY - lift], [x + 11, groundY - 5 - lift], [x + 15, groundY + 11], [x - 3, groundY + 11]], i % 2 ? '#74604b' : '#8b6d4e', alpha * pressure, '#d4bd94', 2);
+    }
+  }
+  if (frame >= 92) {
+    const p = easeOut(segment(frame, 92, 115));
+    for (let index = 0; index < 5; index += 1) {
+      const endX = band.minX + (band.maxX - band.minX) * index / 4;
+      const midX = (cx + endX) / 2 + (index - 2) * 7;
+      line(ctx, cx, groundY - 66, midX, groundY - 30, '#f5d18e', 6, alpha * p);
+      line(ctx, midX, groundY - 30, endX + (endX - cx) * p * .2, groundY + 8, '#4a3428', 5, alpha * p);
+    }
+    for (let i = 0; i < 6; i += 1) {
+      const x = band.minX + (band.maxX - band.minX) * (i + .5) / 6;
+      diamond(ctx, x, groundY - p * (21 + i % 2 * 19), 8 + i % 3, '#9d7956', alpha, '#e3c493');
+    }
+  }
+}
+
+function drawSyldra(ctx, frame, sceneContext) {
+  const alpha = fade(frame, 9, 114, 136);
+  const band = sceneTargetBand(sceneContext, { x: sceneContext?.actorIsEnemy ? 72 : 28, y: 50 });
+  const casterRaw = scenePoint(sceneContext, 'caster', { x: sceneContext?.actorIsEnemy ? 28 : 72, y: 44 });
+  const caster = { x: clamp(casterRaw.x, 50, 142), y: clamp(casterRaw.y, 45, 135) };
+  const cx = clamp(band.center.x, 38, 154); const cy = clamp(band.center.y, 48, 143);
+  const seal = easeOut(segment(frame, 0, 31));
+  diamond(ctx, caster.x, Math.max(27, caster.y - 27), 18 + seal * 14, '#67b9c0', alpha * seal, '#e3ffff');
+  poly(ctx, [[caster.x, caster.y - 27], [caster.x - 47, caster.y - 51 - seal * 7], [caster.x - 29, caster.y - 18], [caster.x - 55, caster.y + 19 + seal * 8], [caster.x - 12, caster.y - 2]], 'rgba(91,192,195,.3)', alpha * seal, '#c9ffff', 3);
+  poly(ctx, [[caster.x, caster.y - 27], [caster.x + 47, caster.y - 51 - seal * 7], [caster.x + 29, caster.y - 18], [caster.x + 55, caster.y + 19 + seal * 8], [caster.x + 12, caster.y - 2]], 'rgba(91,192,195,.3)', alpha * seal, '#c9ffff', 3);
+  if (frame >= 30) {
+    const current = easeOut(segment(frame, 30, 91));
+    const dx = cx - caster.x; const dy = cy - caster.y;
+    for (let i = 0; i < 10; i += 1) {
+      const t = i / 9;
+      const x = caster.x + dx * t;
+      const y = caster.y + dy * t + Math.sin(t * Math.PI * 3 + frame * .08) * (17 + current * 11);
+      diamond(ctx, x, y, 4 + i % 2, i % 2 ? '#8be4db' : '#e3fff8', alpha * current);
+      if (i) line(ctx, caster.x + dx * (t - 1 / 9), caster.y + dy * (t - 1 / 9) + Math.sin((t - 1 / 9) * Math.PI * 3 + frame * .08) * (17 + current * 11), x, y, i % 2 ? '#78d7d4' : '#d8fff5', 3, alpha * current);
+    }
+    band.points.forEach((point, index) => ring(ctx, point.x, point.y, 14 + current * (22 + index * 3), index % 2 ? '#78d7d4' : '#d8fff5', 3, alpha * current, frame * .035 + index, frame * .035 + index + Math.PI * 1.35));
+  }
+  if (frame >= 91) {
+    const p = easeOut(segment(frame, 91, 114));
+    for (let i = 0; i < 11; i += 1) {
+      const y = band.minY + (band.maxY - band.minY) * i / 10;
+      line(ctx, caster.x - i * 4, caster.y + (y - cy) * .45, band.maxX + p * (19 + i), y - 13 + i % 3 * 7, i % 2 ? '#6dc9ca' : '#d9fff6', 3 + i % 2, alpha * p);
+    }
+    ring(ctx, cx, cy, 18 + p * Math.min(67, Math.max(34, band.maxY - band.minY)), '#bcfff0', 5, alpha);
+  }
+}
+
+function drawLeviathan(ctx, frame, sceneContext) {
+  const alpha = fade(frame, 9, 120, 144);
+  const band = sceneTargetBand(sceneContext, { x: sceneContext?.actorIsEnemy ? 72 : 28, y: 50 });
+  const cx = clamp(band.center.x, 42, 150); const floorY = clamp(band.maxY + 16, 123, 172);
+  const seal = easeOut(segment(frame, 0, 33));
+  diamond(ctx, cx, Math.max(27, band.minY - 23), 20 + seal * 15, '#466fa5', alpha * seal, '#d9f5ff');
+  for (let i = 0; i < 5; i += 1) ring(ctx, cx, Math.max(39, band.minY - 8), 20 + i * 12 * seal, i % 2 ? '#5f9ed0' : '#afdff0', 3, alpha * seal, Math.PI, Math.PI * 2);
+  if (frame >= 32) {
+    const rise = easeOut(segment(frame, 32, 96));
+    for (let layer = 0; layer < 7; layer += 1) {
+      const y = floorY - layer * Math.max(8, (floorY - band.minY) / 7) * rise;
+      const crest = 10 + layer * 4;
+      const q1 = band.minX + (band.maxX - band.minX) * .25; const q2 = band.minX + (band.maxX - band.minX) * .5; const q3 = band.minX + (band.maxX - band.minX) * .75;
+      poly(ctx, [[band.minX, y], [q1, y - crest], [q2, y], [q2 + (q3 - q2) * .25, y - crest * 1.4], [q3, y], [band.maxX, y - crest], [band.maxX, floorY + 8], [band.minX, floorY + 8]], layer % 2 ? '#326c9c' : '#4d90bd', alpha * rise * (1 - layer * .06), '#b8ebf4', 2);
+    }
+  }
+  if (frame >= 96) {
+    const p = easeOut(segment(frame, 96, 120));
+    const q1 = band.minX + (band.maxX - band.minX) * .25; const q2 = band.center.x; const q3 = band.minX + (band.maxX - band.minX) * .75;
+    poly(ctx, [[band.minX - p * 18, floorY], [q1, band.minY + 23 - p * 28], [q2 - 25, band.center.y], [q2, band.minY - p * 25], [q2 + 31, band.center.y - 5], [q3, band.minY + 14 - p * 21], [band.maxX + p * 18, floorY]], '#438bb8', alpha, '#d4f8ff', 5);
+    for (let i = 0; i < 13; i += 1) {
+      const x = band.minX + (band.maxX - band.minX) * i / 12;
+      line(ctx, x, band.minY - 8, x + (i - 6) * 2, floorY + 7, i % 2 ? '#89d3eb' : '#d8f9ff', 3, alpha * p);
+    }
+    burst(ctx, cx, band.center.y + 18, 23 + p * Math.min(78, (band.maxX - band.minX) * .72 + 24), 20, '#e3ffff', alpha, .05);
+  }
+}
+
+function drawTeleport(ctx, frame, sceneContext) {
+  const alpha = fade(frame, 8, 98, 116);
+  const allies = Array.isArray(sceneContext?.alliedTargets) && sceneContext.alliedTargets.length
+    ? sceneContext.alliedTargets
+    : (Array.isArray(sceneContext?.targets) ? sceneContext.targets : []);
+  const positions = allies.length
+    ? allies.slice(0, 4).map((point) => scenePercentPoint(sceneContext, point, { x: 76, y: 50 }))
+    : [scenePercentPoint(sceneContext, null, { x: 76, y: 50 })];
+  const aperture = easeOut(segment(frame, 0, 28));
+  positions.forEach((position, unitIndex) => {
+    for (let ringIndex = 0; ringIndex < 4; ringIndex += 1) {
+      const radiusX = 11 + ringIndex * 6 * aperture;
+      const radiusY = 21 - ringIndex * 2 + aperture * 4;
+      const rotation = frame * .018 + ringIndex * .25 + unitIndex * .13;
+      const points = Array.from({ length: 12 }, (_, pointIndex) => {
+        const a = pointIndex * Math.PI / 6;
+        const ex = Math.cos(a) * radiusX; const ey = Math.sin(a) * Math.max(7, radiusY);
+        return [position.x + ex * Math.cos(rotation) - ey * Math.sin(rotation), position.y + ex * Math.sin(rotation) + ey * Math.cos(rotation)];
+      });
+      poly(ctx, points, null, alpha * aperture, ringIndex % 2 ? '#9ecdf2' : '#c6a7ed', 2);
+    }
+    figureGlyph(ctx, position.x, position.y - 10, .38, '#8095ad', alpha * aperture, '#efffff');
+  });
+  if (frame >= 27) {
+    const fold = easeInOut(segment(frame, 27, 78));
+    positions.forEach((position, unitIndex) => {
+      for (let lineIndex = 0; lineIndex < 5; lineIndex += 1) {
+        const y = position.y - 24 + lineIndex * 12;
+        line(ctx, position.x - 29 + fold * 28, y, position.x + 29 - fold * 28, y + (lineIndex % 2 ? 4 : -4), (lineIndex + unitIndex) % 2 ? '#bda8e9' : '#9cdcf5', 2, alpha * fold);
+      }
+      poly(ctx, [[position.x - 19 + fold * 17, position.y - 29], [position.x + 19 - fold * 17, position.y - 29], [position.x + 15 - fold * 13, position.y + 29], [position.x - 15 + fold * 13, position.y + 29]], '#303c5e', alpha * (1 - fold * .68), '#d9e9ff', 2);
+    });
+  }
+  if (frame >= 78) {
+    const p = easeOut(segment(frame, 78, 98));
+    positions.forEach((position, unitIndex) => {
+      ring(ctx, position.x, position.y, 18 - p * 15, '#ffffff', 4, alpha);
+      line(ctx, position.x, position.y - 31 - p * 8, position.x, position.y + 31 + p * 8, unitIndex % 2 ? '#c7b4ec' : '#d6f4ff', 7 - p * 4, alpha);
+      for (let i = 0; i < 6; i += 1) line(ctx, position.x - 29 + i * 12, position.y - 22, position.x + (i - 3) * (1 - p), position.y, '#75649a', 2, alpha * p);
+    });
+  }
+}
+
 function drawTime(ctx, frame, mode) {
   const total = mode === 'haste' ? 72 : mode === 'slow' ? 76 : 84;
   const alpha = fade(frame, 9, total - 14, total);
@@ -8892,6 +9174,16 @@ function renderScene(ctx, sceneId, frame, sceneContext = {}) {
   if (sceneId === 'regen') return drawRegen(ctx, frame);
   if (sceneId === 'float') return drawFloat(ctx, frame);
   if (sceneId === 'old') return drawOld(ctx, frame);
+  if (sceneId === 'slowga') return drawTime(ctx, frame, 'slow');
+  if (sceneId === 'hastega') return drawTime(ctx, frame, 'haste');
+  if (sceneId === 'remora') return drawRemora(ctx, frame);
+  if (sceneId === 'catoblepas') return drawCatoblepas(ctx, frame);
+  if (sceneId === 'chocobo') return drawChocobo(ctx, frame, sceneContext);
+  if (sceneId === 'ramuh') return drawRamuh(ctx, frame, sceneContext);
+  if (sceneId === 'titan') return drawTitan(ctx, frame, sceneContext);
+  if (sceneId === 'syldra') return drawSyldra(ctx, frame, sceneContext);
+  if (sceneId === 'leviathan') return drawLeviathan(ctx, frame, sceneContext);
+  if (sceneId === 'teleport') return drawTeleport(ctx, frame, sceneContext);
   return undefined;
 }
 
@@ -9170,6 +9462,16 @@ const SPELL_CHOREOGRAPHIES = Object.freeze({
   magic_regen: scene('regen', [beat('pulse-seed', 1), beat('heartbeat-line', 8), beat('renewal-wave', 3)], 1.18),
   magic_float: scene('float', [beat('ground-plane', 7), beat('lifting-silhouette', 1), beat('air-cushion', 1)], 1.16),
   magic_old: scene('old', [beat('script-0f-ring', 2), beat('script-0f-orbit', 10), beat('script-0f-lock', 4)], 1.14),
+  magic_slowga: scene('slowga', [beat('clock-face', 1), beat('slow-hand', 2), beat('time-weight', 4)], .96),
+  magic_hastega: scene('hastega', [beat('clock-face', 1), beat('fast-hand', 2), beat('speed-trail', 6)], 1),
+  magic_remora: scene('remora', [beat('chain-soul-crystal', 1), beat('hook-chain', 20), beat('binding-cage', 6)], 1.18),
+  magic_catoblepas: scene('catoblepas', [beat('gaze-soul-crystal', 1), beat('facet-scan', 7), beat('stone-shard-lock', 7)], 1.24),
+  magic_chocobo: scene('chocobo', [beat('feather-soul-crystal', 1), beat('diagonal-charge', 7), beat('comet-stamp', 11)], 1.22),
+  magic_ramuh: scene('ramuh', [beat('thunder-soul-crystal', 1), beat('staff-judgment', 3), beat('sky-arc', 9)], 1.34),
+  magic_titan: scene('titan', [beat('earth-soul-crystal', 1), beat('rising-slab', 9), beat('fault-break', 5)], 1.36),
+  magic_syldra: scene('syldra', [beat('wind-soul-crystal', 1), beat('serpentine-current', 10), beat('wind-tide', 11)], 1.34),
+  magic_leviathan: scene('leviathan', [beat('abyss-soul-crystal', 1), beat('tidal-band', 7), beat('tsunami-wall', 13)], 1.4),
+  magic_teleport: scene('teleport', [beat('space-aperture', 7), beat('folding-silhouette', 1), beat('translation-line', 10)], 1.22),
 });
 
 const SPELL_ART_BLUEPRINTS = Object.freeze({
@@ -9221,10 +9523,10 @@ const SPELL_ART_BLUEPRINTS = Object.freeze({
   magic_stop: art('clock', 'freeze', 7, 0, 78, 1.12, 'glass-stop', 44),
   magic_teleport: art('portal', 'fold', 7, 40, 90, 1.18, 'iris-close', 45),
   magic_comet: art('meteor', 'diagonal-fall', 6, -35, 96, 1.14, 'crater-pop', 46),
-  magic_slowga: art('clock', 'field-drag', 7, -70, 112, 1.22, 'slow-field', 47),
+  magic_slowga: art('clock', 'drag', 5, -30, 58, 0.88, 'slow-ring', 38),
   magic_return: art('hourglass', 'rewind', 8, 180, 118, 1.28, 'timeline-snap', 48),
   magic_graviga: art('gravity-well', 'collapse', 8, 145, 102, 1.34, 'black-lens', 49),
-  magic_hastega: art('clock', 'field-accelerate', 8, 95, 116, 1.28, 'speed-field', 50),
+  magic_hastega: art('clock', 'accelerate', 6, 65, 68, 1.02, 'speed-lines', 41),
   magic_old: art('venom-orb', 'seep', 6, 0, 92, 1.14, 'toxic-ring', 15),
   magic_meteor: art('meteor', 'meteor-rain', 8, 25, 126, 1.42, 'multi-crater', 52),
   magic_quick: art('clock', 'time-stop', 8, 270, 122, 1.38, 'double-turn', 53),
@@ -10407,6 +10709,7 @@ class BattleUI {
         actorIsEnemy: Boolean(actor?.isEnemy),
         odinOutcome,
         banishOutcome,
+        chocoboOutcome: action?.chocoboOutcome ?? null,
         resultTypes: results.map((result) => result.type),
       };
       // direction-player mirrors the complete sequence so its logical

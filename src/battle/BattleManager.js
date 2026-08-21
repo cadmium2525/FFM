@@ -673,6 +673,7 @@ export class BattleManager {
 
     let action;
     let targets;
+    let advanceMagicLampOnSuccess = false;
     const resolveTargets = (targetId, fallback) => {
       if (targetId === 'self') return [actor];
       if (['all_allies', 'party'].includes(targetId)) {
@@ -738,8 +739,8 @@ export class BattleManager {
           const summonId = lampOrder[Math.min(this.magicLampUse, lampOrder.length - 1)];
           const summon = Object.values(magicSets).flat().find((spell) => spell.sourceId === summonId);
           if (summon) {
-            this.magicLampUse += 1;
-            action = { ...summon, kind: summon.actionKind, mpCost: 0, name: `${choice.item.name}：${summon.name}` };
+            advanceMagicLampOnSuccess = true;
+            action = { ...summon, kind: summon.actionKind, mpCost: 0, usesMagic: false, name: `${choice.item.name}：${summon.name}` };
             targets = resolveTargets(summon.target, this.boss);
           }
         }
@@ -752,6 +753,18 @@ export class BattleManager {
         break;
       default:
         return false;
+    }
+
+    // Chocobo is the source game's one summon with two target patterns:
+    // Chocobo Kick normally strikes one enemy, while the rare Fat Chocobo
+    // outcome hits the enemy group. Keep the selected outcome on the action
+    // so presentation can choose the matching dedicated timeline.
+    if (action.sourceId === 'magic_chocobo') {
+      const fatChocobo = Math.random() < 0.08;
+      action = { ...action, chocoboOutcome: fatChocobo ? 'fat' : 'kick', target: fatChocobo ? 'all_enemies' : 'one_enemy' };
+      targets = fatChocobo
+        ? this.units.filter((unit) => unit.isAlive() && unit.isEnemy !== actor.isEnemy)
+        : [targetUnit ?? this.boss];
     }
 
     if (!actor.canAffordMp(action.mpCost ?? 0)) {
@@ -767,7 +780,7 @@ export class BattleManager {
     const isCrystal = choice.type === 'crystal';
     const isMagicLike = choice.type === 'magic'
       || isCrystal
-      || action.sourceType === 'magic'
+      || (action.sourceType === 'magic' && !advanceMagicLampOnSuccess)
       || (choice.type === 'ability' && (action.mpCost ?? 0) > 0);
     if (isMagicLike && !actor.canUseMagic()) {
       const reason = actor.statuses?.has('silence')
@@ -817,6 +830,7 @@ export class BattleManager {
       eventBus.emit('battle:playerTurn', { actor });
       return false;
     }
+    if (advanceMagicLampOnSuccess) this.magicLampUse += 1;
     results
       .filter((result) => result.type === 'scan')
       .forEach((result) => this.revealBossIntel(action, this.units.find((unit) => unit.uid === result.targetUid)));

@@ -9,6 +9,7 @@ class FakeContext2D {
     this.opCounts = {};
     this.drawCalls = [];
     this.arcs = [];
+    this.pathPoints = [];
   }
 
   count(name) { this.paintOps += 1; this.opCounts[name] = (this.opCounts[name] ?? 0) + 1; }
@@ -18,8 +19,8 @@ class FakeContext2D {
   save() {}
   restore() {}
   beginPath() {}
-  moveTo() {}
-  lineTo() {}
+  moveTo(...args) { this.pathPoints.push(['moveTo', ...args]); }
+  lineTo(...args) { this.pathPoints.push(['lineTo', ...args]); }
   closePath() {}
   translate() {}
   rotate() {}
@@ -109,6 +110,8 @@ const priorityScenes = [
   'blink', 'berserk', 'dispel', 'esuna', 'confuse',
   'libra', 'poisona', 'silence', 'poison', 'sleep',
   'bio', 'speed', 'regen', 'float', 'old',
+  'slowga', 'hastega', 'remora', 'catoblepas', 'chocobo',
+  'ramuh', 'titan', 'syldra', 'leviathan', 'teleport',
 ];
 const impactSignatures = priorityScenes.map((sceneId) => {
   const spec = SPELL_PIXEL_SEQUENCES[sceneId];
@@ -192,6 +195,29 @@ assert.notDeepEqual(
   impactSignatureFor('banish', { banishOutcome: 'blocked' }),
   'Banish success and blocked outcomes must render different impact choreography',
 );
+assert.notDeepEqual(
+  impactSignatureFor('chocobo', { chocoboOutcome: 'kick' }),
+  impactSignatureFor('chocobo', { chocoboOutcome: 'fat' }),
+  'Chocobo Kick and Fat Chocobo must render different impact choreography',
+);
+
+const geometryTraceFor = (sceneId, sceneContext) => {
+  const before = canvases.length;
+  const canvas = createSpellCanvas(sceneId);
+  renderSpellCanvasFrame(canvas, sceneId, SPELL_PIXEL_SEQUENCES[sceneId].impactFrames[0], sceneContext);
+  const scratchContext = canvases[before + 1].context;
+  return { arcs: scratchContext.arcs, pathPoints: scratchContext.pathPoints };
+};
+const leftHostileContext = { casterX: 78, casterY: 44, targetX: 24, targetY: 48, targets: [{ x: 24, y: 48 }], hostileTargets: [{ x: 24, y: 48 }], alliedTargets: [{ x: 78, y: 44 }], actorIsEnemy: false };
+const rightHostileContext = { casterX: 22, casterY: 44, targetX: 76, targetY: 48, targets: [{ x: 76, y: 48 }], hostileTargets: [{ x: 76, y: 48 }], alliedTargets: [{ x: 22, y: 44 }], actorIsEnemy: true };
+for (const sceneId of ['ramuh', 'titan', 'syldra', 'leviathan']) {
+  assert.notDeepEqual(geometryTraceFor(sceneId, leftHostileContext), geometryTraceFor(sceneId, rightHostileContext), `${sceneId}: stage attack ignored the hostile-side anchor`);
+}
+const teleportLeft = geometryTraceFor('teleport', { targets: [{ x: 24, y: 40 }], alliedTargets: [{ x: 24, y: 40 }], hostileTargets: [{ x: 80, y: 50 }] });
+const teleportRight = geometryTraceFor('teleport', { targets: [{ x: 76, y: 40 }], alliedTargets: [{ x: 76, y: 40 }], hostileTargets: [{ x: 80, y: 50 }] });
+const teleportHostileMoved = geometryTraceFor('teleport', { targets: [{ x: 24, y: 40 }], alliedTargets: [{ x: 24, y: 40 }], hostileTargets: [{ x: 20, y: 70 }] });
+assert.notDeepEqual(teleportLeft, teleportRight, 'Teleport ignored the allied-side anchor');
+assert.deepEqual(teleportLeft, teleportHostileMoved, 'Teleport must not draw a removal effect on hostile targets');
 
 const queuedRafs = [];
 globalThis.requestAnimationFrame = (callback) => { queuedRafs.push(callback); return queuedRafs.length; };
@@ -217,7 +243,8 @@ console.log(JSON.stringify({
   edgeClipping: false,
   partyFieldDraws: 1,
   crossSideAnchors: 8,
-  resultBranches: 4,
+  resultBranches: 6,
+  finalMagicAnchorCases: 7,
   multiImpactCueFrames: cueTicks.length,
   status: 'ok',
 }, null, 2));
