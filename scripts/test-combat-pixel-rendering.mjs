@@ -102,6 +102,8 @@ const priorityScenes = [
   'roulette', 'self-destruct', 'vampire', 'question-marks', 'moon-flute',
   'lilliputian-lyric', 'ponds-chorus', 'level-4-graviga', 'doom', 'level-2-old',
   'transfusion', 'level-3-flare', 'off-guard', 'dark-spark',
+  'phoenix', 'sylph', 'odin', 'golem', 'carbuncle',
+  'quick', 'mute', 'banish', 'drain', 'osmose',
 ];
 const impactSignatures = priorityScenes.map((sceneId) => {
   const spec = SPELL_PIXEL_SEQUENCES[sceneId];

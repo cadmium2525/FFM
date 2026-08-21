@@ -4,7 +4,7 @@ import { SPELL_CHOREOGRAPHIES, spellChoreographyForAction } from '../src/ui/Spel
 import { ff5Magic } from '../src/database/ff5Database.js';
 
 const sequences = Object.entries(SPELL_PIXEL_SEQUENCES);
-assert.ok(sequences.length >= 69, 'the cross-category pixel VFX production set regressed');
+assert.ok(sequences.length >= 79, 'the cross-category pixel VFX production set regressed');
 
 for (const [sceneId, spec] of sequences) {
   assert.equal(spec.referenceVersion, 'SFC-JP-1992', `${sceneId}: wrong reference target`);
@@ -50,6 +50,8 @@ for (const required of [
   'roulette', 'self-destruct', 'vampire', 'question-marks', 'moon-flute',
   'lilliputian-lyric', 'ponds-chorus', 'level-4-graviga', 'doom', 'level-2-old',
   'transfusion', 'level-3-flare', 'off-guard', 'dark-spark',
+  'phoenix', 'sylph', 'odin', 'golem', 'carbuncle',
+  'quick', 'mute', 'banish', 'drain', 'osmose',
 ]) {
   assert.ok(SPELL_PIXEL_SEQUENCES[required], `${required}: dedicated cross-category sequence missing`);
 }
@@ -96,6 +98,16 @@ const reachabilityCases = [
   [{ sourceId: 'magic_level_3_flare' }, 'level-3-flare'],
   [{ sourceId: 'magic_off_guard' }, 'off-guard'],
   [{ sourceId: 'magic_dark_spark' }, 'dark-spark'],
+  [{ sourceId: 'magic_phoenix' }, 'phoenix'],
+  [{ sourceId: 'magic_sylph' }, 'sylph'],
+  [{ sourceId: 'magic_odin' }, 'odin'],
+  [{ sourceId: 'magic_golem' }, 'golem'],
+  [{ sourceId: 'magic_carbuncle' }, 'carbuncle'],
+  [{ sourceId: 'magic_quick' }, 'quick'],
+  [{ sourceId: 'magic_mute' }, 'mute'],
+  [{ sourceId: 'magic_banish' }, 'banish'],
+  [{ sourceId: 'magic_drain' }, 'drain'],
+  [{ sourceId: 'magic_osmose' }, 'osmose'],
 ];
 for (const [action, expectedScene] of reachabilityCases) {
   assert.equal(spellChoreographyForAction(action)?.id, expectedScene, `${expectedScene}: runtime action cannot reach its dedicated scene`);

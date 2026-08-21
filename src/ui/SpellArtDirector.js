@@ -96,6 +96,16 @@ export const SPELL_CHOREOGRAPHIES = Object.freeze({
   magic_level_3_flare: scene('level-3-flare', [beat('level-three', 1), beat('triple-star-core', 3), beat('threefold-nova', 27)], 1.3),
   magic_off_guard: scene('off-guard', [beat('defense-lattice', 10), beat('shield-fracture', 6), beat('armor-shard', 13)], 1.12),
   magic_dark_spark: scene('dark-spark', [beat('level-lens', 3), beat('dark-bisect', 2), beat('half-level', 2)], 1.16),
+  magic_phoenix: scene('phoenix', [beat('rebirth-crystal', 1), beat('flame-wing-sigil', 10), beat('enemy-flare', 15), beat('ally-rise', 7)], 1.38),
+  magic_sylph: scene('sylph', [beat('wind-soul-crystal', 1), beat('life-feather', 9), beat('ally-return', 8)], 1.24),
+  magic_odin: scene('odin', [beat('war-crystal', 1), beat('judgment-line', 2), beat('zantetsu-or-spear', 7)], 1.38),
+  magic_golem: scene('golem', [beat('earth-soul-crystal', 1), beat('stone-slab', 4), beat('party-wall', 5)], 1.3),
+  magic_carbuncle: scene('carbuncle', [beat('jewel-soul-crystal', 1), beat('prism-mirror', 5), beat('party-reflect', 8)], 1.32),
+  magic_quick: scene('quick', [beat('double-clock', 2), beat('time-gate', 2), beat('two-actions', 2)], 1.22),
+  magic_mute: scene('mute', [beat('sound-field', 5), beat('cancel-wave', 6), beat('silence-cross', 2)], 1.2),
+  magic_banish: scene('banish', [beat('void-aperture', 8), beat('folding-target', 1), beat('erase-point', 10)], 1.22),
+  magic_drain: scene('drain', [beat('life-mark', 1), beat('hp-droplet', 8), beat('red-return', 2)], 1.18),
+  magic_osmose: scene('osmose', [beat('mana-mark', 1), beat('mp-rune', 12), beat('double-blue-return', 2)], 1.2),
 });
 
 export const SPELL_ART_BLUEPRINTS = Object.freeze({
