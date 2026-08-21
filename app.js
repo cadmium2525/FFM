@@ -6659,6 +6659,8 @@ const sequence = (frameCount, impactFrames, phases, options = {}) => Object.free
   resultPolicy: options.resultPolicy ?? 'final-impact',
   placement: options.placement ?? 'each-target',
   sceneSpace: options.sceneSpace ?? 'target-local',
+  originalEffectHeader: options.originalEffectHeader ?? null,
+  sharedOriginalFamily: options.sharedOriginalFamily ?? null,
   fps: 60,
   frameCount,
   impactFrames: Object.freeze(impactFrames),
@@ -6744,12 +6746,12 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
   golem: sequence(132, [88], [phase('earth-soul-seal', 0, 29), phase('slab-assemble', 30, 87), phase('party-barrier-lock', 88, 108), phase('decay', 109, 131)], { placement: 'centroid', sceneSpace: 'party-field' }),
   carbuncle: sequence(134, [90], [phase('jewel-soul-seal', 0, 30), phase('prism-mirrors', 31, 89), phase('party-reflect-lock', 90, 111), phase('decay', 112, 133)], { placement: 'centroid', sceneSpace: 'party-field' }),
   quick: sequence(120, [81], [phase('double-clock', 0, 27), phase('time-split', 28, 80), phase('two-actions-lock', 81, 100), phase('decay', 101, 119)]),
-  mute: sequence(108, [72], [phase('sound-field', 0, 24), phase('wave-cancel', 25, 71), phase('silence-lock', 72, 90), phase('decay', 91, 107)], { placement: 'centroid', sceneSpace: 'stage' }),
+  mute: sequence(108, [72], [phase('shared-header-seed', 0, 24), phase('shared-header-motion', 25, 71), phase('shared-header-lock', 72, 90), phase('decay', 91, 107)], { placement: 'centroid', sceneSpace: 'stage', originalEffectHeader: '00 10 A9 00 02', sharedOriginalFamily: 'sfc-header-00-10-a9-00-02' }),
   banish: sequence(112, [76], [phase('void-iris', 0, 25), phase('space-fold', 26, 75), phase('target-erase', 76, 94), phase('decay', 95, 111)]),
   drain: sequence(108, [72], [phase('life-mark', 0, 24), phase('hp-draw', 25, 71), phase('red-return', 72, 91), phase('decay', 92, 107)], { placement: 'centroid', sceneSpace: 'stage' }),
   osmose: sequence(112, [75], [phase('mana-mark', 0, 25), phase('mp-unweave', 26, 74), phase('double-blue-return', 75, 94), phase('decay', 95, 111)], { placement: 'centroid', sceneSpace: 'stage' }),
   mini: sequence(94, [64], [phase('scale-frame', 0, 21), phase('silhouette-shrink', 22, 63), phase('tiny-lock', 64, 79), phase('decay', 80, 93)]),
-  toad: sequence(96, [65], [phase('transform-ring', 0, 22), phase('silhouette-compress', 23, 64), phase('hop-ripple-lock', 65, 81), phase('decay', 82, 95)]),
+  toad: sequence(104, [70], [phase('script-0f-seed', 0, 24), phase('script-0f-motion', 25, 69), phase('status-lock', 70, 87), phase('decay', 88, 103)], { sharedOriginalFamily: 'status-script-0f' }),
   break: sequence(112, [75], [phase('stone-lattice', 0, 25), phase('silhouette-facet', 26, 74), phase('petrify-lock', 75, 94), phase('decay', 95, 111)]),
   death: sequence(120, [81], [phase('death-gate', 0, 28), phase('soul-separate', 29, 80), phase('gate-sever', 81, 100), phase('decay', 101, 119)]),
   arise: sequence(132, [89], [phase('soul-fragments', 0, 30), phase('spirit-reassemble', 31, 88), phase('full-revival', 89, 110), phase('decay', 111, 131)]),
@@ -6758,6 +6760,16 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
   dispel: sequence(110, [74], [phase('buff-orbits', 0, 25), phase('seal-unweave', 26, 73), phase('layer-strip', 74, 92), phase('decay', 93, 109)]),
   esuna: sequence(116, [78], [phase('status-knots', 0, 27), phase('prism-diagnosis', 28, 77), phase('multi-cleanse', 78, 97), phase('decay', 98, 115)]),
   confuse: sequence(100, [67], [phase('compass-mark', 0, 22), phase('silhouette-orbit', 23, 66), phase('direction-scramble', 67, 83), phase('decay', 84, 99)]),
+  libra: sequence(108, [73], [phase('scan-frame', 0, 25), phase('data-sweep', 26, 72), phase('analysis-resolve', 73, 90), phase('decay', 91, 107)], { originalEffectHeader: '0F 1B 14 00 14' }),
+  poisona: sequence(102, [69], [phase('toxin-locate', 0, 23), phase('single-poison-extract', 24, 68), phase('antidote-seal', 69, 85), phase('decay', 86, 101)], { originalEffectHeader: '23 11 0B 00 0F' }),
+  silence: sequence(98, [66], [phase('voice-source', 0, 22), phase('sound-contract', 23, 65), phase('single-mute-lock', 66, 82), phase('decay', 83, 97)], { originalEffectHeader: '28 1E 0C 31 7B' }),
+  poison: sequence(104, [70], [phase('script-0f-seed', 0, 24), phase('script-0f-motion', 25, 69), phase('status-lock', 70, 87), phase('decay', 88, 103)], { originalEffectHeader: '21 18 0F 00 0F', sharedOriginalFamily: 'status-script-0f' }),
+  sleep: sequence(104, [70], [phase('script-0f-seed', 0, 24), phase('script-0f-motion', 25, 69), phase('status-lock', 70, 87), phase('decay', 88, 103)], { originalEffectHeader: '21 19 0F 00 0F', sharedOriginalFamily: 'status-script-0f' }),
+  bio: sequence(116, [78], [phase('cell-lattice', 0, 27), phase('helix-collapse', 28, 77), phase('sap-breakdown', 78, 97), phase('decay', 98, 115)], { originalEffectHeader: '11 15 20 00 10' }),
+  speed: sequence(108, [72], [phase('shared-header-seed', 0, 24), phase('shared-header-motion', 25, 71), phase('shared-header-lock', 72, 90), phase('decay', 91, 107)], { originalEffectHeader: '00 10 A9 00 02', sharedOriginalFamily: 'sfc-header-00-10-a9-00-02' }),
+  regen: sequence(114, [76], [phase('pulse-seed', 0, 25), phase('heartbeat-cycle', 26, 75), phase('renewal-lock', 76, 95), phase('decay', 96, 113)], { originalEffectHeader: '20 12 A4 00 13' }),
+  float: sequence(108, [73], [phase('ground-mark', 0, 24), phase('target-liftoff', 25, 72), phase('air-cushion-lock', 73, 90), phase('decay', 91, 107)], { originalEffectHeader: '24 20 43 80 24' }),
+  old: sequence(104, [70], [phase('script-0f-seed', 0, 24), phase('script-0f-motion', 25, 69), phase('status-lock', 70, 87), phase('decay', 88, 103)], { originalEffectHeader: '21 26 0F 00 0F', sharedOriginalFamily: 'status-script-0f' }),
 });
 
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
@@ -8186,27 +8198,47 @@ function drawMini(ctx, frame) {
   }
 }
 
-function drawToad(ctx, frame) {
-  const alpha = fade(frame, 7, 82, 96);
-  const transform = easeOut(segment(frame, 0, 23));
-  ring(ctx, 96, 96, 18 + transform * 48, '#a8f08d', 4, alpha * transform);
+const SCRIPT_0F_PALETTES = Object.freeze({
+  poison: Object.freeze(['#667844', '#a0b56a', '#47394f', '#e4efbd']),
+  sleep: Object.freeze(['#607ca7', '#b8cbed', '#4b446d', '#eef4ff']),
+  old: Object.freeze(['#8a765a', '#cab48a', '#51483f', '#f1e2bf']),
+  toad: Object.freeze(['#5e9568', '#9bd49a', '#3d5f55', '#e5ffd9']),
+});
+
+function drawScript0FStatus(ctx, frame, variant) {
+  const colors = SCRIPT_0F_PALETTES[variant] ?? SCRIPT_0F_PALETTES.poison;
+  const alpha = fade(frame, 8, 88, 104);
+  const seed = easeOut(segment(frame, 0, 25));
+  ring(ctx, 96, 96, 16 + seed * 46, colors[1], 4, alpha * seed, -.35, Math.PI * 1.65);
+  ring(ctx, 96, 96, 9 + seed * 31, colors[2], 3, alpha * seed, Math.PI * .65, Math.PI * 2.45);
   for (let i = 0; i < 6; i += 1) {
     const a = i * Math.PI / 3 + frame * .035;
-    diamond(ctx, 96 + Math.cos(a) * (27 + transform * 30), 96 + Math.sin(a) * (22 + transform * 23), 5, i % 2 ? '#d9ffae' : '#79c77b', alpha * transform, '#ffffff');
+    diamond(ctx, 96 + Math.cos(a) * (26 + seed * 31), 96 + Math.sin(a) * (21 + seed * 25), 5, i % 2 ? colors[0] : colors[1], alpha * seed, colors[3]);
   }
-  const compress = 1 - easeInOut(segment(frame, 22, 65)) * .6;
-  figureGlyph(ctx, 96, 86 + (1 - compress) * 38, compress, '#6fb975', alpha, '#dffff0');
-  if (frame >= 55) {
-    const hop = easeOut(segment(frame, 55, 81));
-    const y = 124 - Math.sin(hop * Math.PI) * 28;
-    diamond(ctx, 96, y, 12, '#79cf75', alpha, '#eaffc9');
-    diamond(ctx, 77, y + 12, 7, '#5aa966', alpha, '#d9ffbc');
-    diamond(ctx, 115, y + 12, 7, '#5aa966', alpha, '#d9ffbc');
+  if (frame >= 24) {
+    const motion = easeInOut(segment(frame, 24, 70));
+    for (let i = 0; i < 10; i += 1) {
+      const a = i * Math.PI / 5 + motion * Math.PI * 1.4;
+      const radius = 70 - motion * (36 + i % 3 * 6);
+      const x = 96 + Math.cos(a) * radius;
+      const y = 96 + Math.sin(a) * radius * .78;
+      poly(ctx, [[x, y - 6], [x + 6, y], [x, y + 6], [x - 6, y]], i % 2 ? colors[0] : colors[2], alpha * motion, colors[3], 1);
+    }
+    poly(ctx, [[96, 45 + motion * 33], [122 - motion * 13, 96], [96, 147 - motion * 33], [70 + motion * 13, 96]], colors[2], alpha * motion, colors[3], 3);
   }
-  if (frame >= 65) {
-    const p = easeOut(segment(frame, 65, 82));
-    for (let i = 0; i < 4; i += 1) ring(ctx, 96, 139, 12 + p * (17 + i * 12), '#81d8c1', 3, alpha * (1 - i * .12), 0, Math.PI);
+  if (frame >= 70) {
+    const p = easeOut(segment(frame, 70, 88));
+    ring(ctx, 96, 96, 13 + p * 59, colors[1], 5, alpha);
+    burst(ctx, 96, 96, 17 + p * 57, 12, colors[3], alpha, Math.PI / 12);
+    for (let i = 0; i < 4; i += 1) {
+      const a = Math.PI / 4 + i * Math.PI / 2;
+      diamond(ctx, 96 + Math.cos(a) * (19 + p * 39), 96 + Math.sin(a) * (19 + p * 39), 7, colors[i % 2], alpha, colors[3]);
+    }
   }
+}
+
+function drawToad(ctx, frame) {
+  return drawScript0FStatus(ctx, frame, 'toad');
 }
 
 function drawBreak(ctx, frame) {
@@ -8390,6 +8422,173 @@ function drawConfuse(ctx, frame) {
     }
     poly(ctx, [[96, 40], [112, 76], [151, 59], [126, 96], [151, 132], [111, 117], [96, 153], [81, 117], [41, 132], [66, 96], [41, 59], [80, 76]], null, alpha, '#f0c2ff', 4);
   }
+}
+
+function drawLibra(ctx, frame) {
+  const alpha = fade(frame, 8, 91, 108);
+  const frameIn = easeOut(segment(frame, 0, 26));
+  poly(ctx, [[39, 40], [153, 40], [153, 153], [39, 153]], null, alpha * frameIn, '#9ee9ff', 3);
+  for (let i = 0; i < 5; i += 1) {
+    line(ctx, 47, 52 + i * 22, 145, 52 + i * 22, '#376b85', 1, alpha * frameIn);
+    line(ctx, 52 + i * 22, 47, 52 + i * 22, 145, '#376b85', 1, alpha * frameIn);
+  }
+  figureGlyph(ctx, 96, 81, .85, '#4a7d92', alpha * frameIn, '#c8f5ff');
+  if (frame >= 25) {
+    const sweep = easeInOut(segment(frame, 25, 73));
+    const y = 45 + sweep * 103;
+    line(ctx, 40, y, 152, y, '#ffffff', 5, alpha);
+    line(ctx, 43, y - 7, 149, y - 7, '#62dff5', 2, alpha * .8);
+    for (let i = 0; i < 7; i += 1) {
+      const width = 10 + ((i * 17) % 31);
+      ctx.save(); ctx.globalAlpha = alpha * sweep; ctx.fillStyle = i % 2 ? '#6db7d0' : '#d8f8ff'; ctx.fillRect(43, 47 + i * 15, width, 4); ctx.fillRect(149 - width, 47 + i * 15, width, 4); ctx.restore();
+    }
+  }
+  if (frame >= 73) {
+    const p = easeOut(segment(frame, 73, 91));
+    ring(ctx, 96, 96, 15 + p * 49, '#c9f8ff', 4, alpha);
+    line(ctx, 96, 35, 96, 64, '#ffffff', 3, alpha * p); line(ctx, 96, 128, 96, 157, '#ffffff', 3, alpha * p);
+    line(ctx, 35, 96, 64, 96, '#ffffff', 3, alpha * p); line(ctx, 128, 96, 157, 96, '#ffffff', 3, alpha * p);
+    diamond(ctx, 96, 96, 8, '#eaffff', alpha, '#5bc5e5');
+  }
+}
+
+function drawPoisona(ctx, frame) {
+  const alpha = fade(frame, 7, 86, 102);
+  const locate = easeOut(segment(frame, 0, 24));
+  figureGlyph(ctx, 96, 82, .88, '#5c7b69', alpha * locate, '#d9f5e5');
+  const toxinPoints = [[87, 75], [105, 86], [92, 111], [111, 121]];
+  toxinPoints.forEach(([x, y], index) => poly(ctx, [[x, y - 7], [x + 5, y], [x, y + 9], [x - 5, y]], index % 2 ? '#6b7c49' : '#87654c', alpha * locate, '#cbd39e', 1));
+  if (frame >= 23) {
+    const extract = easeInOut(segment(frame, 23, 69));
+    toxinPoints.forEach(([x, y], index) => {
+      const targetX = 129 + (index % 2) * 8; const targetY = 48 + Math.floor(index / 2) * 5;
+      const t = clamp(extract - index * .06);
+      const px = x + (targetX - x) * t; const py = y + (targetY - y) * t - Math.sin(t * Math.PI) * 15;
+      poly(ctx, [[px, py - 6], [px + 4, py], [px, py + 7], [px - 4, py]], '#70834e', alpha * t, '#efffc5', 1);
+    });
+    poly(ctx, [[122, 46], [144, 46], [140, 62], [145, 96], [121, 96], [126, 62]], 'rgba(124,148,80,.3)', alpha * extract, '#eaffd0', 2);
+  }
+  if (frame >= 69) {
+    const p = easeOut(segment(frame, 69, 86));
+    line(ctx, 118, 42, 148, 99, '#ffffff', 6, alpha * p);
+    line(ctx, 149, 42, 118, 99, '#b3eeb6', 4, alpha * p);
+    ring(ctx, 96, 103, 12 + p * 42, '#c8f5d7', 4, alpha);
+    burst(ctx, 96, 103, 12 + p * 45, 9, '#effff5', alpha, .2);
+  }
+}
+
+function drawSilence(ctx, frame) {
+  const alpha = fade(frame, 7, 83, 98);
+  const source = easeOut(segment(frame, 0, 23));
+  poly(ctx, [[63, 81], [79, 72], [103, 72], [124, 84], [103, 101], [79, 101], [63, 92]], '#7d7292', alpha * source, '#e6ddf3', 3);
+  for (let i = 0; i < 4; i += 1) ring(ctx, 112, 87, 13 + i * 12 * source, '#c5add8', 3, alpha * source, -.65, .65);
+  if (frame >= 22) {
+    const contract = easeOut(segment(frame, 22, 66));
+    for (let i = 0; i < 5; i += 1) {
+      const radius = (58 - i * 10) * (1 - contract * .72);
+      ring(ctx, 96, 91, Math.max(7, radius), i % 2 ? '#756184' : '#d6c5e2', 2, alpha * contract, -.7, .7);
+    }
+    poly(ctx, [[96 - contract * 27, 60], [96 + contract * 27, 60], [103 + contract * 20, 111], [89 - contract * 20, 111]], 'rgba(78,54,91,.25)', alpha * contract, '#c6b1d2', 2);
+  }
+  if (frame >= 66) {
+    const p = easeOut(segment(frame, 66, 83));
+    ring(ctx, 96, 72, 17, '#f0e5f5', 5, alpha * p, Math.PI, Math.PI * 2);
+    poly(ctx, [[73, 72], [119, 72], [119, 125], [73, 125]], '#493956', alpha * p, '#d9c9e2', 4);
+    diamond(ctx, 96, 97, 8, '#dbcbe3', alpha * p, '#ffffff');
+    line(ctx, 96, 104, 96, 118, '#f7eeff', 4, alpha * p);
+  }
+}
+
+function drawPoison(ctx, frame) {
+  return drawScript0FStatus(ctx, frame, 'poison');
+}
+
+function drawSleep(ctx, frame) {
+  return drawScript0FStatus(ctx, frame, 'sleep');
+}
+
+function drawBio(ctx, frame) {
+  const alpha = fade(frame, 8, 98, 116);
+  const cells = easeOut(segment(frame, 0, 28));
+  const cellPoints = [[61, 64], [95, 52], [130, 67], [65, 111], [101, 101], [135, 119], [93, 142]];
+  cellPoints.forEach(([x, y], index) => {
+    const radius = 11 + index % 3 * 3;
+    poly(ctx, [[x, y - radius], [x + radius * .86, y - radius * .5], [x + radius * .86, y + radius * .5], [x, y + radius], [x - radius * .86, y + radius * .5], [x - radius * .86, y - radius * .5]], index % 2 ? '#60456f' : '#4a654e', alpha * cells, '#bca3c8', 2);
+  });
+  if (frame >= 27) {
+    const collapse = easeOut(segment(frame, 27, 78));
+    for (let i = 0; i < 10; i += 1) {
+      const y = 42 + i * 11;
+      const wave = Math.sin(i * .95 + frame * .08) * (24 - collapse * 11);
+      diamond(ctx, 96 + wave, y, 4, i % 2 ? '#b67fc0' : '#7fa475', alpha * collapse, '#e8d6ed');
+      diamond(ctx, 96 - wave, y, 4, i % 2 ? '#7fa475' : '#b67fc0', alpha * collapse, '#e8d6ed');
+      if (i < 9) line(ctx, 96 + wave, y, 96 - wave, y, '#54455e', 2, alpha * collapse);
+    }
+  }
+  if (frame >= 78) {
+    const p = easeOut(segment(frame, 78, 98));
+    cellPoints.forEach(([x, y], index) => {
+      const dx = x - 96; const dy = y - 96;
+      poly(ctx, [[x + dx * p, y + dy * p - 7], [x + dx * p + 8, y + dy * p], [x + dx * p, y + dy * p + 8], [x + dx * p - 8, y + dy * p]], '#382d3d', alpha * (1 - p * .35), '#9d789b', 2);
+    });
+    ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#211a2b'; ctx.fillRect(48, 145, 96, 11); ctx.fillStyle = '#9870a3'; ctx.fillRect(52, 148, Math.round(88 * (1 - p)), 5); ctx.restore();
+    line(ctx, 96, 96, 96, 148, '#b17cb7', 5, alpha * p);
+  }
+}
+
+function drawSpeed(ctx, frame) {
+  return drawMute(ctx, frame);
+}
+
+function drawRegen(ctx, frame) {
+  const alpha = fade(frame, 8, 96, 114);
+  const seed = easeOut(segment(frame, 0, 26));
+  diamond(ctx, 96, 88, 15 + seed * 9, '#8fe0b3', alpha * seed, '#ecfff4');
+  ring(ctx, 96, 88, 24 + seed * 20, '#71cfa1', 3, alpha * seed);
+  if (frame >= 25) {
+    const pulse = easeOut(segment(frame, 25, 76));
+    const baseline = 117;
+    const points = [[38, baseline], [60, baseline], [70, baseline - 10], [78, baseline + 14], [90, baseline - 33], [102, baseline + 25], [114, baseline - 7], [126, baseline], [154, baseline]];
+    for (let i = 0; i < points.length - 1; i += 1) {
+      const local = clamp(pulse * (points.length - 1) - i);
+      line(ctx, points[i][0], points[i][1], points[i][0] + (points[i + 1][0] - points[i][0]) * local, points[i][1] + (points[i + 1][1] - points[i][1]) * local, '#b9ffe0', 4, alpha * pulse);
+    }
+    for (let ringIndex = 0; ringIndex < 3; ringIndex += 1) {
+      const wave = (pulse + ringIndex * .29) % 1;
+      ring(ctx, 96, 88, 17 + wave * 54, ringIndex % 2 ? '#dffff0' : '#71d49f', 3, alpha * (1 - wave));
+    }
+  }
+  if (frame >= 76) {
+    const p = easeOut(segment(frame, 76, 96));
+    line(ctx, 96, 129, 96, 54 - p * 14, '#effff7', 8, alpha * p);
+    line(ctx, 62 - p * 7, 88, 130 + p * 7, 88, '#effff7', 8, alpha * p);
+    for (let i = 0; i < 10; i += 1) diamond(ctx, 55 + i * 9, 142 - p * (31 + i % 3 * 12), 3, '#91efbd', alpha * p);
+  }
+}
+
+function drawFloat(ctx, frame) {
+  const alpha = fade(frame, 8, 91, 108);
+  const ground = easeOut(segment(frame, 0, 25));
+  line(ctx, 35, 148, 157, 148, '#9a8b70', 5, alpha * ground);
+  for (let i = 0; i < 7; i += 1) line(ctx, 48 + i * 15, 148, 39 + i * 18, 161, '#6c6559', 2, alpha * ground);
+  const lift = easeOut(segment(frame, 24, 73));
+  figureGlyph(ctx, 96, 88 - lift * 39, .82, '#8cb8c5', alpha, '#eaffff');
+  ring(ctx, 96, 143, 25 - lift * 9, '#657680', 3, alpha * (1 - lift * .5), 0, Math.PI * 2);
+  if (frame >= 24) {
+    for (let i = 0; i < 7; i += 1) {
+      const x = 55 + i * 14;
+      line(ctx, x, 135 - lift * (8 + i % 3 * 7), x + (i % 2 ? 7 : -7), 112 - lift * (14 + i % 2 * 9), '#bceef2', 3, alpha * lift);
+    }
+  }
+  if (frame >= 73) {
+    const p = easeOut(segment(frame, 73, 91));
+    poly(ctx, [[45, 120], [65, 104 - p * 13], [96, 113 - p * 22], [127, 104 - p * 13], [147, 120], [127, 136], [96, 128], [65, 136]], 'rgba(136,216,224,.2)', alpha * p, '#d9ffff', 4);
+    ring(ctx, 96, 104 - p * 19, 18 + p * 49, '#b9f7ff', 3, alpha);
+  }
+}
+
+function drawOld(ctx, frame) {
+  return drawScript0FStatus(ctx, frame, 'old');
 }
 
 function drawTime(ctx, frame, mode) {
@@ -8683,6 +8882,16 @@ function renderScene(ctx, sceneId, frame, sceneContext = {}) {
   if (sceneId === 'dispel') return drawDispel(ctx, frame);
   if (sceneId === 'esuna') return drawEsuna(ctx, frame);
   if (sceneId === 'confuse') return drawConfuse(ctx, frame);
+  if (sceneId === 'libra') return drawLibra(ctx, frame);
+  if (sceneId === 'poisona') return drawPoisona(ctx, frame);
+  if (sceneId === 'silence') return drawSilence(ctx, frame);
+  if (sceneId === 'poison') return drawPoison(ctx, frame);
+  if (sceneId === 'sleep') return drawSleep(ctx, frame);
+  if (sceneId === 'bio') return drawBio(ctx, frame);
+  if (sceneId === 'speed') return drawSpeed(ctx, frame);
+  if (sceneId === 'regen') return drawRegen(ctx, frame);
+  if (sceneId === 'float') return drawFloat(ctx, frame);
+  if (sceneId === 'old') return drawOld(ctx, frame);
   return undefined;
 }
 
@@ -8937,12 +9146,12 @@ const SPELL_CHOREOGRAPHIES = Object.freeze({
   magic_golem: scene('golem', [beat('earth-soul-crystal', 1), beat('stone-slab', 4), beat('party-wall', 5)], 1.3),
   magic_carbuncle: scene('carbuncle', [beat('jewel-soul-crystal', 1), beat('prism-mirror', 5), beat('party-reflect', 8)], 1.32),
   magic_quick: scene('quick', [beat('double-clock', 2), beat('time-gate', 2), beat('two-actions', 2)], 1.22),
-  magic_mute: scene('mute', [beat('sound-field', 5), beat('cancel-wave', 6), beat('silence-cross', 2)], 1.2),
+  magic_mute: scene('mute', [beat('shared-header-seed', 5), beat('shared-header-motion', 6), beat('shared-header-lock', 2)], 1.2),
   magic_banish: scene('banish', [beat('void-aperture', 8), beat('folding-target', 1), beat('erase-point', 10)], 1.22),
   magic_drain: scene('drain', [beat('life-mark', 1), beat('hp-droplet', 8), beat('red-return', 2)], 1.18),
   magic_osmose: scene('osmose', [beat('mana-mark', 1), beat('mp-rune', 12), beat('double-blue-return', 2)], 1.2),
   magic_mini: scene('mini', [beat('scale-frame', 2), beat('shrinking-silhouette', 1), beat('tiny-lock', 8)], 1.06),
-  magic_toad: scene('toad', [beat('transform-ring', 6), beat('compressed-silhouette', 1), beat('hop-ripple', 4)], 1.08),
+  magic_toad: scene('toad', [beat('script-0f-ring', 2), beat('script-0f-orbit', 10), beat('script-0f-lock', 4)], 1.14),
   magic_break: scene('break', [beat('stone-ray', 6), beat('silhouette-facet', 6), beat('petrify-prison', 5)], 1.2),
   magic_death: scene('death', [beat('death-gate', 1), beat('separated-soul', 1), beat('sever-line', 2)], 1.24),
   magic_arise: scene('arise', [beat('soul-fragment', 7), beat('spirit-reassembly', 1), beat('full-revival-column', 18)], 1.3),
@@ -8951,6 +9160,16 @@ const SPELL_CHOREOGRAPHIES = Object.freeze({
   magic_dispel: scene('dispel', [beat('buff-orbit', 4), beat('seal-peel', 4), beat('layer-shard', 12)], 1.18),
   magic_esuna: scene('esuna', [beat('status-knot', 6), beat('diagnosis-prism', 1), beat('multi-cleanse', 6)], 1.22),
   magic_confuse: scene('confuse', [beat('broken-compass', 8), beat('orbiting-silhouette', 3), beat('direction-scramble', 9)], 1.14),
+  magic_libra: scene('libra', [beat('analysis-grid', 10), beat('data-sweep', 1), beat('resolved-reticle', 4)], 1.16),
+  magic_poisona: scene('poisona', [beat('toxin-marker', 4), beat('poison-extract', 4), beat('antidote-vial', 1)], 1.12),
+  magic_silence: scene('silence', [beat('voice-source', 1), beat('contracting-wave', 5), beat('sound-lock', 1)], 1.1),
+  magic_poison: scene('poison', [beat('script-0f-ring', 2), beat('script-0f-orbit', 10), beat('script-0f-lock', 4)], 1.14),
+  magic_sleep: scene('sleep', [beat('script-0f-ring', 2), beat('script-0f-orbit', 10), beat('script-0f-lock', 4)], 1.14),
+  magic_bio: scene('bio', [beat('cell-membrane', 7), beat('collapsing-helix', 20), beat('sap-meter', 1)], 1.22),
+  magic_speed: scene('speed', [beat('shared-header-seed', 5), beat('shared-header-motion', 6), beat('shared-header-lock', 2)], 1.2),
+  magic_regen: scene('regen', [beat('pulse-seed', 1), beat('heartbeat-line', 8), beat('renewal-wave', 3)], 1.18),
+  magic_float: scene('float', [beat('ground-plane', 7), beat('lifting-silhouette', 1), beat('air-cushion', 1)], 1.16),
+  magic_old: scene('old', [beat('script-0f-ring', 2), beat('script-0f-orbit', 10), beat('script-0f-lock', 4)], 1.14),
 });
 
 const SPELL_ART_BLUEPRINTS = Object.freeze({
@@ -8976,9 +9195,9 @@ const SPELL_ART_BLUEPRINTS = Object.freeze({
   magic_fire: art('flame', 'rise', 4, -18, 52, 0.82, 'ember-pop', 19),
   magic_blizzard: art('ice-shard', 'rain', 5, 12, 58, 0.86, 'frost-crack', 20),
   magic_thunder: art('lightning', 'descend', 4, -8, 50, 0.88, 'arc-pop', 21),
-  magic_poison: art('venom-orb', 'seep', 5, 30, 60, 0.86, 'toxic-ring', 22),
-  magic_sleep: art('moon-mist', 'drift', 5, -24, 70, 0.9, 'drowse-wave', 23),
-  magic_toad: art('status-glyph', 'hop', 5, 40, 62, 0.84, 'ripple-pop', 24),
+  magic_poison: art('venom-orb', 'seep', 6, 0, 92, 1.14, 'toxic-ring', 15),
+  magic_sleep: art('venom-orb', 'seep', 6, 0, 92, 1.14, 'toxic-ring', 15),
+  magic_toad: art('venom-orb', 'seep', 6, 0, 92, 1.14, 'toxic-ring', 15),
   magic_fira: art('flame', 'coil', 6, 25, 70, 1.04, 'fire-ring', 25),
   magic_blizzara: art('ice-shard', 'erupt', 6, -30, 76, 1.08, 'ice-crown', 26),
   magic_thundara: art('lightning', 'branch', 6, 18, 72, 1.08, 'forked-arc', 27),
@@ -8992,7 +9211,7 @@ const SPELL_ART_BLUEPRINTS = Object.freeze({
   magic_death: art('death-sigil', 'descend', 7, 180, 84, 1.2, 'soul-cut', 35),
   magic_osmose: art('siphon', 'double-return', 7, -90, 86, 1.08, 'mana-pulse', 36),
 
-  magic_speed: art('clock', 'focus', 4, 20, 48, 0.8, 'time-lock', 37),
+  magic_speed: art('seal-glyph', 'field-expand', 6, 0, 110, 1.2, 'silent-field', 40),
   magic_slow: art('clock', 'drag', 5, -30, 58, 0.88, 'slow-ring', 38),
   magic_regen: art('life-rune', 'heartbeat', 5, 45, 60, 0.92, 'green-pulse', 39),
   magic_mute: art('seal-glyph', 'field-expand', 6, 0, 110, 1.2, 'silent-field', 40),
@@ -9006,7 +9225,7 @@ const SPELL_ART_BLUEPRINTS = Object.freeze({
   magic_return: art('hourglass', 'rewind', 8, 180, 118, 1.28, 'timeline-snap', 48),
   magic_graviga: art('gravity-well', 'collapse', 8, 145, 102, 1.34, 'black-lens', 49),
   magic_hastega: art('clock', 'field-accelerate', 8, 95, 116, 1.28, 'speed-field', 50),
-  magic_old: art('hourglass', 'drain', 6, -95, 76, 1.04, 'age-dust', 51),
+  magic_old: art('venom-orb', 'seep', 6, 0, 92, 1.14, 'toxic-ring', 15),
   magic_meteor: art('meteor', 'meteor-rain', 8, 25, 126, 1.42, 'multi-crater', 52),
   magic_quick: art('clock', 'time-stop', 8, 270, 122, 1.38, 'double-turn', 53),
   magic_banish: art('portal', 'erase', 8, -140, 96, 1.3, 'void-iris', 54),

@@ -4,7 +4,7 @@ import { SPELL_CHOREOGRAPHIES, spellChoreographyForAction } from '../src/ui/Spel
 import { ff5Magic } from '../src/database/ff5Database.js';
 
 const sequences = Object.entries(SPELL_PIXEL_SEQUENCES);
-assert.ok(sequences.length >= 89, 'the transformation/status pixel VFX production set regressed');
+assert.ok(sequences.length >= 99, 'the analysis/status-time pixel VFX production set regressed');
 
 for (const [sceneId, spec] of sequences) {
   assert.equal(spec.referenceVersion, 'SFC-JP-1992', `${sceneId}: wrong reference target`);
@@ -12,6 +12,8 @@ for (const [sceneId, spec] of sequences) {
   assert.ok(['final-impact', 'split-amount'].includes(spec.resultPolicy), `${sceneId}: invalid result policy`);
   assert.ok(['each-target', 'centroid'].includes(spec.placement), `${sceneId}: invalid placement`);
   assert.ok(spec.reference && Object.hasOwn(spec.reference, 'sourceMediaHash'), `${sceneId}: missing machine-readable reference schema`);
+  assert.ok(Object.hasOwn(spec, 'originalEffectHeader'), `${sceneId}: original effect header metadata is not machine-readable`);
+  assert.ok(Object.hasOwn(spec, 'sharedOriginalFamily'), `${sceneId}: original shared-family metadata is not machine-readable`);
   assert.ok(spec.frameCount >= 58, `${sceneId}: timeline is too short to have readable phases`);
   assert.ok(spec.phases.length >= 4, `${sceneId}: cast/travel/impact/decay phases required`);
   assert.equal(spec.phases[0].from, 0, `${sceneId}: timeline must start at frame zero`);
@@ -29,6 +31,26 @@ for (const [sceneId, spec] of sequences) {
 
 assert.equal(SPELL_PIXEL_SEQUENCES.meteor.resultPolicy, 'split-amount', 'Meteor must stage its four mechanical impacts');
 assert.equal(SPELL_PIXEL_SEQUENCES.firaga.resultPolicy, 'final-impact', 'decorative Firaga flashes must not invent hits');
+const expectedOriginalHeaders = {
+  libra: '0F 1B 14 00 14',
+  poisona: '23 11 0B 00 0F',
+  silence: '28 1E 0C 31 7B',
+  poison: '21 18 0F 00 0F',
+  sleep: '21 19 0F 00 0F',
+  bio: '11 15 20 00 10',
+  speed: '00 10 A9 00 02',
+  regen: '20 12 A4 00 13',
+  float: '24 20 43 80 24',
+  old: '21 26 0F 00 0F',
+  mute: '00 10 A9 00 02',
+};
+for (const [sceneId, header] of Object.entries(expectedOriginalHeaders)) {
+  assert.equal(SPELL_PIXEL_SEQUENCES[sceneId].originalEffectHeader, header, `${sceneId}: SFC effect header regressed`);
+}
+assert.equal(SPELL_PIXEL_SEQUENCES.speed.sharedOriginalFamily, SPELL_PIXEL_SEQUENCES.mute.sharedOriginalFamily, 'Speed and Mute must share the original A9 rendering family');
+for (const sceneId of ['poison', 'sleep', 'old']) {
+  assert.equal(SPELL_PIXEL_SEQUENCES[sceneId].sharedOriginalFamily, 'status-script-0f', `${sceneId}: SFC status script 0F family regressed`);
+}
 
 const choreographySceneIds = new Set(Object.values(SPELL_CHOREOGRAPHIES).map((entry) => entry.id));
 for (const sceneId of Object.keys(SPELL_PIXEL_SEQUENCES)) {
@@ -54,6 +76,8 @@ for (const required of [
   'quick', 'mute', 'banish', 'drain', 'osmose',
   'mini', 'toad', 'break', 'death', 'arise',
   'blink', 'berserk', 'dispel', 'esuna', 'confuse',
+  'libra', 'poisona', 'silence', 'poison', 'sleep',
+  'bio', 'speed', 'regen', 'float', 'old',
 ]) {
   assert.ok(SPELL_PIXEL_SEQUENCES[required], `${required}: dedicated cross-category sequence missing`);
 }
@@ -120,6 +144,16 @@ const reachabilityCases = [
   [{ sourceId: 'magic_dispel' }, 'dispel'],
   [{ sourceId: 'magic_esuna' }, 'esuna'],
   [{ sourceId: 'magic_confuse' }, 'confuse'],
+  [{ sourceId: 'magic_libra' }, 'libra'],
+  [{ sourceId: 'magic_poisona' }, 'poisona'],
+  [{ sourceId: 'magic_silence' }, 'silence'],
+  [{ sourceId: 'magic_poison' }, 'poison'],
+  [{ sourceId: 'magic_sleep' }, 'sleep'],
+  [{ sourceId: 'magic_bio' }, 'bio'],
+  [{ sourceId: 'magic_speed' }, 'speed'],
+  [{ sourceId: 'magic_regen' }, 'regen'],
+  [{ sourceId: 'magic_float' }, 'float'],
+  [{ sourceId: 'magic_old' }, 'old'],
 ];
 for (const [action, expectedScene] of reachabilityCases) {
   assert.equal(spellChoreographyForAction(action)?.id, expectedScene, `${expectedScene}: runtime action cannot reach its dedicated scene`);

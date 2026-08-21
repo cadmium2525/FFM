@@ -107,13 +107,24 @@ const priorityScenes = [
   'quick', 'mute', 'banish', 'drain', 'osmose',
   'mini', 'toad', 'break', 'death', 'arise',
   'blink', 'berserk', 'dispel', 'esuna', 'confuse',
+  'libra', 'poisona', 'silence', 'poison', 'sleep',
+  'bio', 'speed', 'regen', 'float', 'old',
 ];
 const impactSignatures = priorityScenes.map((sceneId) => {
   const spec = SPELL_PIXEL_SEQUENCES[sceneId];
   const audit = frameAudit[sceneId].find((entry) => entry.frame === spec.impactFrames[0]);
-  return JSON.stringify(audit.opCounts);
+  return { sceneId, spec, value: JSON.stringify(audit.opCounts) };
 });
-assert.equal(new Set(impactSignatures).size, priorityScenes.length, 'priority scenes lost their dedicated render audit signature');
+const signatureOwners = new Map();
+for (const signature of impactSignatures) {
+  const previous = signatureOwners.get(signature.value);
+  if (previous) {
+    assert.ok(signature.spec.sharedOriginalFamily, `${signature.sceneId}: duplicate render signature is not backed by an original shared family`);
+    assert.equal(signature.spec.sharedOriginalFamily, previous.spec.sharedOriginalFamily, `${signature.sceneId}: duplicate render signature crossed original effect families`);
+  } else {
+    signatureOwners.set(signature.value, signature);
+  }
+}
 
 for (const sceneId of ['white-wind', 'mighty-guard']) {
   const canvas = createSpellCanvas(sceneId);
