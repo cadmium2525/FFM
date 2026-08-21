@@ -36,12 +36,17 @@ export const SPELL_CHOREOGRAPHIES = Object.freeze({
   magic_raise: scene('raise', [beat('soul-mark', 4), beat('return-soul', 1), beat('revive-halo', 2)], 1.08),
   magic_protect: scene('protect', [beat('shield-trace', 6), beat('ward-lattice', 3), beat('ward-lock', 2)], 1.02),
   magic_holy: scene('holy', [beat('holy-stars', 7), beat('judgment-column', 5), beat('radiant-cross', 1)], 1.28),
+  magic_shell: scene('shell', [beat('prism-facet', 5), beat('shell-weave', 5), beat('prism-lock', 2)], 1.06),
+  magic_reflect: scene('reflect', [beat('mirror-shard', 6), beat('mirror-form', 1), beat('reflection-line', 2)], 1.12),
 
   magic_haste: scene('haste', [beat('clock-face', 1), beat('fast-hand', 2), beat('speed-trail', 6)], 1),
   magic_slow: scene('slow', [beat('clock-face', 1), beat('slow-hand', 2), beat('time-weight', 4)], .96),
   magic_stop: scene('stop', [beat('clock-face', 1), beat('frozen-hand', 2), beat('glass-lock', 4)], 1.08),
   magic_comet: scene('comet', [beat('comet-tail', 4), beat('comet-core', 1), beat('crater', 5)], 1.02),
   magic_meteor: scene('meteor', [beat('sky-rift', 2), beat('meteor-body', 5), beat('meteor-crater', 7)], 1.24),
+  magic_gravity: scene('gravity', [beat('gravity-lens', 3), beat('compress-ring', 3), beat('half-crush', 2)], 1.08),
+  magic_graviga: scene('graviga', [beat('black-lens', 5), beat('triple-collapse', 5), beat('three-quarter-crush', 3)], 1.22),
+  magic_return: scene('return', [beat('hourglass', 2), beat('rewind-line', 12), beat('timeline-snap', 16)], 1.24),
 
   magic_missile: scene('missile', [beat('target-ring', 3), beat('lock-tick', 4), beat('missile-body', 1), beat('quarter-break', 4)], 1.02),
   magic_flare: scene('flare', [beat('star-dust', 6), beat('gravity-core', 3), beat('white-nova', 8)], 1.25),
@@ -62,6 +67,11 @@ export const SPELL_CHOREOGRAPHIES = Object.freeze({
   blaster: scene('blaster', [beat('binary-reticle', 2), beat('cross-lock', 2), beat('blaster-burst', 8)], 1.08),
   maelstrom: scene('maelstrom', [beat('vortex-ring', 6), beat('critical-pull', 19), beat('critical-line', 2)], 1.22),
   'delta-attack': scene('delta-attack', [beat('delta-node', 3), beat('triangle-bind', 3), beat('stone-prison', 6)], 1.14),
+
+  magic_1000_needles: scene('1000-needles', [beat('thousand-count', 4), beat('needle-fan', 20), beat('fixed-impact', 1)], 1.12),
+  magic_white_wind: scene('white-wind', [beat('white-feather', 13), beat('party-sweep', 4), beat('white-heal', 12)], 1.18),
+  magic_aqua_breath: scene('aqua-breath', [beat('water-orb', 6), beat('breath-band', 7), beat('tidal-impact', 14)], 1.26),
+  magic_mighty_guard: scene('mighty-guard', [beat('triple-shield', 3), beat('field-assemble', 3), beat('mighty-lock', 12)], 1.26),
 });
 
 export const SPELL_ART_BLUEPRINTS = Object.freeze({

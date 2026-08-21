@@ -88,6 +88,8 @@ for (const [sceneId, spec] of Object.entries(SPELL_PIXEL_SEQUENCES)) {
 const priorityScenes = [
   'raise', 'protect', 'holy', 'steal', 'jump', 'rapid-fire', 'zeninage', 'mix',
   'atomic-ray', 'wave-cannon', 'blaster', 'maelstrom', 'delta-attack',
+  'shell', 'reflect', 'gravity', 'graviga', 'return',
+  '1000-needles', 'white-wind', 'aqua-breath', 'mighty-guard',
 ];
 const impactSignatures = priorityScenes.map((sceneId) => {
   const spec = SPELL_PIXEL_SEQUENCES[sceneId];

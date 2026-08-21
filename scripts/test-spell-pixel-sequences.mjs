@@ -3,7 +3,7 @@ import { SPELL_PIXEL_SEQUENCES } from '../src/ui/SpellCanvasRenderer.js';
 import { SPELL_CHOREOGRAPHIES, spellChoreographyForAction } from '../src/ui/SpellArtDirector.js';
 
 const sequences = Object.entries(SPELL_PIXEL_SEQUENCES);
-assert.ok(sequences.length >= 36, 'the cross-category pixel VFX production set regressed');
+assert.ok(sequences.length >= 45, 'the cross-category pixel VFX production set regressed');
 
 for (const [sceneId, spec] of sequences) {
   assert.equal(spec.referenceVersion, 'SFC-JP-1992', `${sceneId}: wrong reference target`);
@@ -42,6 +42,8 @@ for (const required of [
   'raise', 'protect', 'holy',
   'steal', 'jump', 'rapid-fire', 'zeninage', 'mix',
   'atomic-ray', 'wave-cannon', 'blaster', 'maelstrom', 'delta-attack',
+  'shell', 'reflect', 'gravity', 'graviga', 'return',
+  '1000-needles', 'white-wind', 'aqua-breath', 'mighty-guard',
 ]) {
   assert.ok(SPELL_PIXEL_SEQUENCES[required], `${required}: dedicated cross-category sequence missing`);
 }
@@ -55,6 +57,15 @@ const reachabilityCases = [
   [{ id: 'atomic-ray' }, 'atomic-ray'],
   [{ id: 'wave-cannon' }, 'wave-cannon'],
   [{ id: 'delta-attack' }, 'delta-attack'],
+  [{ sourceId: 'magic_shell' }, 'shell'],
+  [{ sourceId: 'magic_reflect' }, 'reflect'],
+  [{ sourceId: 'magic_gravity' }, 'gravity'],
+  [{ sourceId: 'magic_graviga' }, 'graviga'],
+  [{ sourceId: 'magic_return' }, 'return'],
+  [{ sourceId: 'magic_1000_needles' }, '1000-needles'],
+  [{ sourceId: 'magic_white_wind' }, 'white-wind'],
+  [{ sourceId: 'magic_aqua_breath' }, 'aqua-breath'],
+  [{ sourceId: 'magic_mighty_guard' }, 'mighty-guard'],
 ];
 for (const [action, expectedScene] of reachabilityCases) {
   assert.equal(spellChoreographyForAction(action)?.id, expectedScene, `${expectedScene}: runtime action cannot reach its dedicated scene`);
