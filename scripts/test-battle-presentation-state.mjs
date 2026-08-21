@@ -47,6 +47,19 @@ target.def = 48;
 unsubscribe();
 assert.equal(emittedResult.presentationPatch.def, 24, 'action receipt must retain the state at that action, not a later counter state');
 
+// Golem's shared pool belongs to BattleManager, so its remaining amount is
+// carried by the immutable result receipt while Unit snapshots stay free of
+// obsolete per-character barrier copies.
+manager.partyPhysicalBarrier = 80;
+let emittedBarrierResult = null;
+const offBarrierResult = eventBus.on('battle:actionResolved', ({ results }) => { emittedBarrierResult = results[0]; });
+manager.emitActionResolved(actor, [{ type: 'barrier-absorb', targetUid: actor.uid, amount: 40, remaining: 80, shared: 'party' }], 0, { id: 'test-golem-absorb' });
+manager.partyPhysicalBarrier = 0;
+offBarrierResult();
+assert.equal(emittedBarrierResult.remaining, 80, 'presentation receipt must preserve the pool remaining at impact');
+assert.equal(emittedBarrierResult.shared, 'party');
+assert.equal(emittedBarrierResult.presentationPatch.physicalBarrier, 0, 'presentation snapshot must not revive legacy per-Unit Golem state');
+
 const dualActor = new Unit({ id: 'dual-actor', name: 'Dual Actor', hp: 100, maxHp: 100, mp: 50, maxMp: 50 });
 const dualTarget = new Unit({ id: 'dual-target', name: 'Dual Target', isEnemy: true, hp: 100, maxHp: 100 });
 const dualManager = new BattleManager([dualActor], dualTarget);
@@ -92,6 +105,7 @@ console.log(JSON.stringify({
   finalImpactStatusLatch: true,
   fullSnapshotBlocksLiveLeak: true,
   actionReceiptIsImmutable: true,
+  sharedGolemReceiptIsImmutable: true,
   dualcastReceiptsAreOrdered: true,
   battleEndRechecksPresentationHold: true,
   status: 'ok',

@@ -3,10 +3,12 @@ import { Unit } from '../src/battle/Unit.js';
 import { resolveAction, resolvePhysicalDamage } from '../src/battle/ActionResolver.js';
 import { CTBEngine, BASE_THRESHOLD } from '../src/battle/CTBEngine.js';
 import { BattleManager } from '../src/battle/BattleManager.js';
-import { bossActionsFor } from '../src/battle/BossActionProfiles.js';
+import { BOSS_ACTION_PROFILES, bossActionsFor } from '../src/battle/BossActionProfiles.js';
 import { battleReadyMagic, battleReadyShards, crystalShardAction, magicRecordToAction } from '../src/database/battleCatalog.js';
 import { calculateEquipmentBonuses } from '../src/battle/EquipmentSystem.js';
 import { ff5Equipment } from '../src/database/ff5Database.js';
+import { eventBus } from '../src/core/EventBus.js';
+import { spellChoreographyForAction } from '../src/ui/SpellArtDirector.js';
 
 const makeUnit = (overrides = {}) => new Unit({
   id: 'test', name: 'Test', maxHp: 2000, maxMp: 999, atk: 80, def: 30,
@@ -87,6 +89,35 @@ assert.equal(hammerTarget.mp, 100, 'Magic Hammer was applied more than once');
 const odinResults = resolveAction({ actor: semanticCaster, action: { kind: magicAction('magic_odin').actionKind, ...magicAction('magic_odin') }, targets: [semanticEnemy], battleUnits: [semanticCaster, semanticEnemy] });
 assert.ok(odinResults.some((result) => result.type === 'damage' && result.odinFallback === 'gungnir'), 'Odin must use Gungnir when instant death is invalid');
 
+// Drain-family spells must compile back through FFV's integer magic formula,
+// then return the actual dealt amount instead of treating `power` as a generic
+// 40x multiplier. Drain itself previously emitted damage only.
+Math.random = () => 0.5;
+for (const [id, ff5Power] of [['magic_drain', 45], ['magic_vampire', 35], ['magic_sylph', 25]]) {
+  const action = magicAction(id);
+  const drainOperation = action.operations.find((operation) => operation.op === 'drain.hp');
+  assert.equal(drainOperation?.formula, 'ff5_magic', `${id} must use the FFV magic formula`);
+  assert.equal(drainOperation?.ff5Power, ff5Power, `${id} lost its FFV spell power`);
+}
+for (const id of ['magic_drain', 'magic_vampire']) {
+  const caster = makeUnit({ id: `${id}-caster`, hp: 1, maxHp: 9999, level: 50, magic: 60 });
+  const target = makeUnit({ id: `${id}-target`, isEnemy: true, hp: 9999, maxHp: 9999, magicDef: 10, heavy: false });
+  const action = magicAction(id);
+  const results = resolveAction({ actor: caster, action: { kind: action.actionKind, ...action }, targets: [target], battleUnits: [caster, target] });
+  const damage = results.find((result) => result.type === 'damage')?.amount ?? 0;
+  const healing = results.find((result) => result.type === 'heal' && result.targetUid === caster.uid)?.amount ?? 0;
+  assert.ok(damage > 0 && damage < 9999, `${id} bypassed the FFV magic formula`);
+  assert.equal(healing, damage, `${id} must restore the HP it actually drained`);
+}
+const sylphCaster = makeUnit({ id: 'sylph-caster', hp: 1, maxHp: 9999, level: 50, magic: 60 });
+const sylphAlly = makeUnit({ id: 'sylph-ally', hp: 1, maxHp: 9999 });
+const sylphTarget = makeUnit({ id: 'sylph-target', isEnemy: true, hp: 9999, maxHp: 9999, magicDef: 10, heavy: false });
+const sylphAction = magicAction('magic_sylph');
+const sylphResults = resolveAction({ actor: sylphCaster, action: { kind: sylphAction.actionKind, ...sylphAction }, targets: [sylphTarget, sylphAlly], battleUnits: [sylphCaster, sylphAlly, sylphTarget] });
+assert.ok(sylphResults.some((result) => result.type === 'damage' && result.amount > 0 && result.amount < 9999), 'Sylph damage must use the FFV magic formula');
+assert.ok(sylphResults.some((result) => result.type === 'heal' && result.targetUid === sylphAlly.uid && result.amount > 0), 'Sylph must heal the allied side');
+Math.random = oldRandom;
+
 // Former scripted placeholders now have explicit runtime semantics or a visible boss restriction.
 const speedAction = magicAction('magic_speed');
 assert.equal(speedAction.actionKind, 'field-speed');
@@ -114,20 +145,34 @@ for (const id of ['magic_teleport', 'magic_return']) {
 const golemAction = magicAction('magic_golem');
 assert.equal(golemAction.actionKind, 'barrier-physical');
 const golemCaster = makeUnit({ level: 20, magic: 50 });
-const protectedAlly = makeUnit({ def: 0 });
-resolveAction({ actor: golemCaster, action: { kind: golemAction.actionKind, ...golemAction }, targets: [protectedAlly], battleUnits: [golemCaster, protectedAlly] });
-const barrierBefore = protectedAlly.physicalBarrier;
+const protectedAlly = makeUnit({ id: 'golem-ally-a', def: 0 });
+const secondProtectedAlly = makeUnit({ id: 'golem-ally-b', def: 0 });
+const barrierAttacker = makeUnit({ id: 'golem-attacker', isEnemy: true, atk: 70 });
+const golemManager = new BattleManager([golemCaster, protectedAlly, secondProtectedAlly], barrierAttacker);
+resolveAction({
+  actor: golemCaster,
+  action: { kind: golemAction.actionKind, ...golemAction },
+  targets: golemManager.party,
+  battleUnits: golemManager.units,
+  battleContext: golemManager,
+});
+const barrierBefore = golemManager.partyPhysicalBarrier;
 assert.ok(barrierBefore >= 400);
-const barrierAttacker = makeUnit({ isEnemy: true, atk: 70 });
+assert.equal(golemManager.party.every((unit) => unit.physicalBarrier === 0), true, 'Golem must not clone its pool onto Units');
 const hpBeforeBarrierHit = protectedAlly.hp;
 Math.random = () => 0.5;
-const firstBarrierHit = resolveAction({ actor: barrierAttacker, action: { kind: 'physical-attack' }, targets: [protectedAlly] });
+const firstBarrierHit = resolveAction({ actor: barrierAttacker, action: { kind: 'physical-attack' }, targets: [protectedAlly], battleUnits: golemManager.units, battleContext: golemManager });
 assert.ok(firstBarrierHit.some((result) => result.type === 'barrier-absorb'));
 assert.equal(protectedAlly.hp, hpBeforeBarrierHit);
-assert.ok(protectedAlly.physicalBarrier < barrierBefore);
-protectedAlly.physicalBarrier = 1;
-resolveAction({ actor: barrierAttacker, action: { kind: 'physical-attack' }, targets: [protectedAlly] });
-assert.ok(protectedAlly.hp < hpBeforeBarrierHit);
+assert.ok(golemManager.partyPhysicalBarrier < barrierBefore);
+const sharedRemaining = golemManager.partyPhysicalBarrier;
+resolveAction({ actor: barrierAttacker, action: { kind: 'physical-attack' }, targets: [secondProtectedAlly], battleUnits: golemManager.units, battleContext: golemManager });
+assert.ok(golemManager.partyPhysicalBarrier < sharedRemaining, 'a hit on another ally must consume the same shared pool');
+golemManager.partyPhysicalBarrier = 1;
+const secondHpBefore = secondProtectedAlly.hp;
+resolveAction({ actor: barrierAttacker, action: { kind: 'physical-attack' }, targets: [secondProtectedAlly], battleUnits: golemManager.units, battleContext: golemManager });
+assert.ok(secondProtectedAlly.hp < secondHpBefore);
+assert.equal(golemManager.partyPhysicalBarrier, 0);
 Math.random = oldRandom;
 
 // A freshly equipped summon command must cast through BattleManager, spend MP,
@@ -144,6 +189,32 @@ assert.equal(ifritAction.school, 'summon');
 assert.equal(ifritAction.sourceType, 'magic');
 assert.equal(summonManager.submitPlayerAction({ type: 'ability', ability: ifritAction }, summonBoss), true);
 assert.equal(summonFaris.mp, 350 - ifritAction.mpCost);
+
+// Phoenix is a hybrid summon: all enemies receive the fire hit, but only the
+// KO ally explicitly selected by the player is revived. A living ally must
+// neither be revived nor produce an invalid-target cancellation.
+const phoenixCaster = makeUnit({ id: 'phoenix-caster', name: 'Phoenix Caster', maxMp: 999, mp: 999, ctValue: BASE_THRESHOLD });
+const phoenixLivingAlly = makeUnit({ id: 'phoenix-living', name: 'Living Ally', hp: 777 });
+const phoenixFallenAlly = makeUnit({ id: 'phoenix-fallen', name: 'Fallen Ally', hp: 0 });
+const phoenixBoss = makeUnit({ id: 'phoenix-boss', name: 'Phoenix Boss', isEnemy: true, maxHp: 9999, hp: 9999 });
+const phoenixManager = new BattleManager([phoenixCaster, phoenixLivingAlly, phoenixFallenAlly], phoenixBoss);
+phoenixManager.scheduleNextTurn = () => {};
+phoenixManager.broadcastState = () => {};
+phoenixManager.currentActor = phoenixCaster;
+phoenixManager.awaitingPlayerInput = true;
+let phoenixResolved = null;
+const offPhoenixResolved = eventBus.on('battle:actionResolved', ({ actor: resolvedActor, results }) => {
+  if (resolvedActor.uid === phoenixCaster.uid) phoenixResolved = results;
+});
+const phoenixAction = magicAction('magic_phoenix');
+assert.equal(phoenixManager.submitPlayerAction({ type: 'ability', ability: phoenixAction }, phoenixFallenAlly), true);
+offPhoenixResolved();
+assert.equal(phoenixFallenAlly.hp, phoenixFallenAlly.maxHp, 'Phoenix must fully revive the selected KO ally');
+assert.equal(phoenixLivingAlly.hp, 777, 'Phoenix must not alter an unselected living ally');
+assert.ok(phoenixBoss.hp < phoenixBoss.maxHp, 'Phoenix must still damage the enemy group');
+assert.equal(phoenixResolved?.filter((result) => result.type === 'revive').length, 1);
+assert.equal(phoenixResolved?.find((result) => result.type === 'revive')?.targetUid, phoenixFallenAlly.uid);
+assert.equal(phoenixResolved?.some((result) => result.type === 'invalid-target'), false, 'Phoenix must not emit a stray invalid-target');
 
 // If summoning really is sealed, report the concrete status instead of a
 // generic wiring-looking error and leave the turn/MP untouched.
@@ -174,6 +245,29 @@ for (const id of ['boss1', 'boss2', 'boss3']) {
   const actions = bossActionsFor(boss);
   assert.ok(actions.length >= 3, `${id} phase needs 3 actions`);
   assert.ok(actions.some((action) => action.telegraph), `${id} needs a telegraph`);
+}
+
+// Enemy actions keep their runtime technique IDs for AI/mechanics while
+// resolving a dedicated player-spell Canvas scene through visualId.
+const flattenProfileActions = (entry, output = []) => {
+  if (entry?.choices) entry.choices.forEach((choice) => flattenProfileActions(choice, output));
+  else if (entry?.multi) entry.multi.forEach((action) => flattenProfileActions(action, output));
+  else if (entry?.id) output.push(entry);
+  return output;
+};
+const allProfileActions = Object.values(BOSS_ACTION_PROFILES).flatMap((profile) => [
+  ...profile.phases.flatMap((phase) => phase.sequence.flatMap((entry) => flattenProfileActions(entry))),
+  ...profile.counterSequence.flatMap((entry) => flattenProfileActions(entry)),
+]);
+for (const [runtimeId, visualId, choreographyId] of [
+  ['flame-thrower', 'magic_flame_thrower', 'flame-thrower'],
+  ['firaga-all', 'magic_firaga', 'firaga'],
+  ['aeroga-all', 'magic_aeroga', 'aeroga'],
+]) {
+  const enemyAction = allProfileActions.find((action) => action.id === runtimeId);
+  assert.ok(enemyAction, `${runtimeId} must remain reachable through a boss profile`);
+  assert.equal(enemyAction.visualId, visualId, `${runtimeId} lost its Canvas alias`);
+  assert.equal(spellChoreographyForAction(enemyAction)?.id, choreographyId, `${runtimeId} did not resolve its dedicated Canvas scene`);
 }
 
 // Telegraph is stored for a later turn, then actually fires; sleep never stalls CTB.

@@ -126,6 +126,16 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
   banish: sequence(112, [76], [phase('void-iris', 0, 25), phase('space-fold', 26, 75), phase('target-erase', 76, 94), phase('decay', 95, 111)]),
   drain: sequence(108, [72], [phase('life-mark', 0, 24), phase('hp-draw', 25, 71), phase('red-return', 72, 91), phase('decay', 92, 107)], { placement: 'centroid', sceneSpace: 'stage' }),
   osmose: sequence(112, [75], [phase('mana-mark', 0, 25), phase('mp-unweave', 26, 74), phase('double-blue-return', 75, 94), phase('decay', 95, 111)], { placement: 'centroid', sceneSpace: 'stage' }),
+  mini: sequence(94, [64], [phase('scale-frame', 0, 21), phase('silhouette-shrink', 22, 63), phase('tiny-lock', 64, 79), phase('decay', 80, 93)]),
+  toad: sequence(96, [65], [phase('transform-ring', 0, 22), phase('silhouette-compress', 23, 64), phase('hop-ripple-lock', 65, 81), phase('decay', 82, 95)]),
+  break: sequence(112, [75], [phase('stone-lattice', 0, 25), phase('silhouette-facet', 26, 74), phase('petrify-lock', 75, 94), phase('decay', 95, 111)]),
+  death: sequence(120, [81], [phase('death-gate', 0, 28), phase('soul-separate', 29, 80), phase('gate-sever', 81, 100), phase('decay', 101, 119)]),
+  arise: sequence(132, [89], [phase('soul-fragments', 0, 30), phase('spirit-reassemble', 31, 88), phase('full-revival', 89, 110), phase('decay', 111, 131)]),
+  blink: sequence(102, [69], [phase('mirror-trace', 0, 23), phase('afterimage-split', 24, 68), phase('double-decoy-lock', 69, 85), phase('decay', 86, 101)]),
+  berserk: sequence(102, [69], [phase('rage-heartbeat', 0, 23), phase('aura-overrun', 24, 68), phase('berserk-lock', 69, 85), phase('decay', 86, 101)]),
+  dispel: sequence(110, [74], [phase('buff-orbits', 0, 25), phase('seal-unweave', 26, 73), phase('layer-strip', 74, 92), phase('decay', 93, 109)]),
+  esuna: sequence(116, [78], [phase('status-knots', 0, 27), phase('prism-diagnosis', 28, 77), phase('multi-cleanse', 78, 97), phase('decay', 98, 115)]),
+  confuse: sequence(100, [67], [phase('compass-mark', 0, 22), phase('silhouette-orbit', 23, 66), phase('direction-scramble', 67, 83), phase('decay', 84, 99)]),
 });
 
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
@@ -908,13 +918,33 @@ function drawDigit(ctx, digit, x, y, scale, color, alpha = 1) {
   ctx.restore();
 }
 
+function scenePercentPoint(sceneContext, point, fallback) {
+  const xPercent = clamp(Number.isFinite(Number(point?.x)) ? Number(point.x) : fallback.x, 0, 100);
+  const yPercent = clamp(Number.isFinite(Number(point?.y)) ? Number(point.y) : fallback.y, 0, 100);
+  const mapping = sceneContext?.stageMapping;
+  if (mapping) {
+    return {
+      x: ((xPercent / 100 * mapping.width) - mapping.drawX) / mapping.drawWidth * LOGICAL_SIZE,
+      y: ((yPercent / 100 * mapping.height) - mapping.drawY) / mapping.drawHeight * LOGICAL_SIZE,
+    };
+  }
+  return { x: xPercent / 100 * LOGICAL_SIZE, y: yPercent / 100 * LOGICAL_SIZE };
+}
+
 function scenePoint(sceneContext, role, fallback) {
-  const x = Number(sceneContext?.[`${role}X`]);
-  const y = Number(sceneContext?.[`${role}Y`]);
-  return {
-    x: clamp(Number.isFinite(x) ? x : fallback.x, 0, 100) / 100 * LOGICAL_SIZE,
-    y: clamp(Number.isFinite(y) ? y : fallback.y, 0, 100) / 100 * LOGICAL_SIZE,
-  };
+  return scenePercentPoint(sceneContext, {
+    x: sceneContext?.[`${role}X`],
+    y: sceneContext?.[`${role}Y`],
+  }, fallback);
+}
+
+function sceneGroupPoint(sceneContext, key, fallback) {
+  const points = Array.isArray(sceneContext?.[key]) ? sceneContext[key] : [];
+  if (!points.length) return scenePercentPoint(sceneContext, null, fallback);
+  return scenePercentPoint(sceneContext, {
+    x: points.reduce((sum, point) => sum + Number(point.x ?? fallback.x), 0) / points.length,
+    y: points.reduce((sum, point) => sum + Number(point.y ?? fallback.y), 0) / points.length,
+  }, fallback);
 }
 
 function drawRoulette(ctx, frame, sceneContext) {
@@ -1246,8 +1276,8 @@ function drawDarkSpark(ctx, frame) {
 
 function drawPhoenix(ctx, frame, sceneContext) {
   const alpha = fade(frame, 10, 122, 148);
-  const caster = scenePoint(sceneContext, 'caster', { x: 28, y: 53 });
-  const target = scenePoint(sceneContext, 'target', { x: 69, y: 49 });
+  const enemyField = sceneGroupPoint(sceneContext, 'hostileTargets', { x: 28, y: 49 });
+  const revivedAlly = sceneGroupPoint(sceneContext, 'alliedTargets', { x: 72, y: 53 });
   const seal = easeOut(segment(frame, 0, 34));
   ring(ctx, 96, 91, 15 + seal * 56, '#ff7a38', 4, alpha * seal);
   diamond(ctx, 96, 91, 9 + seal * 16, '#fff1b2', alpha, '#ff5c35');
@@ -1260,18 +1290,18 @@ function drawPhoenix(ctx, frame, sceneContext) {
   }
   if (frame >= 92) {
     const p = easeOut(segment(frame, 92, 122));
-    burst(ctx, target.x, target.y, 18 + p * 66, 15, '#ff9b43', alpha, .1);
-    ring(ctx, target.x, target.y, 15 + p * 54, '#ff4b30', 6, alpha);
-    ring(ctx, caster.x, caster.y, 12 + p * 43, '#fff1af', 5, alpha);
-    line(ctx, caster.x, caster.y + 30, caster.x, caster.y - 31 - p * 24, '#fffce2', 8, alpha * p);
-    for (let i = 0; i < 7; i += 1) diamond(ctx, caster.x - 27 + i * 9, caster.y + 24 - p * (30 + i % 2 * 15), 4, '#ffdf7a', alpha * p, '#ffffff');
+    burst(ctx, enemyField.x, enemyField.y, 18 + p * 66, 15, '#ff9b43', alpha, .1);
+    ring(ctx, enemyField.x, enemyField.y, 15 + p * 54, '#ff4b30', 6, alpha);
+    ring(ctx, revivedAlly.x, revivedAlly.y, 12 + p * 43, '#fff1af', 5, alpha);
+    line(ctx, revivedAlly.x, revivedAlly.y + 30, revivedAlly.x, revivedAlly.y - 31 - p * 24, '#fffce2', 8, alpha * p);
+    for (let i = 0; i < 7; i += 1) diamond(ctx, revivedAlly.x - 27 + i * 9, revivedAlly.y + 24 - p * (30 + i % 2 * 15), 4, '#ffdf7a', alpha * p, '#ffffff');
   }
 }
 
 function drawSylph(ctx, frame, sceneContext) {
   const alpha = fade(frame, 8, 99, 118);
-  const caster = scenePoint(sceneContext, 'caster', { x: 29, y: 55 });
-  const target = scenePoint(sceneContext, 'target', { x: 70, y: 48 });
+  const enemyField = sceneGroupPoint(sceneContext, 'hostileTargets', { x: 29, y: 48 });
+  const partyField = sceneGroupPoint(sceneContext, 'alliedTargets', { x: 70, y: 55 });
   const seal = easeOut(segment(frame, 0, 28));
   diamond(ctx, 96, 76, 17 + seal * 8, '#b9ffe4', alpha * seal, '#72d7b5');
   for (let i = 0; i < 4; i += 1) {
@@ -1282,18 +1312,18 @@ function drawSylph(ctx, frame, sceneContext) {
     const draw = easeInOut(segment(frame, 27, 78));
     for (let i = 0; i < 9; i += 1) {
       const t = (draw + i * .085) % 1;
-      const x = target.x + (caster.x - target.x) * t;
-      const y = target.y + (caster.y - target.y) * t - Math.sin(t * Math.PI) * (18 + i % 3 * 6);
+      const x = enemyField.x + (partyField.x - enemyField.x) * t;
+      const y = enemyField.y + (partyField.y - enemyField.y) * t - Math.sin(t * Math.PI) * (18 + i % 3 * 6);
       poly(ctx, [[x, y - 7], [x + 4, y], [x, y + 7], [x - 11, y]], '#bfffe8', alpha, '#65cda7', 1);
     }
-    ring(ctx, target.x, target.y, 13 + draw * 29, '#5cc89d', 3, alpha * draw);
+    ring(ctx, enemyField.x, enemyField.y, 13 + draw * 29, '#5cc89d', 3, alpha * draw);
   }
   if (frame >= 78) {
     const p = easeOut(segment(frame, 78, 99));
-    ring(ctx, caster.x, caster.y, 13 + p * 39, '#8ff3cb', 5, alpha);
+    ring(ctx, partyField.x, partyField.y, 13 + p * 39, '#8ff3cb', 5, alpha);
     for (let i = 0; i < 8; i += 1) {
       const a = i * Math.PI / 4;
-      poly(ctx, [[caster.x + Math.cos(a) * 11, caster.y + Math.sin(a) * 11], [caster.x + Math.cos(a - .2) * (26 + p * 32), caster.y + Math.sin(a - .2) * (22 + p * 26)], [caster.x + Math.cos(a + .2) * (26 + p * 32), caster.y + Math.sin(a + .2) * (22 + p * 26)]], '#dffff4', alpha * p, '#71dab6', 1);
+      poly(ctx, [[partyField.x + Math.cos(a) * 11, partyField.y + Math.sin(a) * 11], [partyField.x + Math.cos(a - .2) * (26 + p * 32), partyField.y + Math.sin(a - .2) * (22 + p * 26)], [partyField.x + Math.cos(a + .2) * (26 + p * 32), partyField.y + Math.sin(a + .2) * (22 + p * 26)]], '#dffff4', alpha * p, '#71dab6', 1);
     }
   }
 }
@@ -1312,12 +1342,14 @@ function drawOdin(ctx, frame, sceneContext) {
   }
   if (frame >= 96) {
     const p = easeOut(segment(frame, 96, 121));
-    const outcome = String(sceneContext?.outcome ?? sceneContext?.resultType ?? 'blade').toLowerCase();
-    const spear = outcome.includes('spear') || outcome.includes('gungnir') || outcome.includes('lance');
+    const outcome = String(sceneContext?.odinOutcome ?? sceneContext?.outcome ?? sceneContext?.resultType ?? 'blade').toLowerCase();
+    const spear = outcome.includes('spear') || outcome.includes('gungnir') || outcome.includes('lance') || outcome === 'mixed';
+    const blade = !spear || outcome === 'mixed';
     if (spear) {
       poly(ctx, [[28 - p * 12, 145], [119 + p * 28, 52], [108, 43], [145 + p * 16, 35], [137, 73], [128, 61]], '#e8dcff', alpha, '#8d69bd', 3);
       burst(ctx, 134, 57, 14 + p * 54, 12, '#f7efff', alpha, Math.PI / 12);
-    } else {
+    }
+    if (blade) {
       line(ctx, 29 - p * 14, 146 + p * 10, 158 + p * 10, 34 - p * 12, '#ffffff', 9, alpha);
       line(ctx, 38 - p * 10, 155, 166, 43 - p * 8, '#a776dd', 5, alpha);
       for (let i = 0; i < 7; i += 1) line(ctx, 52 + i * 14, 42, 35 + i * 18, 153, i % 2 ? '#482557' : '#c898eb', 3, alpha * p);
@@ -1420,8 +1452,10 @@ function drawMute(ctx, frame) {
   }
 }
 
-function drawBanish(ctx, frame) {
+function drawBanish(ctx, frame, sceneContext) {
   const alpha = fade(frame, 8, 95, 112);
+  const outcome = String(sceneContext?.banishOutcome ?? sceneContext?.outcome ?? sceneContext?.resultType ?? 'removed').toLowerCase();
+  const blocked = outcome.includes('block') || outcome.includes('resist');
   const iris = easeOut(segment(frame, 0, 26));
   for (let i = 0; i < 8; i += 1) {
     const a = i * Math.PI / 4 + frame * .025;
@@ -1431,22 +1465,30 @@ function drawBanish(ctx, frame) {
   if (frame >= 25) {
     const fold = easeInOut(segment(frame, 25, 76));
     for (let i = 0; i < 7; i += 1) {
-      const radius = 72 - fold * (38 + i * 3);
+      const radius = blocked ? 72 - fold * (17 + i) : 72 - fold * (38 + i * 3);
       ring(ctx, 96, 96, Math.max(4, radius), i % 2 ? '#8a63ad' : '#2c1a3e', 3, alpha, frame * .04 + i, frame * .04 + i + Math.PI * 1.3);
     }
-    poly(ctx, [[76 + fold * 17, 49 + fold * 42], [116 - fold * 17, 49 + fold * 42], [128 - fold * 28, 139 - fold * 42], [64 + fold * 28, 139 - fold * 42]], '#a692b9', alpha * (1 - fold * .75), '#f4efff', 2);
+    if (!blocked) poly(ctx, [[76 + fold * 17, 49 + fold * 42], [116 - fold * 17, 49 + fold * 42], [128 - fold * 28, 139 - fold * 42], [64 + fold * 28, 139 - fold * 42]], '#a692b9', alpha * (1 - fold * .75), '#f4efff', 2);
+    else poly(ctx, [[96, 42], [142, 66], [142, 126], [96, 151], [50, 126], [50, 66]], 'rgba(176,205,226,.24)', alpha * fold, '#e8f6ff', 4);
   }
   if (frame >= 76) {
     const p = easeOut(segment(frame, 76, 95));
-    ring(ctx, 96, 96, 27 - p * 24, '#ffffff', 5, alpha);
-    diamond(ctx, 96, 96, 18 - p * 15, '#050308', alpha, '#a47bc5');
-    for (let i = 0; i < 10; i += 1) line(ctx, 38 + i * 13, 48, 96 + (i - 5) * (1 - p), 96, '#473052', 2, alpha * p);
+    if (blocked) {
+      ring(ctx, 96, 96, 25 + p * 58, '#dff7ff', 6, alpha);
+      line(ctx, 51 - p * 8, 51 - p * 8, 141 + p * 8, 141 + p * 8, '#f5ffff', 8, alpha);
+      line(ctx, 141 + p * 8, 51 - p * 8, 51 - p * 8, 141 + p * 8, '#8ea8c2', 5, alpha);
+      burst(ctx, 96, 96, 18 + p * 55, 10, '#bfe9ff', alpha, Math.PI / 10);
+    } else {
+      ring(ctx, 96, 96, 27 - p * 24, '#ffffff', 5, alpha);
+      diamond(ctx, 96, 96, 18 - p * 15, '#050308', alpha, '#a47bc5');
+      for (let i = 0; i < 10; i += 1) line(ctx, 38 + i * 13, 48, 96 + (i - 5) * (1 - p), 96, '#473052', 2, alpha * p);
+    }
   }
 }
 
 function drawDrain(ctx, frame, sceneContext) {
   const alpha = fade(frame, 8, 92, 108);
-  const target = scenePoint(sceneContext, 'target', { x: 70, y: 49 });
+  const target = sceneGroupPoint(sceneContext, 'hostileTargets', { x: 70, y: 49 });
   const caster = scenePoint(sceneContext, 'caster', { x: 29, y: 55 });
   const mark = easeOut(segment(frame, 0, 25));
   ring(ctx, target.x, target.y, 13 + mark * 28, '#c63f5f', 4, alpha * mark);
@@ -1470,7 +1512,7 @@ function drawDrain(ctx, frame, sceneContext) {
 
 function drawOsmose(ctx, frame, sceneContext) {
   const alpha = fade(frame, 8, 95, 112);
-  const target = scenePoint(sceneContext, 'target', { x: 70, y: 49 });
+  const target = sceneGroupPoint(sceneContext, 'hostileTargets', { x: 70, y: 49 });
   const caster = scenePoint(sceneContext, 'caster', { x: 29, y: 55 });
   const mark = easeOut(segment(frame, 0, 26));
   diamond(ctx, target.x, target.y, 16 + mark * 12, '#658edf', alpha * mark, '#d9f4ff');
@@ -1493,6 +1535,238 @@ function drawOsmose(ctx, frame, sceneContext) {
     ring(ctx, caster.x, caster.y, 11 + p * 42, '#75dafa', 5, alpha);
     ring(ctx, caster.x, caster.y, 18 + p * 51, '#9f8cf2', 3, alpha);
     for (let i = 0; i < 6; i += 1) diamond(ctx, caster.x - 25 + i * 10, caster.y - 17 + (i % 2) * 34, 4, '#d8f8ff', alpha * p);
+  }
+}
+
+function figureGlyph(ctx, x, y, scale, fill, alpha = 1, stroke = '#ffffff') {
+  ring(ctx, x, y - 28 * scale, 8 * scale, stroke, Math.max(1, 3 * scale), alpha);
+  poly(ctx, [[x, y - 18 * scale], [x + 11 * scale, y + 5 * scale], [x + 7 * scale, y + 22 * scale], [x + 18 * scale, y + 42 * scale], [x + 8 * scale, y + 46 * scale], [x, y + 29 * scale], [x - 8 * scale, y + 46 * scale], [x - 18 * scale, y + 42 * scale], [x - 7 * scale, y + 22 * scale], [x - 11 * scale, y + 5 * scale]], fill, alpha, stroke, Math.max(1, 2 * scale));
+  line(ctx, x - 10 * scale, y - 3 * scale, x - 25 * scale, y + 14 * scale, stroke, Math.max(1, 3 * scale), alpha);
+  line(ctx, x + 10 * scale, y - 3 * scale, x + 25 * scale, y + 14 * scale, stroke, Math.max(1, 3 * scale), alpha);
+}
+
+function drawMini(ctx, frame) {
+  const alpha = fade(frame, 7, 80, 94);
+  const frameIn = easeOut(segment(frame, 0, 22));
+  poly(ctx, [[47, 39], [145, 39], [145, 151], [47, 151]], null, alpha * frameIn, '#cbe9ff', 3);
+  for (let i = 0; i < 7; i += 1) {
+    const y = 48 + i * 16;
+    line(ctx, i % 2 ? 47 : 40, y, 56, y, '#8bb6d5', i % 2 ? 2 : 3, alpha * frameIn);
+    line(ctx, i % 2 ? 145 : 152, y, 136, y, '#8bb6d5', i % 2 ? 2 : 3, alpha * frameIn);
+  }
+  const shrink = 1 - easeInOut(segment(frame, 21, 64)) * .76;
+  figureGlyph(ctx, 96, 92 + (1 - shrink) * 31, shrink, '#7ba3c7', alpha, '#f1ffff');
+  if (frame >= 64) {
+    const p = easeOut(segment(frame, 64, 80));
+    ring(ctx, 96, 123, 9 + p * 35, '#9bd8f0', 3, alpha);
+    for (let i = 0; i < 8; i += 1) line(ctx, 54 + i * 12, 52, 86 + i * 3, 119, '#dff8ff', 2, alpha * p);
+    diamond(ctx, 96, 123, 5, '#ffffff', alpha, '#6faac7');
+  }
+}
+
+function drawToad(ctx, frame) {
+  const alpha = fade(frame, 7, 82, 96);
+  const transform = easeOut(segment(frame, 0, 23));
+  ring(ctx, 96, 96, 18 + transform * 48, '#a8f08d', 4, alpha * transform);
+  for (let i = 0; i < 6; i += 1) {
+    const a = i * Math.PI / 3 + frame * .035;
+    diamond(ctx, 96 + Math.cos(a) * (27 + transform * 30), 96 + Math.sin(a) * (22 + transform * 23), 5, i % 2 ? '#d9ffae' : '#79c77b', alpha * transform, '#ffffff');
+  }
+  const compress = 1 - easeInOut(segment(frame, 22, 65)) * .6;
+  figureGlyph(ctx, 96, 86 + (1 - compress) * 38, compress, '#6fb975', alpha, '#dffff0');
+  if (frame >= 55) {
+    const hop = easeOut(segment(frame, 55, 81));
+    const y = 124 - Math.sin(hop * Math.PI) * 28;
+    diamond(ctx, 96, y, 12, '#79cf75', alpha, '#eaffc9');
+    diamond(ctx, 77, y + 12, 7, '#5aa966', alpha, '#d9ffbc');
+    diamond(ctx, 115, y + 12, 7, '#5aa966', alpha, '#d9ffbc');
+  }
+  if (frame >= 65) {
+    const p = easeOut(segment(frame, 65, 82));
+    for (let i = 0; i < 4; i += 1) ring(ctx, 96, 139, 12 + p * (17 + i * 12), '#81d8c1', 3, alpha * (1 - i * .12), 0, Math.PI);
+  }
+}
+
+function drawBreak(ctx, frame) {
+  const alpha = fade(frame, 8, 95, 112);
+  const lattice = easeOut(segment(frame, 0, 26));
+  for (let i = 0; i < 6; i += 1) {
+    const a = i * Math.PI / 3;
+    line(ctx, 96 + Math.cos(a) * 19, 96 + Math.sin(a) * 19, 96 + Math.cos(a) * (42 + lattice * 31), 96 + Math.sin(a) * (42 + lattice * 31), '#ab9e8b', 3, alpha * lattice);
+  }
+  figureGlyph(ctx, 96, 84, 1, '#7b7a78', alpha, '#d8d2c8');
+  if (frame >= 25) {
+    const stone = easeOut(segment(frame, 25, 75));
+    const facets = [[96, 55, 76, 86, 95, 94], [96, 55, 117, 84, 95, 94], [76, 86, 95, 94, 82, 124], [117, 84, 95, 94, 111, 124], [82, 124, 95, 94, 111, 124], [82, 124, 96, 143, 111, 124]];
+    facets.forEach((points, index) => poly(ctx, [[points[0], points[1]], [points[2], points[3]], [points[4], points[5]]], index % 2 ? '#77736c' : '#9c968b', alpha * stone, '#d9d1c2', 2));
+  }
+  if (frame >= 75) {
+    const p = easeOut(segment(frame, 75, 95));
+    poly(ctx, [[96, 29 - p * 6], [137 + p * 14, 55], [153 + p * 9, 112], [118, 158 + p * 5], [74, 158 + p * 5], [39 - p * 9, 112], [55 - p * 14, 55]], 'rgba(95,91,84,.32)', alpha * p, '#e2ddd4', 5);
+    for (let i = 0; i < 5; i += 1) line(ctx, 58 + i * 19, 45, 71 + i * 13, 151, '#605b55', 3, alpha * p);
+  }
+}
+
+function drawDeath(ctx, frame) {
+  const alpha = fade(frame, 8, 101, 120);
+  const gate = easeOut(segment(frame, 0, 29));
+  poly(ctx, [[43, 151], [51, 61 + (1 - gate) * 55], [96, 28 + (1 - gate) * 83], [141, 61 + (1 - gate) * 55], [149, 151]], 'rgba(21,5,25,.7)', alpha * gate, '#bd496c', 4);
+  figureGlyph(ctx, 96, 85, 1, '#3d253e', alpha, '#b783a5');
+  if (frame >= 28) {
+    const soul = easeInOut(segment(frame, 28, 81));
+    figureGlyph(ctx, 96 + Math.sin(soul * Math.PI * 2) * 13, 84 - soul * 78, .58, '#d9e9ff', alpha * soul, '#ffffff');
+    for (let i = 0; i < 8; i += 1) diamond(ctx, 71 + i * 7, 119 - soul * (41 + i * 4), 3, '#d7c7e8', alpha * soul);
+  }
+  if (frame >= 81) {
+    const p = easeOut(segment(frame, 81, 101));
+    line(ctx, 35 - p * 8, 65, 157 + p * 8, 123, '#ee6685', 8, alpha);
+    line(ctx, 42 - p * 8, 52, 150 + p * 8, 137, '#3a102e', 5, alpha);
+    ring(ctx, 96, 96, 19 + p * 65, '#a52e55', 5, alpha);
+    diamond(ctx, 96, 96, 13 - p * 9, '#070308', alpha, '#e67995');
+  }
+}
+
+function drawArise(ctx, frame) {
+  const alpha = fade(frame, 9, 111, 132);
+  const gather = easeOut(segment(frame, 0, 31));
+  const fragments = [[48, 128], [66, 61], [95, 37], [127, 59], [145, 126], [105, 147], [75, 145]];
+  fragments.forEach(([x, y], index) => {
+    const a = index * Math.PI * 2 / fragments.length + frame * .02;
+    diamond(ctx, x + Math.cos(a) * (1 - gather) * 20, y + Math.sin(a) * (1 - gather) * 20, 5 + index % 3, index % 2 ? '#bceaff' : '#fff0a8', alpha * gather, '#ffffff');
+  });
+  if (frame >= 30) {
+    const assemble = easeOut(segment(frame, 30, 89));
+    const y = 120 - assemble * 34;
+    figureGlyph(ctx, 96, y, .55 + assemble * .45, '#b5e8ed', alpha * assemble, '#ffffff');
+    poly(ctx, [[96, y], [48 - assemble * 14, y - 28], [67, y + 6], [43 - assemble * 17, y + 34], [84, y + 24]], 'rgba(171,238,255,.25)', alpha * assemble, '#dffaff', 3);
+    poly(ctx, [[96, y], [144 + assemble * 14, y - 28], [125, y + 6], [149 + assemble * 17, y + 34], [108, y + 24]], 'rgba(255,230,151,.25)', alpha * assemble, '#fff2bd', 3);
+  }
+  if (frame >= 89) {
+    const p = easeOut(segment(frame, 89, 111));
+    ring(ctx, 96, 97, 15 + p * 74, '#ffffff', 6, alpha);
+    burst(ctx, 96, 97, 18 + p * 69, 18, '#dffff7', alpha, Math.PI / 18);
+    line(ctx, 96, 143 + p * 8, 96, 43 - p * 20, '#fffbe1', 9, alpha * p);
+  }
+}
+
+function drawBlink(ctx, frame) {
+  const alpha = fade(frame, 7, 86, 102);
+  const mirror = easeOut(segment(frame, 0, 24));
+  poly(ctx, [[96, 33], [140, 55], [151, 112], [96, 158], [41, 112], [52, 55]], 'rgba(100,190,220,.15)', alpha * mirror, '#b7edff', 3);
+  figureGlyph(ctx, 96, 82, 1, '#77a8bf', alpha, '#efffff');
+  if (frame >= 23) {
+    const split = easeOut(segment(frame, 23, 69));
+    figureGlyph(ctx, 96 - split * 42, 82, .92, '#6fc6df', alpha * split * .72, '#d8f8ff');
+    figureGlyph(ctx, 96 + split * 42, 82, .92, '#988ad2', alpha * split * .72, '#f0eaff');
+    for (let i = 0; i < 6; i += 1) line(ctx, 96, 46 + i * 17, 96 + (i % 2 ? 1 : -1) * split * 58, 46 + i * 17, '#cdefff', 2, alpha * split);
+  }
+  if (frame >= 69) {
+    const p = easeOut(segment(frame, 69, 86));
+    ring(ctx, 54, 101, 12 + p * 30, '#8fe5f2', 4, alpha);
+    ring(ctx, 138, 101, 12 + p * 30, '#b9a8ed', 4, alpha);
+    diamond(ctx, 54, 101, 7, '#eaffff', alpha); diamond(ctx, 138, 101, 7, '#f6efff', alpha);
+  }
+}
+
+function drawBerserk(ctx, frame) {
+  const alpha = fade(frame, 7, 86, 102);
+  const pulse = easeOut(segment(frame, 0, 24));
+  for (let i = 0; i < 4; i += 1) ring(ctx, 96, 98, 17 + i * 15 + Math.sin(frame * .22 + i) * 5, i % 2 ? '#8d273b' : '#f16a45', 4, alpha * pulse);
+  figureGlyph(ctx, 96, 85, 1, '#622536', alpha, '#ffad87');
+  if (frame >= 23) {
+    const overrun = easeOut(segment(frame, 23, 69));
+    for (let i = 0; i < 12; i += 1) {
+      const a = i * Math.PI / 6;
+      const inner = 26 + (i % 3) * 8;
+      const outer = inner + overrun * (34 + i % 2 * 14);
+      poly(ctx, [[96 + Math.cos(a - .11) * inner, 95 + Math.sin(a - .11) * inner], [96 + Math.cos(a) * outer, 95 + Math.sin(a) * outer], [96 + Math.cos(a + .11) * inner, 95 + Math.sin(a + .11) * inner]], i % 2 ? '#ec492f' : '#7f1d38', alpha * overrun, '#ffc176', 1);
+    }
+  }
+  if (frame >= 69) {
+    const p = easeOut(segment(frame, 69, 86));
+    poly(ctx, [[96, 24 - p * 7], [112, 57], [151 + p * 10, 45], [132, 86], [165 + p * 8, 107], [124, 114], [135, 160 + p * 7], [96, 132], [57, 160 + p * 7], [68, 114], [27 - p * 8, 107], [60, 86], [41 - p * 10, 45], [80, 57]], null, alpha, '#ff714a', 5);
+    burst(ctx, 96, 98, 19 + p * 67, 14, '#ffbd6a', alpha, frame * .04);
+  }
+}
+
+function drawDispel(ctx, frame) {
+  const alpha = fade(frame, 8, 93, 110);
+  const orbits = easeOut(segment(frame, 0, 26));
+  const colors = ['#7ee8ff', '#ffe781', '#a0f0b3', '#dc9aff'];
+  colors.forEach((color, index) => ring(ctx, 96, 96, 22 + index * 14, color, 3, alpha * orbits, frame * .025 + index, frame * .025 + index + Math.PI * 1.55));
+  for (let i = 0; i < 8; i += 1) {
+    const a = i * Math.PI / 4 + frame * .018;
+    diamond(ctx, 96 + Math.cos(a) * 61, 96 + Math.sin(a) * 49, 5, colors[i % colors.length], alpha * orbits, '#ffffff');
+  }
+  if (frame >= 25) {
+    const peel = easeOut(segment(frame, 25, 74));
+    colors.forEach((color, index) => {
+      const a = index * Math.PI / 2 + peel * Math.PI * .7;
+      line(ctx, 96 + Math.cos(a) * 18, 96 + Math.sin(a) * 18, 96 + Math.cos(a) * (34 + peel * 66), 96 + Math.sin(a) * (34 + peel * 66), color, 5, alpha * peel);
+    });
+  }
+  if (frame >= 74) {
+    const p = easeOut(segment(frame, 74, 93));
+    for (let i = 0; i < 12; i += 1) {
+      const a = i * Math.PI / 6;
+      const x = 96 + Math.cos(a) * (26 + p * 67); const y = 96 + Math.sin(a) * (21 + p * 55);
+      poly(ctx, [[x - 5, y - 7], [x + 7, y - 3], [x + 3, y + 8], [x - 6, y + 4]], colors[i % colors.length], alpha * (1 - p * .38), '#ffffff', 1);
+    }
+    ring(ctx, 96, 96, 47 - p * 42, '#ffffff', 5, alpha);
+  }
+}
+
+function drawEsuna(ctx, frame) {
+  const alpha = fade(frame, 8, 98, 116);
+  const diagnose = easeOut(segment(frame, 0, 28));
+  const knots = [[62, 65], [96, 48], [132, 68], [130, 119], [96, 143], [60, 120]];
+  const colors = ['#9d78cd', '#79c2df', '#d68b74', '#88b76f', '#d9c16e', '#8f7baf'];
+  knots.forEach(([x, y], index) => {
+    ring(ctx, x, y, 9 + index % 3 * 2, colors[index], 3, alpha * diagnose);
+    line(ctx, x - 8, y - 8, x + 8, y + 8, '#4d3f63', 2, alpha * diagnose);
+    line(ctx, x + 8, y - 8, x - 8, y + 8, '#4d3f63', 2, alpha * diagnose);
+  });
+  if (frame >= 27) {
+    const prism = easeOut(segment(frame, 27, 78));
+    poly(ctx, [[96, 28], [151, 64], [142, 132], [96, 162], [50, 132], [41, 64]], 'rgba(178,239,235,.18)', alpha * prism, '#eafff9', 4);
+    knots.forEach(([x, y], index) => line(ctx, x, y, 96, 96, colors[index], 3, alpha * prism));
+    diamond(ctx, 96, 96, 11 + prism * 10, '#f0ffff', alpha, '#8fe5d2');
+  }
+  if (frame >= 78) {
+    const p = easeOut(segment(frame, 78, 98));
+    knots.forEach(([x, y], index) => {
+      const outX = x + (x - 96) * p; const outY = y + (y - 96) * p;
+      burst(ctx, outX, outY, 7 + p * (15 + index), 4 + index, colors[index], alpha * (1 - p * .35), index * .1);
+    });
+    ring(ctx, 96, 96, 15 + p * 68, '#effff8', 6, alpha);
+    line(ctx, 96, 66, 96, 126, '#ffffff', 8, alpha * p); line(ctx, 66, 96, 126, 96, '#ffffff', 8, alpha * p);
+  }
+}
+
+function drawConfuse(ctx, frame) {
+  const alpha = fade(frame, 7, 84, 100);
+  const mark = easeOut(segment(frame, 0, 23));
+  ring(ctx, 96, 96, 54, '#d0a2eb', 4, alpha * mark);
+  for (let i = 0; i < 8; i += 1) {
+    const a = i * Math.PI / 4;
+    const next = a + (i % 2 ? .85 : -.85);
+    line(ctx, 96 + Math.cos(a) * 34, 96 + Math.sin(a) * 34, 96 + Math.cos(next) * 50, 96 + Math.sin(next) * 50, i % 2 ? '#79d3e5' : '#d890de', 3, alpha * mark);
+  }
+  if (frame >= 22) {
+    const orbit = easeInOut(segment(frame, 22, 67));
+    for (let i = 0; i < 3; i += 1) {
+      const a = orbit * Math.PI * (4 + i) + i * Math.PI * 2 / 3;
+      figureGlyph(ctx, 96 + Math.cos(a) * (20 + i * 15), 78 + Math.sin(a) * (15 + i * 10), .38 + i * .08, i % 2 ? '#8abbd1' : '#a17fba', alpha * orbit, '#efffff');
+    }
+    line(ctx, 96, 96, 96 + Math.cos(orbit * Math.PI * 5) * 43, 96 + Math.sin(orbit * Math.PI * 5) * 43, '#fff0a1', 5, alpha * orbit);
+  }
+  if (frame >= 67) {
+    const p = easeOut(segment(frame, 67, 84));
+    for (let i = 0; i < 9; i += 1) {
+      const a = i * Math.PI * 2 / 9 + p * Math.PI;
+      diamond(ctx, 96 + Math.cos(a) * (23 + p * 53), 96 + Math.sin(a) * (19 + p * 43), 5, i % 2 ? '#76d7e8' : '#d087dc', alpha, '#ffffff');
+    }
+    poly(ctx, [[96, 40], [112, 76], [151, 59], [126, 96], [151, 132], [111, 117], [96, 153], [81, 117], [41, 132], [66, 96], [41, 59], [80, 76]], null, alpha, '#f0c2ff', 4);
   }
 }
 
@@ -1774,9 +2048,19 @@ function renderScene(ctx, sceneId, frame, sceneContext = {}) {
   if (sceneId === 'carbuncle') return drawCarbuncle(ctx, frame);
   if (sceneId === 'quick') return drawQuick(ctx, frame);
   if (sceneId === 'mute') return drawMute(ctx, frame);
-  if (sceneId === 'banish') return drawBanish(ctx, frame);
+  if (sceneId === 'banish') return drawBanish(ctx, frame, sceneContext);
   if (sceneId === 'drain') return drawDrain(ctx, frame, sceneContext);
   if (sceneId === 'osmose') return drawOsmose(ctx, frame, sceneContext);
+  if (sceneId === 'mini') return drawMini(ctx, frame);
+  if (sceneId === 'toad') return drawToad(ctx, frame);
+  if (sceneId === 'break') return drawBreak(ctx, frame);
+  if (sceneId === 'death') return drawDeath(ctx, frame);
+  if (sceneId === 'arise') return drawArise(ctx, frame);
+  if (sceneId === 'blink') return drawBlink(ctx, frame);
+  if (sceneId === 'berserk') return drawBerserk(ctx, frame);
+  if (sceneId === 'dispel') return drawDispel(ctx, frame);
+  if (sceneId === 'esuna') return drawEsuna(ctx, frame);
+  if (sceneId === 'confuse') return drawConfuse(ctx, frame);
   return undefined;
 }
 
@@ -1825,7 +2109,20 @@ function renderSpellCanvasFrame(canvas, sceneId, frame, sceneContext = {}) {
   const scratchCtx = scratch?.getContext?.('2d', { alpha: true, desynchronized: true, willReadFrequently: true });
   if (!ctx || !scratchCtx || !spec) return false;
   setup(scratchCtx);
-  renderScene(scratchCtx, sceneId, Math.max(0, Math.min(spec.frameCount - 1, Math.floor(frame))), sceneContext);
+  const stageDrawWidth = Math.min(LOGICAL_SIZE, canvas.width);
+  const stageDrawHeight = Math.min(LOGICAL_SIZE, canvas.height);
+  const renderContext = spec.sceneSpace === 'stage' ? {
+    ...sceneContext,
+    stageMapping: {
+      width: canvas.width,
+      height: canvas.height,
+      drawX: (canvas.width - stageDrawWidth) / 2,
+      drawY: (canvas.height - stageDrawHeight) / 2,
+      drawWidth: stageDrawWidth,
+      drawHeight: stageDrawHeight,
+    },
+  } : sceneContext;
+  renderScene(scratchCtx, sceneId, Math.max(0, Math.min(spec.frameCount - 1, Math.floor(frame))), renderContext);
   quantizePixelFrame(scratchCtx);
   setup(ctx, canvas.width, canvas.height);
   const suppliedTargets = Array.isArray(sceneContext.targets) ? sceneContext.targets : [];

@@ -68,7 +68,16 @@ function operationToAction(operation, actor) {
     case 'damage.max_hp_ratio': return { ...common, kind: 'max-hp-ratio-damage', ratio: operation.ratio, heavyImmune: operation.heavyImmune };
     case 'damage.to_critical': return { ...common, kind: 'critical-damage', heavyImmune: operation.heavyImmune };
     case 'damage.mp_ratio': return { ...common, kind: 'mp-ratio-damage', ratio: operation.ratio };
-    case 'drain.hp': return { ...common, kind: 'magic-attack', power: operation.power, drain: true };
+    case 'drain.hp': return {
+      ...common,
+      kind: 'magic-attack',
+      power: operation.power,
+      ff5Power: operation.ff5Power,
+      formula: operation.formula,
+      hits: operation.hits,
+      element: operation.element,
+      drain: true,
+    };
     case 'drain.mp': return { ...common, kind: 'mp-drain', power: operation.power };
     case 'heal.hp': return { ...common, kind: 'heal', healAmount: operation.amount, ff5Power: operation.ff5Power, formula: operation.formula };
     case 'heal.caster_hp': return { ...common, kind: 'heal', healAmount: actor.hp };
@@ -95,7 +104,7 @@ function operationToAction(operation, actor) {
  * Resolve a full action given the actor, the chosen action definition,
  * and the target(s). Returns a log-friendly result object.
  */
-export function resolveAction({ actor, action, targets, battleUnits = targets }) {
+export function resolveAction({ actor, action, targets, battleUnits = targets, battleContext = null }) {
   targets = (targets ?? []).filter(Boolean);
   if (action.disabledReason) return [{ type: 'unavailable', targetUid: actor.uid, reason: action.disabledReason }];
   if (targets.length === 0) return [{ type: 'invalid-target', targetUid: actor.uid }];
@@ -112,8 +121,9 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
   if (action.operations?.length && !action._compiledOperation) {
     if (action.mpCost) actor.spendMp(Math.ceil(action.mpCost * (actor.mpCostMultiplier ?? 1)));
     return action.operations.flatMap((operation) => {
+      const targetPool = operation.targetScope === 'selected' ? targets : (battleUnits ?? targets);
       const operationTargets = operation.targetSide
-        ? (battleUnits ?? targets).filter((target) => operation.targetSide === 'enemy' ? target.isEnemy !== actor.isEnemy : target.isEnemy === actor.isEnemy)
+        ? targetPool.filter((target) => operation.targetSide === 'enemy' ? target.isEnemy !== actor.isEnemy : target.isEnemy === actor.isEnemy)
         : targets;
       const livingTargets = operation.op === 'revive' ? operationTargets : operationTargets.filter((target) => target.isAlive());
       const eligibleTargets = operation.conditionalLevel
@@ -122,11 +132,13 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
       if (operation.conditionalLevel && eligibleTargets.length === 0) {
         return [{ type: 'miss', targetUid: operationTargets[0]?.uid ?? actor.uid, hits: 1 }];
       }
+      if (eligibleTargets.length === 0) return [];
       return resolveAction({
         actor,
         action: { ...operationToAction(operation, actor), element: operation.element ?? action.element },
-        targets: eligibleTargets.length ? eligibleTargets : [actor],
+        targets: eligibleTargets,
         battleUnits,
+        battleContext,
       });
     });
   }
@@ -154,11 +166,11 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
           ? (action.power ?? 1) * action.sameLevelMultiplier
           : action.power;
         let damage = resolvePhysicalDamage(actor, target, { ...action, power: sameLevelPower, attackMultiplier });
-        if (damage > 0 && target.physicalBarrier > 0) {
-          const absorbed = Math.min(target.physicalBarrier, damage);
-          target.physicalBarrier -= absorbed;
+        if (damage > 0 && !target.isEnemy && (battleContext?.partyPhysicalBarrier ?? 0) > 0) {
+          const absorbed = Math.min(battleContext.partyPhysicalBarrier, damage);
+          battleContext.partyPhysicalBarrier = Math.max(0, battleContext.partyPhysicalBarrier - absorbed);
           damage -= absorbed;
-          results.push({ type: 'barrier-absorb', targetUid: target.uid, amount: absorbed, remaining: target.physicalBarrier });
+          results.push({ type: 'barrier-absorb', targetUid: target.uid, amount: absorbed, remaining: battleContext.partyPhysicalBarrier, shared: 'party' });
         }
         if (damage <= 0) blockedHits += 1;
         else dealtTotal += target.applyDamage(damage);
@@ -425,10 +437,17 @@ export function resolveAction({ actor, action, targets, battleUnits = targets })
     }
     case 'barrier-physical': {
       const total = action.amount ?? Math.max(400, actor.level * 60 + actor.magic * 10);
-      targets.filter((target) => target.isAlive()).forEach((target) => {
-        target.physicalBarrier = Math.max(target.physicalBarrier ?? 0, total);
-        results.push({ type: 'barrier', targetUid: target.uid, amount: target.physicalBarrier });
-      });
+      const protectedParty = targets.filter((target) => target.isAlive() && !target.isEnemy);
+      if (protectedParty.length && battleContext) {
+        battleContext.partyPhysicalBarrier = Math.max(battleContext.partyPhysicalBarrier ?? 0, total);
+        protectedParty.forEach((target) => results.push({
+          type: 'barrier',
+          targetUid: target.uid,
+          amount: battleContext.partyPhysicalBarrier,
+          remaining: battleContext.partyPhysicalBarrier,
+          shared: 'party',
+        }));
+      }
       break;
     }
     case 'sacrifice': {

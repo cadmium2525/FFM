@@ -987,7 +987,8 @@ export class BattleUI {
     const sequence = document.createElement('div');
     const profile = battleEffectRenderProfile(action, results);
     const { family, motion, geometry, impact } = profile;
-    const targetUnits = [...new Set(results.map((result) => result.targetUid).filter(Boolean))]
+    const visualResults = results.filter((result) => !['invalid-target', 'unavailable', 'insufficient-mp'].includes(result.type));
+    const targetUnits = [...new Set(visualResults.map((result) => result.targetUid).filter(Boolean))]
       .map((uid) => this.battleManager?.units.find((unit) => unit.uid === uid))
       .filter(Boolean);
     const alliedTargets = actor ? targetUnits.filter((unit) => unit.isEnemy === actor.isEnemy) : [];
@@ -1042,18 +1043,35 @@ export class BattleUI {
       };
       const casterPointRaw = pointFor(actor) ?? { x: actor?.isEnemy ? 24 : 78, y: 42 };
       const targetPoints = targetUnits.map(pointFor).filter(Boolean);
-      const targetPointRaw = targetPoints.length ? {
-        x: targetPoints.reduce((sum, point) => sum + point.x, 0) / targetPoints.length,
-        y: targetPoints.reduce((sum, point) => sum + point.y, 0) / targetPoints.length,
-      } : (hostileTargets.length ? { x: actor?.isEnemy ? 78 : 24, y: 48 } : casterPointRaw);
+      const hostileTargetPoints = hostileTargets.map(pointFor).filter(Boolean);
+      const alliedTargetPoints = alliedTargets.map(pointFor).filter(Boolean);
+      const centroid = (points, fallback) => points.length ? {
+        x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
+        y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
+      } : fallback;
+      const hostileFallback = { x: actor?.isEnemy ? 78 : 24, y: 48 };
+      const targetPointRaw = hostileTargetPoints.length
+        ? centroid(hostileTargetPoints, hostileFallback)
+        : centroid(alliedTargetPoints, casterPointRaw);
+      const odinHasBlade = results.some((result) => result.type === 'status' && result.statuses?.includes('ko'));
+      const odinHasGungnir = results.some((result) => result.odinFallback === 'gungnir');
+      const odinOutcome = odinHasBlade && odinHasGungnir ? 'mixed' : odinHasGungnir ? 'gungnir' : odinHasBlade ? 'blade' : null;
+      const banishRemoved = results.some((result) => result.type === 'removed');
+      const banishBlocked = results.some((result) => result.type === 'blocked');
+      const banishOutcome = banishRemoved && banishBlocked ? 'mixed' : banishRemoved ? 'removed' : banishBlocked ? 'blocked' : null;
       pixelSceneContext = {
         casterX: casterPointRaw.x,
         casterY: casterPointRaw.y,
         targetX: targetPointRaw.x,
         targetY: targetPointRaw.y,
         targets: targetPoints,
+        hostileTargets: hostileTargetPoints,
+        alliedTargets: alliedTargetPoints,
         targetMode: mixedTarget ? 'mixed' : multiTarget ? 'multi' : friendlyTarget ? 'friendly' : 'hostile',
         actorIsEnemy: Boolean(actor?.isEnemy),
+        odinOutcome,
+        banishOutcome,
+        resultTypes: results.map((result) => result.type),
       };
       // direction-player mirrors the complete sequence so its logical
       // coordinates must be mirrored as well. This keeps pixel spell art on

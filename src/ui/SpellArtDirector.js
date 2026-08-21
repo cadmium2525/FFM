@@ -106,6 +106,16 @@ export const SPELL_CHOREOGRAPHIES = Object.freeze({
   magic_banish: scene('banish', [beat('void-aperture', 8), beat('folding-target', 1), beat('erase-point', 10)], 1.22),
   magic_drain: scene('drain', [beat('life-mark', 1), beat('hp-droplet', 8), beat('red-return', 2)], 1.18),
   magic_osmose: scene('osmose', [beat('mana-mark', 1), beat('mp-rune', 12), beat('double-blue-return', 2)], 1.2),
+  magic_mini: scene('mini', [beat('scale-frame', 2), beat('shrinking-silhouette', 1), beat('tiny-lock', 8)], 1.06),
+  magic_toad: scene('toad', [beat('transform-ring', 6), beat('compressed-silhouette', 1), beat('hop-ripple', 4)], 1.08),
+  magic_break: scene('break', [beat('stone-ray', 6), beat('silhouette-facet', 6), beat('petrify-prison', 5)], 1.2),
+  magic_death: scene('death', [beat('death-gate', 1), beat('separated-soul', 1), beat('sever-line', 2)], 1.24),
+  magic_arise: scene('arise', [beat('soul-fragment', 7), beat('spirit-reassembly', 1), beat('full-revival-column', 18)], 1.3),
+  magic_blink: scene('blink', [beat('mirror-trace', 1), beat('afterimage', 3), beat('double-decoy', 2)], 1.14),
+  magic_berserk: scene('berserk', [beat('rage-heartbeat', 4), beat('jagged-aura', 12), beat('overrun-crown', 14)], 1.16),
+  magic_dispel: scene('dispel', [beat('buff-orbit', 4), beat('seal-peel', 4), beat('layer-shard', 12)], 1.18),
+  magic_esuna: scene('esuna', [beat('status-knot', 6), beat('diagnosis-prism', 1), beat('multi-cleanse', 6)], 1.22),
+  magic_confuse: scene('confuse', [beat('broken-compass', 8), beat('orbiting-silhouette', 3), beat('direction-scramble', 9)], 1.14),
 });
 
 export const SPELL_ART_BLUEPRINTS = Object.freeze({

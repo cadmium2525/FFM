@@ -6,6 +6,12 @@
 import { techniqueCatalogById } from '../data/techniqueCatalog.js';
 import { bossRegistry } from '../data/bosses.js';
 
+const TECHNIQUE_VISUAL_ALIASES = Object.freeze({
+  'flame-thrower': 'magic_flame_thrower',
+  'firaga-all': 'magic_firaga',
+  'aeroga-all': 'magic_aeroga',
+});
+
 /** Converts one techniqueCatalog.json entry into the action-object shape
  * ActionResolver expects (id/name/kind/target/ctbCost + kind-specific
  * fields). `name` is always the bare technique name — never boss-prefixed —
@@ -16,6 +22,7 @@ function techniqueToAction(id) {
   const t = techniqueCatalogById[id];
   if (!t) throw new Error(`Unknown technique id in actionPattern: ${id}`);
   const action = { id: t.id, name: t.baseName, kind: t.kind, target: t.target, ctbCost: t.ctbCost };
+  if (TECHNIQUE_VISUAL_ALIASES[t.id]) action.visualId = TECHNIQUE_VISUAL_ALIASES[t.id];
   if (t.power != null) action.power = t.power;
   if (t.ff5Power != null) action.ff5Power = t.ff5Power;
   if (t.formula) action.formula = t.formula;

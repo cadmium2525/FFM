@@ -8,6 +8,7 @@ class FakeContext2D {
     this.paintOps = 0;
     this.opCounts = {};
     this.drawCalls = [];
+    this.arcs = [];
   }
 
   count(name) { this.paintOps += 1; this.opCounts[name] = (this.opCounts[name] ?? 0) + 1; }
@@ -22,7 +23,7 @@ class FakeContext2D {
   closePath() {}
   translate() {}
   rotate() {}
-  arc() { this.count('arc'); }
+  arc(...args) { this.count('arc'); this.arcs.push(args); }
   fill() { this.count('fill'); }
   stroke() { this.count('stroke'); }
   fillRect() { this.count('fillRect'); }
@@ -104,6 +105,8 @@ const priorityScenes = [
   'transfusion', 'level-3-flare', 'off-guard', 'dark-spark',
   'phoenix', 'sylph', 'odin', 'golem', 'carbuncle',
   'quick', 'mute', 'banish', 'drain', 'osmose',
+  'mini', 'toad', 'break', 'death', 'arise',
+  'blink', 'berserk', 'dispel', 'esuna', 'confuse',
 ];
 const impactSignatures = priorityScenes.map((sceneId) => {
   const spec = SPELL_PIXEL_SEQUENCES[sceneId];
@@ -122,6 +125,62 @@ for (const sceneId of ['white-wind', 'mighty-guard']) {
   });
   assert.equal(canvas.context.drawCalls.length, 1, `${sceneId}: party-wide field must render once, not once per unit`);
 }
+
+const crossSideContext = {
+  casterX: 78,
+  casterY: 42,
+  targetX: 52,
+  targetY: 50,
+  targets: [{ x: 24, y: 48 }, { x: 81, y: 60 }],
+  hostileTargets: [{ x: 24, y: 48 }],
+  alliedTargets: [{ x: 81, y: 60 }],
+  targetMode: 'mixed',
+};
+const stageArcCenters = (sceneId) => {
+  const before = canvases.length;
+  const canvas = createSpellCanvas(sceneId);
+  renderSpellCanvasFrame(canvas, sceneId, SPELL_PIXEL_SEQUENCES[sceneId].impactFrames[0], crossSideContext);
+  const scratchCanvas = canvases[before + 1];
+  const [, , , , , drawX, drawY, drawWidth, drawHeight] = canvas.context.drawCalls[0];
+  return scratchCanvas.context.arcs.map(([x, y]) => ({
+    x: drawX + x / 192 * drawWidth,
+    y: drawY + y / 192 * drawHeight,
+  }));
+};
+const hasArcAt = (centers, expected) => centers.some((point) => Math.abs(point.x - expected.x) <= 2 && Math.abs(point.y - expected.y) <= 2);
+const hostilePoint = { x: 320 * .24, y: 400 * .48 };
+const alliedPoint = { x: 320 * .81, y: 400 * .60 };
+const casterPoint = { x: 320 * .78, y: 400 * .42 };
+for (const sceneId of ['phoenix', 'sylph']) {
+  const centers = stageArcCenters(sceneId);
+  assert.ok(hasArcAt(centers, hostilePoint), `${sceneId}: hostile-side effect missed the enemy anchor`);
+  assert.ok(hasArcAt(centers, alliedPoint), `${sceneId}: ally-side effect missed the party/revival anchor`);
+}
+for (const sceneId of ['drain', 'osmose']) {
+  const centers = stageArcCenters(sceneId);
+  assert.ok(hasArcAt(centers, hostilePoint), `${sceneId}: drain origin missed the enemy anchor`);
+  assert.ok(hasArcAt(centers, casterPoint), `${sceneId}: drain return missed the caster anchor`);
+}
+
+const impactSignatureFor = (sceneId, sceneContext) => {
+  const before = canvases.length;
+  const canvas = createSpellCanvas(sceneId);
+  renderSpellCanvasFrame(canvas, sceneId, SPELL_PIXEL_SEQUENCES[sceneId].impactFrames[0], sceneContext);
+  return canvases.slice(before).reduce((summary, entry) => {
+    Object.entries(entry.context.opCounts).forEach(([name, count]) => { summary[name] = (summary[name] ?? 0) + count; });
+    return summary;
+  }, {});
+};
+assert.notDeepEqual(
+  impactSignatureFor('odin', { odinOutcome: 'blade' }),
+  impactSignatureFor('odin', { odinOutcome: 'gungnir' }),
+  'Odin blade and Gungnir outcomes must render different impact choreography',
+);
+assert.notDeepEqual(
+  impactSignatureFor('banish', { banishOutcome: 'removed' }),
+  impactSignatureFor('banish', { banishOutcome: 'blocked' }),
+  'Banish success and blocked outcomes must render different impact choreography',
+);
 
 const queuedRafs = [];
 globalThis.requestAnimationFrame = (callback) => { queuedRafs.push(callback); return queuedRafs.length; };
@@ -146,6 +205,8 @@ console.log(JSON.stringify({
   sampledFrames: Object.values(frameAudit).reduce((sum, frames) => sum + frames.length, 0),
   edgeClipping: false,
   partyFieldDraws: 1,
+  crossSideAnchors: 8,
+  resultBranches: 4,
   multiImpactCueFrames: cueTicks.length,
   status: 'ok',
 }, null, 2));

@@ -153,12 +153,12 @@ function resolveMix(manager, actor, action, targets) {
     case 'antilixir': applyTo.forEach((unit) => { const amount = Math.max(0, unit.hp - 1); damage(unit, amount); const mpAmount = Math.max(0, unit.mp - 1); unit.spendMp(mpAmount); results.push({ type: 'mp-damage', targetUid: unit.uid, amount: mpAmount }); }); break;
     case 'poison-breath': {
       const derived = { ...action, kind: 'magic-attack', specialCommand: null, ff5Power: 60, formula: 'ff5_magic', element: 'poison', statuses: ['poison'], statusChance: 0.75 };
-      results.push(...resolveAction({ actor, action: derived, targets: applyTo, battleUnits: manager.units }));
+      results.push(...resolveAction({ actor, action: derived, targets: applyTo, battleUnits: manager.units, battleContext: manager }));
       break;
     }
     case 'shadowflare': {
       const derived = { ...action, kind: 'scripted', specialCommand: null, operations: [{ op: 'damage.magic', formula: 'ff5_flare', ff5Power: 200 }, { op: 'status.apply', statuses: ['sap'], statusChance: 0.75 }] };
-      results.push(...resolveAction({ actor, action: derived, targets: applyTo, battleUnits: manager.units }));
+      results.push(...resolveAction({ actor, action: derived, targets: applyTo, battleUnits: manager.units, battleContext: manager }));
       break;
     }
     case 'tnt': applyTo.forEach((unit) => damage(unit, Math.max(1, actor.maxHp), 'fire')); actor.applyDamage(actor.hp); results.push({ type: 'damage', targetUid: actor.uid, amount: actor.maxHp, element: 'fire' }); break;
@@ -204,7 +204,7 @@ export function resolveFF5SpecialCommand({ manager, actor, action, targets }) {
       return { valid: true, action, targets, results: steal(manager, actor, target) };
     case 'mug': {
       const attack = { ...action, kind: 'physical-attack', specialCommand: null, commandFormula: 'mug' };
-      return { valid: true, action: attack, targets, results: [...resolveAction({ actor, action: attack, targets, battleUnits: manager.units }), ...steal(manager, actor, target)] };
+      return { valid: true, action: attack, targets, results: [...resolveAction({ actor, action: attack, targets, battleUnits: manager.units, battleContext: manager }), ...steal(manager, actor, target)] };
     }
     case 'mimic': {
       const saved = manager.lastPartyAction;
@@ -212,7 +212,7 @@ export function resolveFF5SpecialCommand({ manager, actor, action, targets }) {
       const copied = { ...saved.action, mpCost: 0, _mimicked: true, name: saved.action.name ?? 'ものまね' };
       const copiedTargets = (saved.targetIds ?? []).map((uid) => manager.units.find((unit) => unit.uid === uid)).filter((unit) => unit?.isAlive());
       const finalTargets = copiedTargets.length ? copiedTargets : targets;
-      return { valid: true, action: copied, targets: finalTargets, results: resolveAction({ actor, action: copied, targets: finalTargets, battleUnits: manager.units }), remember: false };
+      return { valid: true, action: copied, targets: finalTargets, results: resolveAction({ actor, action: copied, targets: finalTargets, battleUnits: manager.units, battleContext: manager }), remember: false };
     }
     case 'dualcast': {
       const spells = action.dualSpells ?? [];
@@ -222,7 +222,7 @@ export function resolveFF5SpecialCommand({ manager, actor, action, targets }) {
       const results = [];
       spells.forEach((spell, index) => {
         const spellTargets = dualcastTargets(manager, actor, spell, action.dualTargetUids?.[index], target);
-        results.push(...resolveAction({ actor, action: { ...spell, kind: spell.actionKind ?? 'magic-attack' }, targets: spellTargets, battleUnits: manager.units })
+        results.push(...resolveAction({ actor, action: { ...spell, kind: spell.actionKind ?? 'magic-attack' }, targets: spellTargets, battleUnits: manager.units, battleContext: manager })
           .map((result) => ({
             ...result,
             castIndex: index,
@@ -239,13 +239,13 @@ export function resolveFF5SpecialCommand({ manager, actor, action, targets }) {
     case 'gaia': {
       const derived = { ...choose(GAIA_CRYSTAL_SANCTUM), sourceId: action.sourceId, commandSourceId: action.sourceId, visualId: `ability_gaia_${Date.now()}` };
       const derivedTargets = commandTargets(manager, actor, derived, target);
-      return { valid: true, action: derived, targets: derivedTargets, results: resolveAction({ actor, action: derived, targets: derivedTargets, battleUnits: manager.units }) };
+      return { valid: true, action: derived, targets: derivedTargets, results: resolveAction({ actor, action: derived, targets: derivedTargets, battleUnits: manager.units, battleContext: manager }) };
     }
     case 'animals': {
       const eligible = ANIMALS.filter((animal) => actor.level >= animal.minLevel);
       const derived = { ...choose(eligible), sourceId: action.sourceId, commandSourceId: action.sourceId };
       const derivedTargets = commandTargets(manager, actor, derived, target);
-      const results = resolveAction({ actor, action: derived, targets: derivedTargets, battleUnits: manager.units });
+      const results = resolveAction({ actor, action: derived, targets: derivedTargets, battleUnits: manager.units, battleContext: manager });
       if (derived.cleanse) derivedTargets.forEach((unit) => derived.cleanse.forEach((status) => unit.removeStatus(status)));
       return { valid: true, action: derived, targets: derivedTargets, results };
     }
@@ -258,7 +258,7 @@ export function resolveFF5SpecialCommand({ manager, actor, action, targets }) {
       ];
       let derived = actor.equipmentEffects?.danceBoost && Math.random() < 0.5 ? dances[3] : choose(dances);
       derived = { ...derived, sourceId: action.sourceId, commandSourceId: action.sourceId, target: 'single-enemy' };
-      return { valid: true, action: derived, targets, results: resolveAction({ actor, action: derived, targets, battleUnits: manager.units }) };
+      return { valid: true, action: derived, targets, results: resolveAction({ actor, action: derived, targets, battleUnits: manager.units, battleContext: manager }) };
     }
     case 'throw': {
       if (manager.getItemStock(action.requiredItemId) < 1) return { valid: false, reason: '投げるアイテムがない。' };
@@ -266,7 +266,7 @@ export function resolveFF5SpecialCommand({ manager, actor, action, targets }) {
       const derived = action.element
         ? { ...action, kind: 'magic-attack', specialCommand: null, ff5Power: action.throwPower, formula: 'ff5_magic', mpCost: 0 }
         : { ...action, kind: 'throw-damage', specialCommand: null };
-      return { valid: true, action: derived, targets, results: resolveAction({ actor, action: derived, targets, battleUnits: manager.units }) };
+      return { valid: true, action: derived, targets, results: resolveAction({ actor, action: derived, targets, battleUnits: manager.units, battleContext: manager }) };
     }
     case 'zeninage': {
       const spec = ff5Zeninage(actor, targets.length);
@@ -285,16 +285,16 @@ export function resolveFF5SpecialCommand({ manager, actor, action, targets }) {
       else if (action.drinkEffect === 'speed') derived = { ...action, kind: 'status', statuses: ['haste'], duration: 12, statusChance: 1 };
       else if (action.drinkEffect === 'iron') derived = { ...action, kind: 'status', statuses: ['protect'], duration: 12, statusChance: 1 };
       else derived = { ...action, kind: 'stat-modify', stat: 'level', multiplier: 1.2 };
-      return { valid: true, action: derived, targets: [actor], results: resolveAction({ actor, action: derived, targets: [actor], battleUnits: manager.units }) };
+      return { valid: true, action: derived, targets: [actor], results: resolveAction({ actor, action: derived, targets: [actor], battleUnits: manager.units, battleContext: manager }) };
     }
     case 'call': {
       const summon = { ...choose(SUMMONS), mpCost: 0, id: `call-${Date.now()}`, commandSourceId: 'ability_call' };
       const summonTargets = commandTargets(manager, actor, summon, target);
-      return { valid: true, action: summon, targets: summonTargets, results: resolveAction({ actor, action: summon, targets: summonTargets, battleUnits: manager.units }) };
+      return { valid: true, action: summon, targets: summonTargets, results: resolveAction({ actor, action: summon, targets: summonTargets, battleUnits: manager.units, battleContext: manager }) };
     }
     case 'lance': {
       const hpAction = { ...action, kind: 'magic-attack', specialCommand: null, ff5Power: 35, drain: true, mpCost: 0 };
-      const results = resolveAction({ actor, action: hpAction, targets, battleUnits: manager.units });
+      const results = resolveAction({ actor, action: hpAction, targets, battleUnits: manager.units, battleContext: manager });
       const mpAmount = Math.min(target?.mp ?? 0, Math.max(1, Math.floor(actor.level * actor.magic / 128) + 1));
       if (target && mpAmount) { target.spendMp(mpAmount); actor.mp = Math.min(actor.maxMp, actor.mp + mpAmount); results.push({ type: 'mp-damage', targetUid: target.uid, amount: mpAmount }, { type: 'mp-heal', targetUid: actor.uid, amount: mpAmount }); }
       return { valid: true, action: hpAction, targets, results };
@@ -309,11 +309,11 @@ export function resolveFF5SpecialCommand({ manager, actor, action, targets }) {
       const calmable = target && !target.heavy && [...(target.creatureTypes ?? [])].some((type) => ['beast', 'magic_beast'].includes(type));
       if (!calmable) return { valid: true, action, targets, results: [resultLabel(actor, `${target?.name ?? '敵'}には なだめるが効かない！`)] };
       const derived = { ...action, kind: 'status', specialCommand: null, statuses: ['stop'], statusChance: 1 };
-      return { valid: true, action: derived, targets, results: resolveAction({ actor, action: derived, targets, battleUnits: manager.units }) };
+      return { valid: true, action: derived, targets, results: resolveAction({ actor, action: derived, targets, battleUnits: manager.units, battleContext: manager }) };
     }
     case 'control':
       if (target?.heavy || target?.statusImmunities?.has('confuse')) return { valid: true, action, targets, results: [resultLabel(actor, `${target.name}は あやつれない！`)] };
-      return { valid: true, action, targets, results: resolveAction({ actor, action: { ...action, kind: 'status', statuses: ['confuse'], statusChance: actor.equipmentEffects?.controlBoost ? 0.8 : 0.4 }, targets, battleUnits: manager.units }) };
+      return { valid: true, action, targets, results: resolveAction({ actor, action: { ...action, kind: 'status', statuses: ['confuse'], statusChance: actor.equipmentEffects?.controlBoost ? 0.8 : 0.4 }, targets, battleUnits: manager.units, battleContext: manager }) };
     case 'catch': {
       const threshold = actor.equipmentEffects?.catchBoost ? 0.5 : 0.125;
       if (!target || target.heavy || target.hpRatio() > threshold) return { valid: true, action, targets, results: [resultLabel(actor, `${target?.name ?? '敵'}は とらえられない！`)] };
@@ -337,7 +337,7 @@ export function resolveFF5SpecialCommand({ manager, actor, action, targets }) {
         target: 'all_enemies',
       };
       const releaseTargets = livingEnemies(manager, actor);
-      return { valid: true, action: derived, targets: releaseTargets, results: resolveAction({ actor, action: derived, targets: releaseTargets, battleUnits: manager.units }) };
+      return { valid: true, action: derived, targets: releaseTargets, results: resolveAction({ actor, action: derived, targets: releaseTargets, battleUnits: manager.units, battleContext: manager }) };
     }
     case 'sing': {
       actor.singing = { ...action };

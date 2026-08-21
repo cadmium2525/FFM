@@ -4,7 +4,7 @@ import { SPELL_CHOREOGRAPHIES, spellChoreographyForAction } from '../src/ui/Spel
 import { ff5Magic } from '../src/database/ff5Database.js';
 
 const sequences = Object.entries(SPELL_PIXEL_SEQUENCES);
-assert.ok(sequences.length >= 79, 'the cross-category pixel VFX production set regressed');
+assert.ok(sequences.length >= 89, 'the transformation/status pixel VFX production set regressed');
 
 for (const [sceneId, spec] of sequences) {
   assert.equal(spec.referenceVersion, 'SFC-JP-1992', `${sceneId}: wrong reference target`);
@@ -52,6 +52,8 @@ for (const required of [
   'transfusion', 'level-3-flare', 'off-guard', 'dark-spark',
   'phoenix', 'sylph', 'odin', 'golem', 'carbuncle',
   'quick', 'mute', 'banish', 'drain', 'osmose',
+  'mini', 'toad', 'break', 'death', 'arise',
+  'blink', 'berserk', 'dispel', 'esuna', 'confuse',
 ]) {
   assert.ok(SPELL_PIXEL_SEQUENCES[required], `${required}: dedicated cross-category sequence missing`);
 }
@@ -108,6 +110,16 @@ const reachabilityCases = [
   [{ sourceId: 'magic_banish' }, 'banish'],
   [{ sourceId: 'magic_drain' }, 'drain'],
   [{ sourceId: 'magic_osmose' }, 'osmose'],
+  [{ sourceId: 'magic_mini' }, 'mini'],
+  [{ sourceId: 'magic_toad' }, 'toad'],
+  [{ sourceId: 'magic_break' }, 'break'],
+  [{ sourceId: 'magic_death' }, 'death'],
+  [{ sourceId: 'magic_arise' }, 'arise'],
+  [{ sourceId: 'magic_blink' }, 'blink'],
+  [{ sourceId: 'magic_berserk' }, 'berserk'],
+  [{ sourceId: 'magic_dispel' }, 'dispel'],
+  [{ sourceId: 'magic_esuna' }, 'esuna'],
+  [{ sourceId: 'magic_confuse' }, 'confuse'],
 ];
 for (const [action, expectedScene] of reachabilityCases) {
   assert.equal(spellChoreographyForAction(action)?.id, expectedScene, `${expectedScene}: runtime action cannot reach its dedicated scene`);

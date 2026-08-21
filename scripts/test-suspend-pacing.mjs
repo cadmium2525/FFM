@@ -40,6 +40,7 @@ const omega = new Unit({
 const manager = new BattleManager([hero], omega);
 manager.currentActor = hero;
 manager.awaitingPlayerInput = true;
+manager.partyPhysicalBarrier = 777;
 manager.pendingEnemyActions.set(omega.uid, { id: 'omega-wave', name: 'はどうほう', kind: 'magic-attack' });
 
 const restored = BattleManager.fromSnapshot(manager.createSnapshot());
@@ -53,6 +54,17 @@ assert.equal(restored.boss.spriteUrl, 'assets/images/bosses/omega.webp');
 assert.equal(restored.currentActor, restored.party[0]);
 assert.equal(restored.awaitingPlayerInput, true);
 assert.equal(restored.pendingEnemyActions.get(restored.boss.uid)?.id, 'omega-wave');
+assert.equal(restored.partyPhysicalBarrier, 777, 'the party-wide Golem pool must survive suspend/resume');
+assert.equal(restored.party.every((unit) => unit.physicalBarrier === 0), true, 'restoring must not clone Golem onto individual Units');
+
+// Version-1 snapshots made before the shared-pool field stored Golem on a
+// Unit. Migrate that value once, then clear the obsolete per-Unit state.
+const legacyBarrierSnapshot = manager.createSnapshot();
+delete legacyBarrierSnapshot.partyPhysicalBarrier;
+legacyBarrierSnapshot.units[0].physicalBarrier = 321;
+const legacyBarrierRestored = BattleManager.fromSnapshot(legacyBarrierSnapshot);
+assert.equal(legacyBarrierRestored.partyPhysicalBarrier, 321, 'legacy per-Unit Golem state must migrate to the shared pool');
+assert.equal(legacyBarrierRestored.party.every((unit) => unit.physicalBarrier === 0), true);
 
 const tickingHero = new Unit({ id: 'ticking-hero', name: 'Ticking Hero', maxHp: 800, hp: 600, agility: 20, ctValue: 1000 });
 tickingHero.addStatus('poison', { force: true, duration: 2 });
@@ -108,5 +120,7 @@ console.log(JSON.stringify({
   gameOverClearsSuspend: true,
   omegaWidthPx: 147,
   statusMessageGateMs: statusGateDelay,
+  restoredSharedGolemPool: restored.partyPhysicalBarrier,
+  legacyGolemPoolMigrated: legacyBarrierRestored.partyPhysicalBarrier,
   status: 'ok',
 }, null, 2));

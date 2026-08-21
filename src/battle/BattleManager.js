@@ -131,6 +131,13 @@ export class BattleManager {
     this.units = [...partyUnits, bossUnit];
     this.ctb = new CTBEngine(this.units);
 
+    // Golem is one party-wide damage pool in FFV. Older v1 suspend snapshots
+    // stored a copy on each Unit; migrate their highest remaining value once
+    // and keep all runtime consumption on the manager from this point on.
+    const legacyPartyBarrier = Math.max(0, ...partyUnits.map((unit) => Number(unit.physicalBarrier) || 0));
+    this.partyPhysicalBarrier = Math.max(0, Number(options.partyPhysicalBarrier ?? legacyPartyBarrier) || 0);
+    partyUnits.forEach((unit) => { unit.physicalBarrier = 0; });
+
     this.currentActor = null;
     this.awaitingPlayerInput = false;
     this.finished = false;
@@ -179,6 +186,7 @@ export class BattleManager {
       } : null,
       magicLampUse: this.magicLampUse,
       enemyActionCursor: this.enemyActionCursor,
+      partyPhysicalBarrier: this.partyPhysicalBarrier,
     };
   }
 
@@ -213,6 +221,9 @@ export class BattleManager {
     } : null;
     manager.magicLampUse = Math.max(0, Number(snapshot.magicLampUse) || 0);
     manager.enemyActionCursor = Math.max(0, Number(snapshot.enemyActionCursor) || 0);
+    if (snapshot.partyPhysicalBarrier != null) {
+      manager.partyPhysicalBarrier = Math.max(0, Number(snapshot.partyPhysicalBarrier) || 0);
+    }
     return manager;
   }
 
@@ -280,6 +291,7 @@ export class BattleManager {
       party: this.party,
       boss: this.boss,
       preview: this.ctb.previewQueue(8),
+      partyPhysicalBarrier: this.partyPhysicalBarrier,
     });
   }
 
@@ -463,7 +475,7 @@ export class BattleManager {
     const action = { ...pending.action, name: 'ジャンプ' };
     eventBus.emit('battle:actionStarted', { actor, action });
     this.log(`${actor.name} の ジャンプ！`);
-    const results = resolveAction({ actor, action, targets: [target], battleUnits: this.units });
+    const results = resolveAction({ actor, action, targets: [target], battleUnits: this.units, battleContext: this });
     results.filter((result) => result.type === 'damage').forEach((result) => this.log(`${target.name} に ${result.amount} の ダメージ！`));
     this.emitActionResolved(actor, results, actionStartSequence, action);
     this.ctb.consumeTurn(actor, 1);
@@ -481,7 +493,7 @@ export class BattleManager {
     const actionStartSequence = this.logSequence;
     eventBus.emit('battle:actionStarted', { actor, action });
     this.log(`${actor.name} は${confused ? '混乱して' : '狂戦士となり'} ${target.name} を攻撃！`);
-    const results = resolveAction({ actor, action, targets: [target], battleUnits: this.units });
+    const results = resolveAction({ actor, action, targets: [target], battleUnits: this.units, battleContext: this });
     results.filter((result) => result.type === 'damage').forEach((result) => this.log(`${target.name} に ${result.amount} の ダメージ！`));
     this.emitActionResolved(actor, results, actionStartSequence, action);
     this.ctb.consumeTurn(actor, 1);
@@ -532,8 +544,8 @@ export class BattleManager {
     eventBus.emit('battle:actionStarted', { actor, action });
     this.log(`${actor.name} の ${action.name ?? 'こうげき'}！`, action.power >= 2 ? 'danger' : 'action');
     const results = action.kind === 'physical-attack' && targets.length > 1
-      ? targets.flatMap((eachTarget) => resolveAction({ actor, action, targets: [eachTarget], battleUnits: this.units }))
-      : resolveAction({ actor, action, targets, battleUnits: this.units });
+      ? targets.flatMap((eachTarget) => resolveAction({ actor, action, targets: [eachTarget], battleUnits: this.units, battleContext: this }))
+      : resolveAction({ actor, action, targets, battleUnits: this.units, battleContext: this });
 
     results.forEach((r) => {
       const affected = this.units.find((unit) => unit.uid === r.targetUid) ?? fallbackTarget;
@@ -637,7 +649,7 @@ export class BattleManager {
       const actionStartSequence = this.logSequence;
       eventBus.emit('battle:actionStarted', { actor: this.boss, action: counterAction });
       this.log(`${this.boss.name} の反撃！ ${counterAction.name}！`, 'counter');
-      const results = resolveAction({ actor: this.boss, action: counterAction, targets: counterTargets, battleUnits: this.units });
+      const results = resolveAction({ actor: this.boss, action: counterAction, targets: counterTargets, battleUnits: this.units, battleContext: this });
       results.forEach((r) => {
         const affected = this.units.find((unit) => unit.uid === r.targetUid);
         if (r.type === 'damage') this.log(`${affected?.name ?? '???'} に ${r.amount} の ダメージ！`, 'counter');
@@ -797,7 +809,7 @@ export class BattleManager {
       results = special.results ?? [];
       action._doNotRemember = special.remember === false;
     } else {
-      results = resolveAction({ actor, action, targets, battleUnits: this.units });
+      results = resolveAction({ actor, action, targets, battleUnits: this.units, battleContext: this });
     }
     if (results.some((result) => ['insufficient-mp', 'sealed', 'invalid-target', 'unavailable'].includes(result.type))) {
       this.log('その行動は実行できない。');

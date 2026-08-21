@@ -101,6 +101,7 @@ function magicOperations(record) {
     magic_arise: [{ op: 'revive', hpRatio: 1 }], magic_dispel: [{ op: 'status.dispel', polarity: 'positive' }],
     magic_poison: status(['poison']), magic_sleep: status(['sleep']), magic_toad: status(['toad'], { toggle: true }),
     magic_break: status(['petrify']), magic_bio: [...damage(), ...status(['sap'])], magic_death: status(['ko']),
+    magic_drain: [{ op: 'drain.hp', formula: 'ff5_magic', ff5Power: 45, power: 45 }],
     magic_osmose: [{ op: 'drain.mp', power: 1.5 }],
     magic_speed: [{ op: 'battle.speed', multiplier: 0.7, duration: 4 }], magic_slow: status(['slow']),
     magic_regen: status(['regen']), magic_mute: [{ op: 'battle.field_status', status: 'mute' }],
@@ -119,7 +120,7 @@ function magicOperations(record) {
     magic_odin: [{ op: 'summon.odin', ff5Power: 180 }],
     magic_phoenix: [
       { op: 'damage.magic', formula: 'ff5_magic', ff5Power: 105, targetSide: 'enemy' },
-      { op: 'revive', hpRatio: 1, targetSide: 'ally' },
+      { op: 'revive', hpRatio: 1, targetSide: 'ally', targetScope: 'selected' },
     ],
     magic_goblin_punch: [{ op: 'damage.physical', formula: 'ff5_goblin_punch', power: 1, sameLevelMultiplier: 8 }],
     magic_roulette: status(['ko']), magic_self_destruct: [{ op: 'damage.caster_hp', sacrificeCaster: true }],
