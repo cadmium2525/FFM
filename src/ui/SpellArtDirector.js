@@ -8,6 +8,7 @@ const art = (motif, motion, layers, rotation, spread, scale, impact, variant) =>
 
 const beat = (role, pieces = 1) => Object.freeze({ role, pieces });
 const scene = (id, beats, scale = 1) => Object.freeze({ id, beats: Object.freeze(beats), scale });
+const PIXEL_SEQUENCE_FALLBACK = art('pixel-sequence', 'timeline', 1, 0, 96, 1, 'timeline-impact', 0);
 
 /**
  * The first production storyboard set.  Unlike SPELL_ART_BLUEPRINTS, which
@@ -32,6 +33,9 @@ export const SPELL_CHOREOGRAPHIES = Object.freeze({
   magic_cure: scene('cure', [beat('life-seed', 3), beat('heal-drop', 4), beat('soft-cross', 1)], .88),
   magic_cura: scene('cura', [beat('double-halo', 2), beat('life-petal', 6), beat('heal-cross', 1)], 1.04),
   magic_curaga: scene('curaga', [beat('sanctuary-ring', 3), beat('life-column', 6), beat('radiant-cross', 1)], 1.18),
+  magic_raise: scene('raise', [beat('soul-mark', 4), beat('return-soul', 1), beat('revive-halo', 2)], 1.08),
+  magic_protect: scene('protect', [beat('shield-trace', 6), beat('ward-lattice', 3), beat('ward-lock', 2)], 1.02),
+  magic_holy: scene('holy', [beat('holy-stars', 7), beat('judgment-column', 5), beat('radiant-cross', 1)], 1.28),
 
   magic_haste: scene('haste', [beat('clock-face', 1), beat('fast-hand', 2), beat('speed-trail', 6)], 1),
   magic_slow: scene('slow', [beat('clock-face', 1), beat('slow-hand', 2), beat('time-weight', 4)], .96),
@@ -46,6 +50,18 @@ export const SPELL_CHOREOGRAPHIES = Object.freeze({
   magic_shiva: scene('shiva', [beat('diamond-seal', 3), beat('ice-curtain', 6), beat('diamond-dust', 8)], 1.26),
   magic_ifrit: scene('ifrit', [beat('horn-seal', 2), beat('hellfire-wave', 7), beat('hellfire-column', 6)], 1.28),
   magic_bahamut: scene('bahamut', [beat('dragon-seal', 3), beat('mega-charge', 5), beat('mega-beam', 6)], 1.34),
+
+  ability_steal: scene('steal', [beat('vanish-step', 4), beat('snatch-hand', 1), beat('return-glint', 1)], .96),
+  ability_jump: scene('jump', [beat('sky-launch', 3), beat('lance-drop', 1), beat('ground-star', 8)], 1.08),
+  ability_rapid_fire: scene('rapid-fire', [beat('aim-ring', 1), beat('fourfold-line', 4), beat('impact-star', 4)], 1.08),
+  ability_zeninage: scene('zeninage', [beat('coin-draw', 4), beat('gil-rain', 14), beat('coin-burst', 8)], 1.08),
+  ability_mix: scene('mix', [beat('reagent-vial', 2), beat('compound-orbit', 8), beat('mix-burst', 12)], 1.02),
+
+  'atomic-ray': scene('atomic-ray', [beat('reactor-ring', 6), beat('ray-grid', 5), beat('atomic-burst', 18)], 1.14),
+  'wave-cannon': scene('wave-cannon', [beat('charge-lines', 7), beat('wave-core', 1), beat('cannon-band', 5)], 1.25),
+  blaster: scene('blaster', [beat('binary-reticle', 2), beat('cross-lock', 2), beat('blaster-burst', 8)], 1.08),
+  maelstrom: scene('maelstrom', [beat('vortex-ring', 6), beat('critical-pull', 19), beat('critical-line', 2)], 1.22),
+  'delta-attack': scene('delta-attack', [beat('delta-node', 3), beat('triangle-bind', 3), beat('stone-prison', 6)], 1.14),
 });
 
 export const SPELL_ART_BLUEPRINTS = Object.freeze({
@@ -177,9 +193,9 @@ export function spellChoreographyDuration(action = {}) {
 }
 
 export function createSpellArtElement(action = {}) {
-  const blueprint = spellArtForAction(action);
-  if (!blueprint || typeof document === 'undefined') return null;
   const choreography = spellChoreographyForAction(action);
+  const blueprint = spellArtForAction(action) ?? (choreography ? PIXEL_SEQUENCE_FALLBACK : null);
+  if (!blueprint || typeof document === 'undefined') return null;
   const layer = document.createElement('span');
   layer.className = [
     'fx-spell-art',

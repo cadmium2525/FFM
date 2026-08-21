@@ -6827,6 +6827,9 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
   cure: sequence(70, [48], [phase('seed', 0, 18), phase('rise', 19, 47), phase('restore', 48, 59), phase('decay', 60, 69)]),
   cura: sequence(82, [56], [phase('halo', 0, 21), phase('petals', 22, 55), phase('restore', 56, 70), phase('decay', 71, 81)]),
   curaga: sequence(96, [64], [phase('sanctuary', 0, 24), phase('column', 25, 63), phase('restore', 64, 81), phase('decay', 82, 95)]),
+  raise: sequence(96, [66], [phase('soul-mark', 0, 24), phase('return', 25, 65), phase('revive', 66, 82), phase('decay', 83, 95)]),
+  protect: sequence(84, [58], [phase('trace', 0, 20), phase('shield-form', 21, 57), phase('ward-lock', 58, 70), phase('decay', 71, 83)]),
+  holy: sequence(118, [78], [phase('stars', 0, 26), phase('judgment', 27, 77), phase('holy-impact', 78, 98), phase('decay', 99, 117)]),
   haste: sequence(72, [49], [phase('clock', 0, 20), phase('accelerate', 21, 48), phase('latch', 49, 60), phase('decay', 61, 71)]),
   slow: sequence(76, [52], [phase('clock', 0, 20), phase('drag', 21, 51), phase('latch', 52, 64), phase('decay', 65, 75)]),
   stop: sequence(84, [57], [phase('clock', 0, 23), phase('freeze', 24, 56), phase('latch', 57, 70), phase('decay', 71, 83)]),
@@ -6838,6 +6841,18 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
   shiva: sequence(126, [87], [phase('seal', 0, 31), phase('curtain', 32, 67), phase('diamond-dust', 68, 101), phase('decay', 102, 125)], { placement: 'centroid', sceneSpace: 'stage' }),
   ifrit: sequence(128, [88], [phase('seal', 0, 30), phase('hellfire', 31, 70), phase('eruption', 71, 103), phase('decay', 104, 127)], { placement: 'centroid', sceneSpace: 'stage' }),
   bahamut: sequence(148, [104], [phase('seal', 0, 34), phase('charge', 35, 77), phase('mega-flare', 78, 119), phase('decay', 120, 147)], { placement: 'centroid', sceneSpace: 'stage' }),
+
+  steal: sequence(70, [45], [phase('vanish', 0, 16), phase('reach', 17, 44), phase('snatch', 45, 57), phase('decay', 58, 69)]),
+  jump: sequence(92, [61], [phase('launch', 0, 20), phase('airborne', 21, 60), phase('lance-impact', 61, 75), phase('decay', 76, 91)]),
+  'rapid-fire': sequence(100, [48, 58, 68, 78], [phase('aim', 0, 22), phase('rush', 23, 47), phase('fourfold', 48, 84), phase('decay', 85, 99)], { resultPolicy: 'split-amount' }),
+  zeninage: sequence(92, [64], [phase('draw-coins', 0, 20), phase('coin-rain', 21, 63), phase('gil-impact', 64, 78), phase('decay', 79, 91)]),
+  mix: sequence(90, [62], [phase('reagents', 0, 21), phase('combine', 22, 61), phase('compound', 62, 76), phase('decay', 77, 89)]),
+
+  'atomic-ray': sequence(96, [65], [phase('reactor', 0, 21), phase('ray-grid', 22, 64), phase('atomic-impact', 65, 80), phase('decay', 81, 95)]),
+  'wave-cannon': sequence(112, [76], [phase('charge-lines', 0, 27), phase('compression', 28, 75), phase('wave-release', 76, 94), phase('decay', 95, 111)], { placement: 'centroid', sceneSpace: 'stage' }),
+  blaster: sequence(88, [59], [phase('target-split', 0, 22), phase('binary-lock', 23, 58), phase('blaster-impact', 59, 73), phase('decay', 74, 87)]),
+  maelstrom: sequence(108, [72], [phase('wind-ring', 0, 24), phase('vortex', 25, 71), phase('critical-collapse', 72, 90), phase('decay', 91, 107)], { placement: 'centroid', sceneSpace: 'stage' }),
+  'delta-attack': sequence(100, [68], [phase('three-points', 0, 22), phase('delta-bind', 23, 67), phase('petrify-impact', 68, 83), phase('decay', 84, 99)]),
 });
 
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
@@ -7070,6 +7085,236 @@ function drawCure(ctx, frame, tier) {
   }
 }
 
+function drawRaise(ctx, frame) {
+  const alpha = fade(frame, 8, 82, 96);
+  const seal = easeOut(segment(frame, 0, 25));
+  ring(ctx, 96, 126, 10 + seal * 46, '#ffd978', 3, alpha);
+  for (let i = 0; i < 4; i += 1) {
+    const y = 154 - segment(frame, 15 + i * 5, 58 + i * 4) * 96;
+    diamond(ctx, 69 + i * 18, y, 4 + i % 2, i % 2 ? '#fff8c8' : '#ffae72', alpha);
+  }
+  const soul = easeInOut(segment(frame, 24, 66));
+  poly(ctx, [[96, 148 - soul * 69], [82, 128 - soul * 51], [87, 104 - soul * 30], [96, 94 - soul * 22], [105, 104 - soul * 30], [110, 128 - soul * 51]], '#fffce8', alpha * soul, '#ffc96b', 2);
+  if (frame >= 66) {
+    const p = easeOut(segment(frame, 66, 82));
+    ring(ctx, 96, 88, 12 + p * 53, '#fff7bd', 4, alpha);
+    burst(ctx, 96, 104, 18 + p * 58, 12, '#ffdb7d', alpha, Math.PI / 12);
+  }
+}
+
+function drawProtect(ctx, frame) {
+  const alpha = fade(frame, 7, 70, 84);
+  const form = easeOut(segment(frame, 0, 48));
+  const points = [[96, 35], [143, 62], [143, 121], [96, 153], [49, 121], [49, 62]];
+  for (let i = 0; i < points.length; i += 1) {
+    const a = points[i]; const b = points[(i + 1) % points.length];
+    line(ctx, a[0], a[1], a[0] + (b[0] - a[0]) * form, a[1] + (b[1] - a[1]) * form, i % 2 ? '#a9d9ff' : '#f2fbff', 4, alpha);
+  }
+  if (frame > 24) {
+    const lattice = easeOut(segment(frame, 24, 58));
+    line(ctx, 96, 35, 96, 153, '#6ab7ff', 2, alpha * lattice);
+    line(ctx, 49, 62, 143, 121, '#6ab7ff', 2, alpha * lattice);
+    line(ctx, 143, 62, 49, 121, '#6ab7ff', 2, alpha * lattice);
+    diamond(ctx, 96, 94, 15 + lattice * 8, 'rgba(126,194,255,.7)', alpha, '#ffffff');
+  }
+  if (frame >= 58) {
+    const p = easeOut(segment(frame, 58, 70));
+    ring(ctx, 96, 96, 22 + p * 55, '#dff4ff', 4, alpha);
+  }
+}
+
+function drawHoly(ctx, frame) {
+  const alpha = fade(frame, 8, 99, 118);
+  const stars = easeOut(segment(frame, 0, 30));
+  for (let i = 0; i < 7; i += 1) {
+    const x = 38 + i * 19; const y = 28 + ((i * 23) % 38);
+    diamond(ctx, x, y, 4 + (i % 3), i % 2 ? '#fff8a8' : '#ffffff', alpha * stars);
+  }
+  if (frame > 26) {
+    const descend = easeInOut(segment(frame, 26, 78));
+    for (let i = 0; i < 5; i += 1) {
+      const x = 62 + i * 17;
+      line(ctx, x, 24, x + (i - 2) * 4, 61 + descend * 92, i % 2 ? '#fff5a5' : '#ffffff', i === 2 ? 7 : 4, alpha * descend);
+    }
+    ring(ctx, 96, 133, 8 + descend * 45, '#ffd95d', 3, alpha);
+  }
+  if (frame >= 78) {
+    const p = easeOut(segment(frame, 78, 98));
+    ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#fffde6';
+    ctx.fillRect(90, 42 - p * 7, 12, 114 + p * 12); ctx.fillRect(55 - p * 8, 81, 82 + p * 16, 12); ctx.restore();
+    burst(ctx, 96, 118, 28 + p * 68, 16, '#ffe676', alpha, Math.PI / 16);
+  }
+}
+
+function drawSteal(ctx, frame) {
+  const alpha = fade(frame, 5, 58, 70);
+  const reach = easeInOut(segment(frame, 12, 45));
+  for (let i = 0; i < 5; i += 1) {
+    const x = 44 + reach * 70 - i * 9; const y = 122 - reach * 38 + i * 3;
+    line(ctx, x - 13, y + 13, x, y, i % 2 ? '#8cead4' : '#eafffb', 3, alpha * (1 - i * .12));
+  }
+  poly(ctx, [[111, 79], [137, 71], [150, 84], [137, 96], [122, 92], [115, 106], [101, 99]], '#274d65', alpha * reach, '#9ff4df', 3);
+  if (frame >= 45) {
+    const snapBack = easeOut(segment(frame, 45, 59));
+    diamond(ctx, 110 - snapBack * 37, 91 + snapBack * 17, 8, '#fff2a7', alpha, '#70d8c5');
+    line(ctx, 144, 63, 134, 53, '#ffffff', 2, alpha); line(ctx, 153, 78, 167, 75, '#ffffff', 2, alpha);
+  }
+}
+
+function drawJump(ctx, frame) {
+  const alpha = fade(frame, 6, 77, 92);
+  if (frame < 34) {
+    const up = easeInOut(segment(frame, 0, 28));
+    line(ctx, 96, 154, 96, 154 - up * 105, '#b9edff', 4, alpha);
+    for (let i = 0; i < 4; i += 1) line(ctx, 76 + i * 13, 145, 86 + i * 8, 126 - up * 36, '#5574bf', 2, alpha * up);
+  } else {
+    const down = easeInOut(segment(frame, 34, 61));
+    line(ctx, 126 - down * 30, 23 + down * 107, 99 - down * 3, 66 + down * 98, '#f7ffff', 5, alpha);
+    poly(ctx, [[126 - down * 30, 20 + down * 107], [138 - down * 30, 42 + down * 107], [116 - down * 30, 37 + down * 107]], '#8bd8ff', alpha, '#ffffff', 2);
+  }
+  if (frame >= 61) {
+    const p = easeOut(segment(frame, 61, 76));
+    burst(ctx, 96, 154, 17 + p * 55, 12, '#effcff', alpha, Math.PI / 12);
+    ring(ctx, 96, 157, 9 + p * 48, '#5aa7e8', 4, alpha);
+  }
+}
+
+function drawRapidFire(ctx, frame) {
+  const alpha = fade(frame, 7, 84, 100);
+  const aim = easeOut(segment(frame, 0, 31));
+  ring(ctx, 96, 98, 42 - aim * 20, '#ffd967', 2, alpha);
+  line(ctx, 96, 52, 96, 76, '#fff8c8', 2, alpha * aim); line(ctx, 52, 98, 76, 98, '#fff8c8', 2, alpha * aim);
+  const impacts = [48, 58, 68, 78];
+  impacts.forEach((at, index) => {
+    if (frame < at - 7 || frame > at + 12) return;
+    const p = easeOut(segment(frame, at - 7, at + 5));
+    const angle = [-.7, .45, -.2, .85][index];
+    line(ctx, 25 + index * 8, 38 + index * 17, 103 + Math.cos(angle) * 40, 98 + Math.sin(angle) * 38, index % 2 ? '#ff7b55' : '#fff0a2', 5, alpha);
+    burst(ctx, 96, 98, 13 + p * 36, 8, index % 2 ? '#ff8b62' : '#fff4af', alpha, angle);
+  });
+}
+
+function drawZeninage(ctx, frame) {
+  const alpha = fade(frame, 7, 79, 92);
+  for (let i = 0; i < 14; i += 1) {
+    const fall = segment(frame, 8 + (i % 5) * 5, 52 + (i % 4) * 4);
+    if (fall <= 0 || fall >= 1) continue;
+    const x = 31 + ((i * 37) % 132); const y = 15 + fall * 126;
+    ring(ctx, x, y, 5 + (i % 3), i % 2 ? '#ffd35c' : '#fff1a3', 3, alpha);
+    line(ctx, x - 3, y, x + 3, y, '#9d5f22', 2, alpha);
+  }
+  if (frame >= 64) {
+    const p = easeOut(segment(frame, 64, 79));
+    ring(ctx, 96, 139, 16 + p * 58, '#ffe06c', 5, alpha);
+    burst(ctx, 96, 131, 20 + p * 50, 14, '#fff4be', alpha);
+  }
+}
+
+function drawMix(ctx, frame) {
+  const alpha = fade(frame, 6, 77, 90);
+  const orbit = easeInOut(segment(frame, 0, 43));
+  const a = frame * .07;
+  [[-1, '#72f0be'], [1, '#a78cff']].forEach(([side, color], index) => {
+    const x = 96 + Math.cos(a + index * Math.PI) * (58 - orbit * 36);
+    const y = 87 + Math.sin(a + index * Math.PI) * (35 - orbit * 18);
+    poly(ctx, [[x - 8, y - 14], [x + 8, y - 14], [x + 11, y + 10], [x, y + 17], [x - 11, y + 10]], color, alpha, '#ffffff', 2);
+  });
+  if (frame > 42) {
+    const combine = easeOut(segment(frame, 42, 62));
+    ring(ctx, 96, 95, 9 + combine * 38, '#d7fff2', 4, alpha);
+    for (let i = 0; i < 8; i += 1) diamond(ctx, 96 + Math.cos(i * Math.PI / 4) * (18 + combine * 39), 95 + Math.sin(i * Math.PI / 4) * (14 + combine * 28), 4, i % 2 ? '#ffdc75' : '#82f1dd', alpha);
+  }
+  if (frame >= 62) burst(ctx, 96, 96, 24 + easeOut(segment(frame, 62, 77)) * 54, 12, '#f5fff9', alpha);
+}
+
+function drawAtomicRay(ctx, frame) {
+  const alpha = fade(frame, 6, 81, 96);
+  const charge = easeOut(segment(frame, 0, 38));
+  ring(ctx, 96, 96, 52 - charge * 31, '#ff7049', 3, alpha);
+  for (let i = 0; i < 6; i += 1) {
+    const angle = i * Math.PI / 3 + frame * .025;
+    diamond(ctx, 96 + Math.cos(angle) * 54, 96 + Math.sin(angle) * 54, 5, i % 2 ? '#ffdc75' : '#ff5d45', alpha * charge);
+  }
+  if (frame > 37) {
+    const ray = easeInOut(segment(frame, 37, 65));
+    for (let i = 0; i < 5; i += 1) line(ctx, 34, 50 + i * 21, 55 + ray * 104, 58 + i * 16, i % 2 ? '#fff2a5' : '#ff6b48', 3 + (i === 2 ? 2 : 0), alpha * ray);
+  }
+  if (frame >= 65) burst(ctx, 123, 96, 20 + easeOut(segment(frame, 65, 80)) * 56, 18, '#fff1bd', alpha);
+}
+
+function drawWaveCannon(ctx, frame) {
+  const alpha = fade(frame, 7, 95, 112);
+  const charge = easeOut(segment(frame, 0, 48));
+  for (let i = 0; i < 7; i += 1) {
+    const y = 43 + i * 18;
+    line(ctx, 25 + charge * 45, y, 167 - charge * 45, y, i % 2 ? '#69e5ff' : '#e6ffff', 2, alpha * charge);
+  }
+  ring(ctx, 96, 97, 48 - charge * 39, '#ffffff', 4, alpha);
+  if (frame > 47) {
+    const compress = easeInOut(segment(frame, 47, 76));
+    poly(ctx, [[21, 81], [96, 91 - compress * 7], [171, 81], [171, 113], [96, 103 + compress * 7], [21, 113]], '#69dff0', alpha * compress, '#efffff', 3);
+  }
+  if (frame >= 76) {
+    const release = easeOut(segment(frame, 76, 95));
+    for (let i = 0; i < 5; i += 1) line(ctx, 18, 75 + i * 12, 174, 64 + i * 18, i % 2 ? '#ffffff' : '#4fc5e7', 7 - (i % 2) * 3, alpha * (1 - release * .18));
+  }
+}
+
+function drawBlaster(ctx, frame) {
+  const alpha = fade(frame, 6, 74, 88);
+  const lock = easeOut(segment(frame, 0, 42));
+  ring(ctx, 96, 96, 61 - lock * 31, '#ffe26b', 3, alpha);
+  line(ctx, 96, 31, 96, 61, '#fff7c2', 3, alpha * lock); line(ctx, 31, 96, 61, 96, '#fff7c2', 3, alpha * lock);
+  if (frame > 22) {
+    const split = easeOut(segment(frame, 22, 59));
+    poly(ctx, [[96, 49], [128, 96], [96, 143], [64, 96]], 'rgba(40,20,70,.72)', alpha * split, '#e1a0ff', 3);
+    line(ctx, 67, 64, 125, 128, '#ff6b8c', 5, alpha * split);
+    line(ctx, 125, 64, 67, 128, '#8eeaff', 5, alpha * split);
+  }
+  if (frame >= 59) {
+    const p = easeOut(segment(frame, 59, 73));
+    ring(ctx, 96, 96, 12 + p * 58, '#ffffff', 5, alpha);
+    burst(ctx, 96, 96, 19 + p * 44, 8, '#ff6b8c', alpha, Math.PI / 8);
+  }
+}
+
+function drawMaelstrom(ctx, frame) {
+  const alpha = fade(frame, 6, 91, 108);
+  const pull = easeInOut(segment(frame, 0, 72));
+  for (let ringIndex = 0; ringIndex < 6; ringIndex += 1) {
+    const radius = 76 - ringIndex * 11 - pull * (ringIndex % 2 ? 15 : 7);
+    ring(ctx, 96, 96, Math.max(7, radius), ringIndex % 2 ? '#82d8ff' : '#5363bd', 2 + ringIndex % 2, alpha, frame * .035 + ringIndex * .45, frame * .035 + ringIndex * .45 + Math.PI * 1.3);
+  }
+  motes(ctx, 19, frame, '#dff8ff', 'converge', 81, alpha);
+  if (frame >= 72) {
+    const p = easeOut(segment(frame, 72, 91));
+    ring(ctx, 96, 96, 15 + p * 62, '#ff6579', 4, alpha);
+    line(ctx, 50, 134, 142, 134, '#ff4e64', 5, alpha);
+    line(ctx, 61, 142, 131, 142, '#55102c', 4, alpha);
+  }
+}
+
+function drawDeltaAttack(ctx, frame) {
+  const alpha = fade(frame, 7, 84, 100);
+  const bind = easeOut(segment(frame, 0, 52));
+  const points = [[96, 30], [154, 130], [38, 130]];
+  points.forEach(([x, y], index) => {
+    diamond(ctx, x, y, 8 + bind * 5, index === 0 ? '#fff3a4' : index === 1 ? '#8deaff' : '#d49bff', alpha * bind, '#ffffff');
+    const next = points[(index + 1) % 3];
+    line(ctx, x, y, x + (next[0] - x) * bind, y + (next[1] - y) * bind, '#e8fbff', 3, alpha);
+  });
+  if (frame > 42) {
+    const prison = easeOut(segment(frame, 42, 68));
+    poly(ctx, [[96, 49], [132, 72], [126, 128], [96, 147], [66, 128], [60, 72]], 'rgba(143,160,190,.5)', alpha * prison, '#ffffff', 3);
+    for (let i = 0; i < 4; i += 1) line(ctx, 69 + i * 18, 67, 63 + i * 22, 132, '#8ca2b9', 2, alpha * prison);
+  }
+  if (frame >= 68) {
+    const p = easeOut(segment(frame, 68, 84));
+    burst(ctx, 96, 98, 20 + p * 51, 12, '#e9f2ff', alpha);
+    ctx.save(); ctx.globalAlpha = alpha * p; ctx.fillStyle = '#9ca8b7'; ctx.fillRect(83, 73, 26, 54); ctx.restore();
+  }
+}
+
 function drawTime(ctx, frame, mode) {
   const total = mode === 'haste' ? 72 : mode === 'slow' ? 76 : 84;
   const alpha = fade(frame, 9, total - 14, total);
@@ -7231,6 +7476,9 @@ function renderScene(ctx, sceneId, frame) {
   if (sceneId === 'cure') return drawCure(ctx, frame, 1);
   if (sceneId === 'cura') return drawCure(ctx, frame, 2);
   if (sceneId === 'curaga') return drawCure(ctx, frame, 3);
+  if (sceneId === 'raise') return drawRaise(ctx, frame);
+  if (sceneId === 'protect') return drawProtect(ctx, frame);
+  if (sceneId === 'holy') return drawHoly(ctx, frame);
   if (['haste', 'slow', 'stop'].includes(sceneId)) return drawTime(ctx, frame, sceneId);
   if (sceneId === 'comet') return drawComet(ctx, frame, false);
   if (sceneId === 'meteor') return drawComet(ctx, frame, true);
@@ -7238,6 +7486,16 @@ function renderScene(ctx, sceneId, frame) {
   if (sceneId === 'flare') return drawFlare(ctx, frame);
   if (sceneId === 'level-5-death') return drawLevel5Death(ctx, frame);
   if (['shiva', 'ifrit', 'bahamut'].includes(sceneId)) return drawSummon(ctx, frame, sceneId);
+  if (sceneId === 'steal') return drawSteal(ctx, frame);
+  if (sceneId === 'jump') return drawJump(ctx, frame);
+  if (sceneId === 'rapid-fire') return drawRapidFire(ctx, frame);
+  if (sceneId === 'zeninage') return drawZeninage(ctx, frame);
+  if (sceneId === 'mix') return drawMix(ctx, frame);
+  if (sceneId === 'atomic-ray') return drawAtomicRay(ctx, frame);
+  if (sceneId === 'wave-cannon') return drawWaveCannon(ctx, frame);
+  if (sceneId === 'blaster') return drawBlaster(ctx, frame);
+  if (sceneId === 'maelstrom') return drawMaelstrom(ctx, frame);
+  if (sceneId === 'delta-attack') return drawDeltaAttack(ctx, frame);
   return undefined;
 }
 
@@ -7349,6 +7607,7 @@ const art = (motif, motion, layers, rotation, spread, scale, impact, variant) =>
 
 const beat = (role, pieces = 1) => Object.freeze({ role, pieces });
 const scene = (id, beats, scale = 1) => Object.freeze({ id, beats: Object.freeze(beats), scale });
+const PIXEL_SEQUENCE_FALLBACK = art('pixel-sequence', 'timeline', 1, 0, 96, 1, 'timeline-impact', 0);
 
 /**
  * The first production storyboard set.  Unlike SPELL_ART_BLUEPRINTS, which
@@ -7373,6 +7632,9 @@ const SPELL_CHOREOGRAPHIES = Object.freeze({
   magic_cure: scene('cure', [beat('life-seed', 3), beat('heal-drop', 4), beat('soft-cross', 1)], .88),
   magic_cura: scene('cura', [beat('double-halo', 2), beat('life-petal', 6), beat('heal-cross', 1)], 1.04),
   magic_curaga: scene('curaga', [beat('sanctuary-ring', 3), beat('life-column', 6), beat('radiant-cross', 1)], 1.18),
+  magic_raise: scene('raise', [beat('soul-mark', 4), beat('return-soul', 1), beat('revive-halo', 2)], 1.08),
+  magic_protect: scene('protect', [beat('shield-trace', 6), beat('ward-lattice', 3), beat('ward-lock', 2)], 1.02),
+  magic_holy: scene('holy', [beat('holy-stars', 7), beat('judgment-column', 5), beat('radiant-cross', 1)], 1.28),
 
   magic_haste: scene('haste', [beat('clock-face', 1), beat('fast-hand', 2), beat('speed-trail', 6)], 1),
   magic_slow: scene('slow', [beat('clock-face', 1), beat('slow-hand', 2), beat('time-weight', 4)], .96),
@@ -7387,6 +7649,18 @@ const SPELL_CHOREOGRAPHIES = Object.freeze({
   magic_shiva: scene('shiva', [beat('diamond-seal', 3), beat('ice-curtain', 6), beat('diamond-dust', 8)], 1.26),
   magic_ifrit: scene('ifrit', [beat('horn-seal', 2), beat('hellfire-wave', 7), beat('hellfire-column', 6)], 1.28),
   magic_bahamut: scene('bahamut', [beat('dragon-seal', 3), beat('mega-charge', 5), beat('mega-beam', 6)], 1.34),
+
+  ability_steal: scene('steal', [beat('vanish-step', 4), beat('snatch-hand', 1), beat('return-glint', 1)], .96),
+  ability_jump: scene('jump', [beat('sky-launch', 3), beat('lance-drop', 1), beat('ground-star', 8)], 1.08),
+  ability_rapid_fire: scene('rapid-fire', [beat('aim-ring', 1), beat('fourfold-line', 4), beat('impact-star', 4)], 1.08),
+  ability_zeninage: scene('zeninage', [beat('coin-draw', 4), beat('gil-rain', 14), beat('coin-burst', 8)], 1.08),
+  ability_mix: scene('mix', [beat('reagent-vial', 2), beat('compound-orbit', 8), beat('mix-burst', 12)], 1.02),
+
+  'atomic-ray': scene('atomic-ray', [beat('reactor-ring', 6), beat('ray-grid', 5), beat('atomic-burst', 18)], 1.14),
+  'wave-cannon': scene('wave-cannon', [beat('charge-lines', 7), beat('wave-core', 1), beat('cannon-band', 5)], 1.25),
+  blaster: scene('blaster', [beat('binary-reticle', 2), beat('cross-lock', 2), beat('blaster-burst', 8)], 1.08),
+  maelstrom: scene('maelstrom', [beat('vortex-ring', 6), beat('critical-pull', 19), beat('critical-line', 2)], 1.22),
+  'delta-attack': scene('delta-attack', [beat('delta-node', 3), beat('triangle-bind', 3), beat('stone-prison', 6)], 1.14),
 });
 
 const SPELL_ART_BLUEPRINTS = Object.freeze({
@@ -7518,9 +7792,9 @@ function spellChoreographyDuration(action = {}) {
 }
 
 function createSpellArtElement(action = {}) {
-  const blueprint = spellArtForAction(action);
-  if (!blueprint || typeof document === 'undefined') return null;
   const choreography = spellChoreographyForAction(action);
+  const blueprint = spellArtForAction(action) ?? (choreography ? PIXEL_SEQUENCE_FALLBACK : null);
+  if (!blueprint || typeof document === 'undefined') return null;
   const layer = document.createElement('span');
   layer.className = [
     'fx-spell-art',

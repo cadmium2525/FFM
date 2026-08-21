@@ -35,7 +35,7 @@
   <script type="module">
     const cacheKey=new URLSearchParams(location.search).get('v')||'dev';
     const { SPELL_PIXEL_SEQUENCES, renderSpellCanvasFrame }=await import(`../src/ui/SpellCanvasRenderer.js?v=${encodeURIComponent(cacheKey)}`);
-    const labels = {fire:'ファイア',fira:'ファイラ',firaga:'ファイガ',blizzard:'ブリザド',blizzara:'ブリザラ',blizzaga:'ブリザガ',thunder:'サンダー',thundara:'サンダラ',thundaga:'サンダガ',cure:'ケアル',cura:'ケアルラ',curaga:'ケアルガ',haste:'ヘイスト',slow:'スロウ',stop:'ストップ',comet:'コメット',meteor:'メテオ',missile:'ミサイル',flare:'フレア','level-5-death':'レベル5デス',shiva:'シヴァ',ifrit:'イフリート',bahamut:'バハムート'};
+    const labels = {fire:'ファイア',fira:'ファイラ',firaga:'ファイガ',blizzard:'ブリザド',blizzara:'ブリザラ',blizzaga:'ブリザガ',thunder:'サンダー',thundara:'サンダラ',thundaga:'サンダガ',cure:'ケアル',cura:'ケアルラ',curaga:'ケアルガ',raise:'レイズ',protect:'プロテス',holy:'ホーリー',haste:'ヘイスト',slow:'スロウ',stop:'ストップ',comet:'コメット',meteor:'メテオ',missile:'ミサイル',flare:'フレア','level-5-death':'レベル5デス',shiva:'シヴァ',ifrit:'イフリート',bahamut:'バハムート',steal:'ぬすむ',jump:'ジャンプ','rapid-fire':'みだれうち',zeninage:'ぜになげ',mix:'ちょうごう','atomic-ray':'アトミックレイ','wave-cannon':'はどうほう',blaster:'ブラスター',maelstrom:'ミールストーム','delta-attack':'デルタアタック'};
     const grid = document.querySelector('#grid');
     const scrubCanvas=document.querySelector('#scrub-canvas');const frameInput=document.querySelector('#frame');const frameLabel=document.querySelector('#frame-label');const selectedName=document.querySelector('#selected-name');
     let selectedId=new URLSearchParams(location.search).get('scene')||'fire';

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { SPELL_PIXEL_SEQUENCES } from '../src/ui/SpellCanvasRenderer.js';
-import { SPELL_CHOREOGRAPHIES } from '../src/ui/SpellArtDirector.js';
+import { SPELL_CHOREOGRAPHIES, spellChoreographyForAction } from '../src/ui/SpellArtDirector.js';
 
 const sequences = Object.entries(SPELL_PIXEL_SEQUENCES);
-assert.ok(sequences.length >= 20, 'the first pixel VFX production set regressed');
+assert.ok(sequences.length >= 36, 'the cross-category pixel VFX production set regressed');
 
 for (const [sceneId, spec] of sequences) {
   assert.equal(spec.referenceVersion, 'SFC-JP-1992', `${sceneId}: wrong reference target`);
@@ -37,6 +37,31 @@ for (const sceneId of Object.keys(SPELL_PIXEL_SEQUENCES)) {
 for (const required of ['missile', 'flare', 'level-5-death', 'fire', 'blizzard', 'thunder', 'cure', 'haste', 'shiva', 'ifrit', 'bahamut']) {
   assert.ok(SPELL_PIXEL_SEQUENCES[required], `${required}: strict visual audit spell missing`);
 }
+
+for (const required of [
+  'raise', 'protect', 'holy',
+  'steal', 'jump', 'rapid-fire', 'zeninage', 'mix',
+  'atomic-ray', 'wave-cannon', 'blaster', 'maelstrom', 'delta-attack',
+]) {
+  assert.ok(SPELL_PIXEL_SEQUENCES[required], `${required}: dedicated cross-category sequence missing`);
+}
+
+const reachabilityCases = [
+  [{ sourceId: 'magic_raise' }, 'raise'],
+  [{ sourceId: 'ability_steal', visualId: 'ability_steal_steal' }, 'steal'],
+  [{ sourceId: 'ability_jump', visualId: 'ability_jump_jump' }, 'jump'],
+  [{ sourceId: 'ability_rapid_fire', visualId: 'ability_rapid_fire_rapid-fire' }, 'rapid-fire'],
+  [{ sourceId: 'ability_mix', visualId: 'ability_mix_potion' }, 'mix'],
+  [{ id: 'atomic-ray' }, 'atomic-ray'],
+  [{ id: 'wave-cannon' }, 'wave-cannon'],
+  [{ id: 'delta-attack' }, 'delta-attack'],
+];
+for (const [action, expectedScene] of reachabilityCases) {
+  assert.equal(spellChoreographyForAction(action)?.id, expectedScene, `${expectedScene}: runtime action cannot reach its dedicated scene`);
+}
+
+assert.equal(SPELL_PIXEL_SEQUENCES['rapid-fire'].resultPolicy, 'split-amount', 'Rapid Fire must stage four mechanical impacts');
+assert.equal(SPELL_PIXEL_SEQUENCES['rapid-fire'].impactFrames.length, 4, 'Rapid Fire needs four impact cues');
 
 console.log(JSON.stringify({
   targetVersion: 'SFC-JP-1992',
