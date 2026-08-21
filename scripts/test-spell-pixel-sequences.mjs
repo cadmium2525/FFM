@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { SPELL_PIXEL_SEQUENCES } from '../src/ui/SpellCanvasRenderer.js';
 import { SPELL_CHOREOGRAPHIES, spellChoreographyForAction } from '../src/ui/SpellArtDirector.js';
+import { ff5Magic } from '../src/database/ff5Database.js';
 
 const sequences = Object.entries(SPELL_PIXEL_SEQUENCES);
-assert.ok(sequences.length >= 45, 'the cross-category pixel VFX production set regressed');
+assert.ok(sequences.length >= 69, 'the cross-category pixel VFX production set regressed');
 
 for (const [sceneId, spec] of sequences) {
   assert.equal(spec.referenceVersion, 'SFC-JP-1992', `${sceneId}: wrong reference target`);
@@ -44,6 +45,11 @@ for (const required of [
   'atomic-ray', 'wave-cannon', 'blaster', 'maelstrom', 'delta-attack',
   'shell', 'reflect', 'gravity', 'graviga', 'return',
   '1000-needles', 'white-wind', 'aqua-breath', 'mighty-guard',
+  'goblin-punch', 'magic-hammer', 'aero', 'aera', 'aeroga',
+  'flame-thrower', 'time-slip', 'death-claw', 'mind-blast', 'flash',
+  'roulette', 'self-destruct', 'vampire', 'question-marks', 'moon-flute',
+  'lilliputian-lyric', 'ponds-chorus', 'level-4-graviga', 'doom', 'level-2-old',
+  'transfusion', 'level-3-flare', 'off-guard', 'dark-spark',
 ]) {
   assert.ok(SPELL_PIXEL_SEQUENCES[required], `${required}: dedicated cross-category sequence missing`);
 }
@@ -66,9 +72,40 @@ const reachabilityCases = [
   [{ sourceId: 'magic_white_wind' }, 'white-wind'],
   [{ sourceId: 'magic_aqua_breath' }, 'aqua-breath'],
   [{ sourceId: 'magic_mighty_guard' }, 'mighty-guard'],
+  [{ sourceId: 'magic_goblin_punch' }, 'goblin-punch'],
+  [{ sourceId: 'magic_magic_hammer' }, 'magic-hammer'],
+  [{ sourceId: 'magic_aero' }, 'aero'],
+  [{ sourceId: 'magic_aera' }, 'aera'],
+  [{ sourceId: 'magic_aeroga' }, 'aeroga'],
+  [{ sourceId: 'magic_flame_thrower' }, 'flame-thrower'],
+  [{ sourceId: 'magic_time_slip' }, 'time-slip'],
+  [{ sourceId: 'magic_death_claw' }, 'death-claw'],
+  [{ sourceId: 'magic_mind_blast' }, 'mind-blast'],
+  [{ sourceId: 'magic_flash' }, 'flash'],
+  [{ sourceId: 'magic_roulette' }, 'roulette'],
+  [{ sourceId: 'magic_self_destruct' }, 'self-destruct'],
+  [{ sourceId: 'magic_vampire' }, 'vampire'],
+  [{ sourceId: 'magic_question_marks' }, 'question-marks'],
+  [{ sourceId: 'magic_moon_flute' }, 'moon-flute'],
+  [{ sourceId: 'magic_lilliputian_lyric' }, 'lilliputian-lyric'],
+  [{ sourceId: 'magic_pond_s_chorus' }, 'ponds-chorus'],
+  [{ sourceId: 'magic_level_4_graviga' }, 'level-4-graviga'],
+  [{ sourceId: 'magic_doom' }, 'doom'],
+  [{ sourceId: 'magic_level_2_old' }, 'level-2-old'],
+  [{ sourceId: 'magic_transfusion' }, 'transfusion'],
+  [{ sourceId: 'magic_level_3_flare' }, 'level-3-flare'],
+  [{ sourceId: 'magic_off_guard' }, 'off-guard'],
+  [{ sourceId: 'magic_dark_spark' }, 'dark-spark'],
 ];
 for (const [action, expectedScene] of reachabilityCases) {
   assert.equal(spellChoreographyForAction(action)?.id, expectedScene, `${expectedScene}: runtime action cannot reach its dedicated scene`);
+}
+
+const blueMagic = ff5Magic.filter((record) => record.school === 'blue');
+assert.equal(blueMagic.length, 30, 'FFV blue magic catalog count changed');
+for (const record of blueMagic) {
+  const scene = spellChoreographyForAction({ sourceId: record.id });
+  assert.ok(scene && SPELL_PIXEL_SEQUENCES[scene.id], `${record.id}: blue magic still falls back to generic CSS`);
 }
 
 assert.equal(SPELL_PIXEL_SEQUENCES['rapid-fire'].resultPolicy, 'split-amount', 'Rapid Fire must stage four mechanical impacts');
@@ -79,6 +116,7 @@ console.log(JSON.stringify({
   pixelSequences: sequences.length,
   verifiedAgainstCapture: sequences.filter(([, spec]) => spec.referenceCaptureId).length,
   provisional: sequences.filter(([, spec]) => !spec.referenceCaptureId).length,
+  dedicatedBlueMagic: blueMagic.length,
   schemaStatus: 'ok',
   originalVerification: 'not-run-no-reference-captures',
 }, null, 2));

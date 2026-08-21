@@ -6672,9 +6672,33 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
   'delta-attack': sequence(100, [68], [phase('three-points', 0, 22), phase('delta-bind', 23, 67), phase('petrify-impact', 68, 83), phase('decay', 84, 99)]),
 
   '1000-needles': sequence(96, [66], [phase('needle-count', 0, 22), phase('needle-fan', 23, 65), phase('thousand-impact', 66, 80), phase('decay', 81, 95)]),
-  'white-wind': sequence(104, [72], [phase('feather-seed', 0, 24), phase('party-wind', 25, 71), phase('white-heal', 72, 87), phase('decay', 88, 103)]),
+  'white-wind': sequence(104, [72], [phase('feather-seed', 0, 24), phase('party-wind', 25, 71), phase('white-heal', 72, 87), phase('decay', 88, 103)], { placement: 'centroid', sceneSpace: 'party-field' }),
   'aqua-breath': sequence(116, [78], [phase('water-orb', 0, 25), phase('breath-surge', 26, 77), phase('tidal-impact', 78, 96), phase('decay', 97, 115)], { placement: 'centroid', sceneSpace: 'stage' }),
-  'mighty-guard': sequence(118, [80], [phase('triple-seal', 0, 27), phase('field-assemble', 28, 79), phase('mighty-lock', 80, 98), phase('decay', 99, 117)]),
+  'mighty-guard': sequence(118, [80], [phase('triple-seal', 0, 27), phase('field-assemble', 28, 79), phase('mighty-lock', 80, 98), phase('decay', 99, 117)], { placement: 'centroid', sceneSpace: 'party-field' }),
+  'goblin-punch': sequence(78, [52], [phase('knuckle-mark', 0, 17), phase('fist-rush', 18, 51), phase('level-impact', 52, 65), phase('decay', 66, 77)]),
+  'magic-hammer': sequence(94, [64], [phase('mana-nails', 0, 22), phase('hammer-swing', 23, 63), phase('mp-shatter', 64, 79), phase('decay', 80, 93)]),
+  aero: sequence(72, [48], [phase('wind-seed', 0, 15), phase('crescent-flight', 16, 47), phase('air-cut', 48, 60), phase('decay', 61, 71)]),
+  aera: sequence(88, [58], [phase('wind-tunnel', 0, 21), phase('cross-crescents', 22, 57), phase('cross-impact', 58, 73), phase('decay', 74, 87)]),
+  aeroga: sequence(108, [72], [phase('pressure-eye', 0, 24), phase('tornado-column', 25, 71), phase('vacuum-impact', 72, 90), phase('decay', 91, 107)]),
+  'flame-thrower': sequence(96, [64], [phase('ignition', 0, 19), phase('jet-sweep', 20, 63), phase('burn-line', 64, 80), phase('decay', 81, 95)]),
+  'time-slip': sequence(108, [73], [phase('dream-clock', 0, 23), phase('hourglass-slip', 24, 72), phase('sleep-age-lock', 73, 90), phase('decay', 91, 107)]),
+  'death-claw': sequence(98, [66], [phase('shadow-palm', 0, 21), phase('claw-rake', 22, 65), phase('critical-grip', 66, 82), phase('decay', 83, 97)]),
+  'mind-blast': sequence(102, [68], [phase('mind-eye', 0, 23), phase('neural-focus', 24, 67), phase('psyche-break', 68, 85), phase('decay', 86, 101)]),
+  flash: sequence(84, [56], [phase('aperture', 0, 19), phase('light-charge', 20, 55), phase('blind-flash', 56, 70), phase('decay', 71, 83)], { placement: 'centroid', sceneSpace: 'stage' }),
+  roulette: sequence(116, [80], [phase('unit-scan', 0, 31), phase('roulette-spin', 32, 79), phase('random-cut', 80, 96), phase('decay', 97, 115)], { placement: 'centroid', sceneSpace: 'stage' }),
+  'self-destruct': sequence(110, [74], [phase('caster-core', 0, 24), phase('critical-crack', 25, 73), phase('sacrifice-burst', 74, 92), phase('decay', 93, 109)], { placement: 'centroid', sceneSpace: 'caster-local' }),
+  vampire: sequence(106, [70], [phase('fang-mark', 0, 23), phase('blood-draw', 24, 69), phase('life-return', 70, 90), phase('decay', 91, 105)], { placement: 'centroid', sceneSpace: 'stage' }),
+  'question-marks': sequence(88, [59], [phase('broken-glyph', 0, 20), phase('unknown-stutter', 21, 58), phase('missing-hp-hit', 59, 73), phase('decay', 74, 87)]),
+  'moon-flute': sequence(110, [74], [phase('moon-rise', 0, 25), phase('lunar-song', 26, 73), phase('berserk-crescendo', 74, 92), phase('decay', 93, 109)], { placement: 'centroid', sceneSpace: 'party-field' }),
+  'lilliputian-lyric': sequence(96, [65], [phase('lyric-staff', 0, 21), phase('shrink-song', 22, 64), phase('tiny-lock', 65, 80), phase('decay', 81, 95)]),
+  'ponds-chorus': sequence(98, [66], [phase('pond-ripple', 0, 21), phase('frog-song', 22, 65), phase('toad-lock', 66, 82), phase('decay', 83, 97)]),
+  'level-4-graviga': sequence(112, [76], [phase('level-four-scan', 0, 27), phase('fourfold-collapse', 28, 75), phase('level-four-impact', 76, 94), phase('decay', 95, 111)], { placement: 'centroid', sceneSpace: 'party-field' }),
+  doom: sequence(108, [73], [phase('doom-clock', 0, 26), phase('countdown', 27, 72), phase('death-sentence', 73, 90), phase('decay', 91, 107)]),
+  'level-2-old': sequence(110, [75], [phase('level-two-scan', 0, 27), phase('double-age', 28, 74), phase('level-two-impact', 75, 92), phase('decay', 93, 109)], { placement: 'centroid', sceneSpace: 'party-field' }),
+  transfusion: sequence(122, [82], [phase('soul-link', 0, 27), phase('life-mana-transfer', 28, 81), phase('ally-restore', 82, 101), phase('caster-fade', 102, 121)], { placement: 'centroid', sceneSpace: 'stage' }),
+  'level-3-flare': sequence(124, [84], [phase('level-three-scan', 0, 29), phase('triple-star-core', 30, 83), phase('threefold-nova', 84, 104), phase('decay', 105, 123)], { placement: 'centroid', sceneSpace: 'party-field' }),
+  'off-guard': sequence(96, [65], [phase('defense-grid', 0, 22), phase('lattice-fracture', 23, 64), phase('armor-break', 65, 80), phase('decay', 81, 95)]),
+  'dark-spark': sequence(102, [69], [phase('level-lens', 0, 23), phase('dark-bisection', 24, 68), phase('level-halve', 69, 85), phase('decay', 86, 101)]),
 });
 
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
@@ -7257,6 +7281,542 @@ function drawMightyGuard(ctx, frame) {
   }
 }
 
+function drawGoblinPunch(ctx, frame) {
+  const alpha = fade(frame, 6, 66, 78);
+  const rush = easeInOut(segment(frame, 17, 52));
+  const fistX = 28 + rush * 72;
+  const fistY = 116 - Math.sin(rush * Math.PI) * 22;
+  ring(ctx, 118, 102, 13 + easeOut(segment(frame, 0, 18)) * 24, '#9aff77', 2, alpha, -.4, Math.PI * 1.35);
+  poly(ctx, [[fistX - 24, fistY - 9], [fistX - 8, fistY - 18], [fistX + 6, fistY - 15], [fistX + 18, fistY - 5], [fistX + 16, fistY + 12], [fistX + 4, fistY + 22], [fistX - 10, fistY + 17], [fistX - 25, fistY + 7]], '#6cbc52', alpha, '#e8ffd7', 3);
+  for (let i = 0; i < 3; i += 1) line(ctx, fistX - 4 + i * 8, fistY - 15, fistX + 2 + i * 8, fistY + 2, '#315f38', 2, alpha);
+  if (frame >= 52) {
+    const p = easeOut(segment(frame, 52, 67));
+    burst(ctx, 119, 103, 16 + p * 56, 10, '#fff5a8', alpha, Math.PI / 10);
+    poly(ctx, [[88, 91], [96, 76], [107, 80], [113, 72], [123, 80], [132, 76], [142, 91], [138, 111], [124, 126], [103, 123], [88, 108]], '#5ca94d', alpha, '#f2ffe2', 4);
+    for (let i = 0; i < 4; i += 1) {
+      const knuckleX = 97 + i * 11;
+      line(ctx, knuckleX, 82 - (i % 2) * 4, knuckleX + 5, 99, '#244d30', 3, alpha);
+    }
+    line(ctx, 101, 113, 127, 105, '#fff0a5', 4, alpha);
+  }
+}
+
+function drawMagicHammer(ctx, frame) {
+  const alpha = fade(frame, 7, 80, 94);
+  const gather = easeOut(segment(frame, 0, 23));
+  for (let i = 0; i < 6; i += 1) {
+    const a = i * Math.PI / 3 - frame * .045;
+    diamond(ctx, 96 + Math.cos(a) * (54 - gather * 20), 103 + Math.sin(a) * (39 - gather * 13), 4, i % 2 ? '#7ae7ff' : '#bb8cff', alpha * gather, '#f4ffff');
+  }
+  if (frame >= 22) {
+    const swing = easeInOut(segment(frame, 22, 64));
+    const angle = -2.4 + swing * 2.05;
+    ctx.save(); ctx.translate(88, 113); ctx.rotate(angle);
+    poly(ctx, [[-7, -66], [25, -66], [31, -43], [19, -30], [-18, -30], [-23, -52]], '#7389d6', alpha, '#e8f7ff', 3);
+    line(ctx, 4, -30, 4, 34, '#d8b178', 8, alpha); line(ctx, 7, -29, 7, 34, '#fff0b6', 2, alpha);
+    ctx.restore();
+  }
+  if (frame >= 64) {
+    const p = easeOut(segment(frame, 64, 80));
+    ring(ctx, 117, 125, 12 + p * 52, '#68dfff', 5, alpha);
+    for (let i = 0; i < 8; i += 1) {
+      const a = i * Math.PI / 4 + .2;
+      line(ctx, 117 + Math.cos(a) * 9, 125 + Math.sin(a) * 9, 117 + Math.cos(a) * (24 + p * 42), 125 + Math.sin(a) * (24 + p * 42), i % 2 ? '#c797ff' : '#dffcff', 3, alpha);
+    }
+    ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#08183e'; ctx.fillRect(78, 116, 78, 18); ctx.fillStyle = '#92ecff'; ctx.fillRect(83, 121, Math.max(0, Math.round(66 * (1 - p))), 8); ctx.restore();
+  }
+}
+
+function drawAero(ctx, frame, tier) {
+  const total = tier === 1 ? 72 : tier === 2 ? 88 : 108;
+  const impactAt = tier === 1 ? 48 : tier === 2 ? 58 : 72;
+  const alpha = fade(frame, 6, total - 15, total);
+  if (tier === 1) {
+    const flight = easeInOut(segment(frame, 14, 49));
+    const x = 31 + flight * 104;
+    ring(ctx, x, 103, 22, '#c9fff0', 6, alpha, -1.1, 1.05);
+    line(ctx, x - 20, 84, x + 16, 117, '#77dfcf', 3, alpha);
+    for (let i = 0; i < 4; i += 1) line(ctx, x - 50 - i * 8, 82 + i * 12, x - 23, 82 + i * 12, '#8ae9df', 2, alpha * (1 - i * .13));
+  } else if (tier === 2) {
+    const tunnel = easeOut(segment(frame, 0, 23));
+    for (let i = 0; i < 4; i += 1) ring(ctx, 96, 101, 16 + i * 13 + tunnel * 5, i % 2 ? '#77d9c8' : '#d8fff4', 2, alpha, frame * .035 + i, frame * .035 + i + Math.PI * 1.3);
+    const cross = easeInOut(segment(frame, 21, 59));
+    line(ctx, 44 + cross * 30, 49, 147 - cross * 22, 150, '#e9fff7', 6, alpha * cross);
+    line(ctx, 147 - cross * 30, 49, 44 + cross * 22, 150, '#72dbc9', 6, alpha * cross);
+  } else {
+    const grow = easeOut(segment(frame, 0, 72));
+    const top = 133 - grow * 92;
+    for (let i = 0; i < 8; i += 1) {
+      const y = 142 - i * 13 * grow;
+      const width = (54 - i * 5) * grow;
+      ring(ctx, 96, y, Math.max(4, width), i % 2 ? '#83e5d8' : '#e1fff8', 3, alpha, frame * .055 + i * .55, frame * .055 + i * .55 + Math.PI * 1.35);
+    }
+    poly(ctx, [[96, top], [117, 142], [75, 142]], 'rgba(78,208,190,.22)', alpha * grow, '#b9fff1', 2);
+    motes(ctx, 18, frame, '#d9fff7', 'orbit', 78, alpha * grow);
+  }
+  if (frame >= impactAt) {
+    const p = easeOut(segment(frame, impactAt, impactAt + 16));
+    burst(ctx, 112, 105, 16 + p * (tier === 3 ? 67 : 48), 8 + tier * 3, '#eefff9', alpha, frame * .04);
+    if (tier >= 2) ring(ctx, 112, 105, 10 + p * 54, '#61d5c5', 4, alpha);
+  }
+}
+
+function drawFlameThrower(ctx, frame) {
+  const alpha = fade(frame, 6, 81, 96);
+  const ignite = easeOut(segment(frame, 0, 20));
+  poly(ctx, [[25, 91], [50, 84], [64, 94], [64, 112], [49, 122], [25, 115]], '#5b6478', alpha * ignite, '#e7f5ff', 3);
+  line(ctx, 31, 102, 57, 102, '#95a8bd', 5, alpha * ignite);
+  if (frame >= 18) {
+    const sweep = easeOut(segment(frame, 18, 64));
+    const tip = 65 + sweep * 91;
+    poly(ctx, [[60, 95], [tip, 65 + Math.sin(frame * .18) * 7], [142, 101], [tip, 137 + Math.cos(frame * .16) * 7], [60, 110]], '#f04c26', alpha, '#ffcf67', 2);
+    poly(ctx, [[66, 98], [tip - 18, 81], [132, 102], [tip - 20, 120], [66, 107]], '#ffd45d', alpha, '#fff1a0', 1);
+    for (let i = 0; i < 8; i += 1) flame(ctx, 82 + i * 10, 129 + (i % 2) * 7, 18 + ((frame + i * 9) % 21), 10, i % 2 ? '#ff792e' : '#ffc84e', alpha, 5);
+  }
+  if (frame >= 64) {
+    const p = easeOut(segment(frame, 64, 81));
+    for (let i = 0; i < 6; i += 1) flame(ctx, 84 + i * 14, 148, 31 + p * (20 + i % 3 * 8), 15, i % 2 ? '#f43d25' : '#ffca51', alpha, i - 2);
+    line(ctx, 72, 147, 160, 147, '#fff0a1', 5, alpha * p);
+  }
+}
+
+function drawTimeSlip(ctx, frame) {
+  const alpha = fade(frame, 8, 91, 108);
+  const dream = easeOut(segment(frame, 0, 24));
+  ring(ctx, 96, 93, 49, '#8ec9ff', 3, alpha * dream);
+  for (let i = 0; i < 6; i += 1) {
+    const a = i * Math.PI / 3 + frame * .018;
+    ring(ctx, 96 + Math.cos(a) * 55, 93 + Math.sin(a) * 42, 3 + i % 3, '#e7d6ff', 2, alpha * dream);
+  }
+  const slip = easeInOut(segment(frame, 23, 73));
+  poly(ctx, [[72, 45], [120, 45], [107, 83], [85, 83]], 'rgba(132,186,255,.2)', alpha * slip, '#e8f8ff', 2);
+  poly(ctx, [[85, 103], [107, 103], [120, 141], [72, 141]], 'rgba(190,130,255,.2)', alpha * slip, '#eddcff', 2);
+  for (let i = 0; i < 9; i += 1) {
+    const y = 55 + ((i * 17 + frame * 2) % 76);
+    line(ctx, 58, y, 134, y - 6, i % 2 ? '#a1d8ff' : '#b594e5', 2, alpha * slip);
+  }
+  if (frame >= 73) {
+    const p = easeOut(segment(frame, 73, 91));
+    poly(ctx, [[54, 75], [67, 61], [76, 75], [67, 89]], '#d7efff', alpha * p, '#ffffff', 2);
+    poly(ctx, [[116, 96], [127, 83], [138, 96], [127, 109]], '#7a629d', alpha * p, '#e3c7ff', 2);
+    for (let i = 0; i < 4; i += 1) line(ctx, 75 + i * 14, 119 + i % 2 * 8, 83 + i * 14, 141 + i % 2 * 8, '#8e75b0', 3, alpha * p);
+  }
+}
+
+function drawDeathClaw(ctx, frame) {
+  const alpha = fade(frame, 7, 83, 98);
+  const form = easeOut(segment(frame, 0, 23));
+  poly(ctx, [[49, 137], [56, 74], [72, 42], [81, 73], [92, 32], [99, 74], [116, 39], [114, 83], [141, 65], [127, 106], [110, 133], [80, 151]], '#24112f', alpha * form, '#b6568e', 3);
+  const rake = easeInOut(segment(frame, 21, 66));
+  for (let i = 0; i < 4; i += 1) {
+    const x = 42 + i * 27;
+    line(ctx, x - 25 + rake * 45, 38, x + 30 + rake * 30, 151, i % 2 ? '#ff6a94' : '#d16bb5', 5, alpha * rake);
+  }
+  if (frame >= 66) {
+    const p = easeOut(segment(frame, 66, 83));
+    ring(ctx, 99, 104, 15 + p * 54, '#e54879', 5, alpha);
+    poly(ctx, [[99, 55 - p * 9], [119 + p * 13, 90], [151 + p * 6, 104], [119 + p * 13, 118], [99, 153 + p * 8], [79 - p * 13, 118], [47 - p * 6, 104], [79 - p * 13, 90]], null, alpha, '#ffb1c6', 3);
+    ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#ff5f87'; ctx.fillRect(91, 96, 16, 16); ctx.restore();
+  }
+}
+
+function drawMindBlast(ctx, frame) {
+  const alpha = fade(frame, 7, 86, 102);
+  const eye = easeOut(segment(frame, 0, 24));
+  poly(ctx, [[36, 96], [66, 69 - eye * 10], [96, 59 - eye * 12], [126, 69 - eye * 10], [156, 96], [126, 123 + eye * 10], [96, 133 + eye * 12], [66, 123 + eye * 10]], 'rgba(75,42,117,.45)', alpha * eye, '#d7a7ff', 3);
+  ring(ctx, 96, 96, 11 + eye * 19, '#8ee9ff', 4, alpha);
+  diamond(ctx, 96, 96, 10 + eye * 5, '#e7ffff', alpha, '#9c74db');
+  if (frame >= 23) {
+    const focus = easeOut(segment(frame, 23, 68));
+    for (let i = 0; i < 10; i += 1) {
+      const a = i * Math.PI / 5 + frame * .03;
+      const r = 72 - focus * 38;
+      line(ctx, 96 + Math.cos(a) * r, 96 + Math.sin(a) * r, 96 + Math.cos(a + .48) * (r - 20), 96 + Math.sin(a + .48) * (r - 20), i % 2 ? '#6ddbf1' : '#c17bea', 3, alpha * focus);
+    }
+  }
+  if (frame >= 68) {
+    const p = easeOut(segment(frame, 68, 86));
+    for (let i = 0; i < 5; i += 1) ring(ctx, 96, 96, 17 + p * (18 + i * 9), i % 2 ? '#75e5ff' : '#c27bff', 3, alpha * (1 - i * .1));
+    line(ctx, 35, 96, 157, 96, '#ffffff', 5, alpha * p);
+  }
+}
+
+function drawFlash(ctx, frame) {
+  const alpha = fade(frame, 5, 71, 84);
+  const aperture = easeOut(segment(frame, 0, 20));
+  for (let i = 0; i < 8; i += 1) {
+    const a = i * Math.PI / 4 + frame * .02;
+    poly(ctx, [[96 + Math.cos(a) * 10, 96 + Math.sin(a) * 10], [96 + Math.cos(a - .24) * (20 + aperture * 46), 96 + Math.sin(a - .24) * (20 + aperture * 46)], [96 + Math.cos(a + .24) * (20 + aperture * 46), 96 + Math.sin(a + .24) * (20 + aperture * 46)]], i % 2 ? '#e2faff' : '#fff0a8', alpha * aperture, '#ffffff', 1);
+  }
+  ring(ctx, 96, 96, 8 + aperture * 28, '#ffffff', 5, alpha);
+  if (frame >= 55) {
+    const p = easeOut(segment(frame, 55, 70));
+    for (let i = 0; i < 16; i += 1) {
+      const angle = i * Math.PI / 8;
+      line(ctx, 96 + Math.cos(angle) * 18, 96 + Math.sin(angle) * 18, 96 + Math.cos(angle) * (65 + p * 27), 96 + Math.sin(angle) * (65 + p * 27), i % 2 ? '#fff5ad' : '#ffffff', 5, alpha);
+    }
+    ring(ctx, 96, 96, 20 + p * 62, '#ffffff', 7, alpha);
+    line(ctx, 28, 96, 164, 96, '#fff9ca', 7, alpha);
+    poly(ctx, [[48, 96], [70, 82], [96, 77], [122, 82], [144, 96], [122, 110], [96, 115], [70, 110]], '#07132a', alpha * p, '#8cd6e8', 3);
+    diamond(ctx, 96, 96, 11, '#f7ffff', alpha * p);
+  }
+}
+
+function drawDigit(ctx, digit, x, y, scale, color, alpha = 1) {
+  const segments = {
+    0: ['a', 'b', 'c', 'd', 'e', 'f'], 1: ['b', 'c'], 2: ['a', 'b', 'g', 'e', 'd'],
+    3: ['a', 'b', 'g', 'c', 'd'], 4: ['f', 'g', 'b', 'c'], 5: ['a', 'f', 'g', 'c', 'd'],
+    6: ['a', 'f', 'g', 'e', 'c', 'd'], 7: ['a', 'b', 'c'], 8: ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
+    9: ['a', 'b', 'c', 'd', 'f', 'g'],
+  };
+  const bars = {
+    a: [1, 0, 5, 1], b: [5, 1, 1, 5], c: [5, 7, 1, 5], d: [1, 12, 5, 1],
+    e: [0, 7, 1, 5], f: [0, 1, 1, 5], g: [1, 6, 5, 1],
+  };
+  ctx.save(); ctx.globalAlpha = clamp(alpha); ctx.fillStyle = color;
+  (segments[digit] ?? []).forEach((name) => {
+    const [bx, by, bw, bh] = bars[name];
+    ctx.fillRect(Math.round(x + bx * scale), Math.round(y + by * scale), Math.round(bw * scale), Math.round(bh * scale));
+  });
+  ctx.restore();
+}
+
+function scenePoint(sceneContext, role, fallback) {
+  const x = Number(sceneContext?.[`${role}X`]);
+  const y = Number(sceneContext?.[`${role}Y`]);
+  return {
+    x: clamp(Number.isFinite(x) ? x : fallback.x, 0, 100) / 100 * LOGICAL_SIZE,
+    y: clamp(Number.isFinite(y) ? y : fallback.y, 0, 100) / 100 * LOGICAL_SIZE,
+  };
+}
+
+function drawRoulette(ctx, frame, sceneContext) {
+  const alpha = fade(frame, 8, 97, 116);
+  const provided = Array.isArray(sceneContext?.targets) ? sceneContext.targets : [];
+  const candidates = provided.length > 1
+    ? provided.map((point) => ({ x: clamp(Number(point.x ?? 50), 0, 100) / 100 * LOGICAL_SIZE, y: clamp(Number(point.y ?? 50), 0, 100) / 100 * LOGICAL_SIZE }))
+    : [{ x: 51, y: 55 }, { x: 137, y: 59 }, { x: 139, y: 133 }, { x: 53, y: 137 }];
+  const scan = easeOut(segment(frame, 0, 32));
+  candidates.forEach((point, index) => {
+    diamond(ctx, point.x, point.y, 7, index % 2 ? '#76538f' : '#476b8c', alpha * scan, '#d9efff');
+    ring(ctx, point.x, point.y, 11, '#9abbd3', 2, alpha * scan);
+  });
+  const spin = easeInOut(segment(frame, 24, 80));
+  ring(ctx, 96, 96, 52, '#d45180', 4, alpha);
+  ring(ctx, 96, 96, 39, '#4e274e', 3, alpha, frame * .12, frame * .12 + Math.PI * 1.55);
+  for (let i = 0; i < 8; i += 1) {
+    const a = i * Math.PI / 4;
+    line(ctx, 96 + Math.cos(a) * 17, 96 + Math.sin(a) * 17, 96 + Math.cos(a) * 47, 96 + Math.sin(a) * 47, i % 2 ? '#e9c4dd' : '#8c5578', 2, alpha * spin);
+  }
+  const pointer = -Math.PI / 2 + spin * Math.PI * 9;
+  line(ctx, 96, 96, 96 + Math.cos(pointer) * 35, 96 + Math.sin(pointer) * 35, '#fff3ba', 5, alpha);
+  diamond(ctx, 96, 96, 6, '#ffffff', alpha, '#e9537f');
+  if (frame >= 80) {
+    const p = easeOut(segment(frame, 80, 97));
+    const target = scenePoint(sceneContext, 'target', { x: 70, y: 50 });
+    line(ctx, 96, 96, target.x, target.y, '#ff668f', 5, alpha * p);
+    ring(ctx, target.x, target.y, 10 + p * 27, '#ff94ae', 4, alpha);
+    for (let i = 0; i < 6; i += 1) line(ctx, target.x - 20 + i * 8, target.y - 28, target.x - 5 + i * 8, target.y + 29, '#5c1639', 3, alpha * p);
+  }
+}
+
+function drawSelfDestruct(ctx, frame) {
+  const alpha = fade(frame, 7, 93, 110);
+  const heat = easeOut(segment(frame, 0, 25));
+  ring(ctx, 96, 101, 13 + heat * 33, '#ffb34b', 5, alpha);
+  diamond(ctx, 96, 101, 9 + heat * 16, '#fff4b0', alpha, '#ef542d');
+  if (frame >= 24) {
+    const crack = easeOut(segment(frame, 24, 74));
+    for (let i = 0; i < 9; i += 1) {
+      const a = i * Math.PI * 2 / 9 + .13;
+      const bendX = 96 + Math.cos(a + .23) * (27 + crack * 20);
+      const bendY = 101 + Math.sin(a + .23) * (27 + crack * 20);
+      line(ctx, 96 + Math.cos(a) * 14, 101 + Math.sin(a) * 14, bendX, bendY, i % 2 ? '#ff7634' : '#fff0a4', 3, alpha * crack);
+      line(ctx, bendX, bendY, 96 + Math.cos(a) * (49 + crack * 31), 101 + Math.sin(a) * (49 + crack * 31), '#ec342b', 2, alpha * crack);
+    }
+  }
+  if (frame >= 74) {
+    const p = easeOut(segment(frame, 74, 93));
+    burst(ctx, 96, 101, 24 + p * 76, 20, '#fff0a4', alpha, frame * .04);
+    ring(ctx, 96, 101, 15 + p * 71, '#ff4e2b', 7, alpha);
+    ring(ctx, 96, 101, 8 + p * 44, '#ffffff', 9, alpha * Math.max(.25, 1 - p * .72));
+    diamond(ctx, 96, 101, 15 + p * 29, '#ffdc72', alpha * Math.max(.2, 1 - p * .75), '#ffffff');
+  }
+}
+
+function drawVampire(ctx, frame, sceneContext) {
+  const alpha = fade(frame, 7, 91, 106);
+  const target = scenePoint(sceneContext, 'target', { x: 69, y: 49 });
+  const caster = scenePoint(sceneContext, 'caster', { x: 31, y: 55 });
+  const mark = easeOut(segment(frame, 0, 24));
+  poly(ctx, [[target.x - 18, target.y - 10], [target.x - 7, target.y - 20], [target.x, target.y - 7], [target.x + 7, target.y - 20], [target.x + 18, target.y - 10], [target.x + 9, target.y + 15], [target.x, target.y + 7], [target.x - 9, target.y + 15]], '#3a1029', alpha * mark, '#df5b83', 3);
+  if (frame >= 23) {
+    const draw = easeInOut(segment(frame, 23, 70));
+    for (let i = 0; i < 5; i += 1) {
+      const t = clamp(draw - i * .08);
+      const x = target.x + (caster.x - target.x) * t;
+      const y = target.y + (caster.y - target.y) * t - Math.sin(t * Math.PI) * (20 + i * 3);
+      diamond(ctx, x, y, 4 + i % 2, i % 2 ? '#e95f77' : '#9a214d', alpha * t, '#ffc2ca');
+    }
+    line(ctx, target.x, target.y, caster.x, caster.y, '#7c1b49', 3, alpha * draw);
+  }
+  if (frame >= 70) {
+    const p = easeOut(segment(frame, 70, 91));
+    ring(ctx, caster.x, caster.y, 10 + p * 31, '#e85a7b', 4, alpha);
+    burst(ctx, caster.x, caster.y, 12 + p * 35, 8, '#ffd8dc', alpha, Math.PI / 8);
+    poly(ctx, [[caster.x, caster.y - 15 - p * 5], [caster.x + 8, caster.y], [caster.x, caster.y + 16 + p * 5], [caster.x - 8, caster.y]], '#ff8295', alpha, '#fff2ef', 2);
+  }
+}
+
+function drawQuestionMarks(ctx, frame) {
+  const alpha = fade(frame, 6, 74, 88);
+  const glitch = easeOut(segment(frame, 0, 21));
+  const offsets = [[-36, -12], [0, -27], [35, -6]];
+  offsets.forEach(([ox, oy], index) => {
+    const jitter = Math.round(Math.sin(frame * .8 + index * 2) * 5);
+    const x = 85 + ox + jitter; const y = 65 + oy;
+    line(ctx, x, y, x + 20, y - 8, index % 2 ? '#8de5ff' : '#df8bff', 6, alpha * glitch);
+    line(ctx, x + 20, y - 8, x + 27, y + 8, '#eefcff', 6, alpha * glitch);
+    line(ctx, x + 27, y + 8, x + 12, y + 22, '#a178cf', 6, alpha * glitch);
+    ctx.save(); ctx.globalAlpha = alpha * glitch; ctx.fillStyle = '#f4ffff'; ctx.fillRect(Math.round(x + 8), Math.round(y + 32), 7, 7); ctx.restore();
+  });
+  if (frame >= 20) {
+    const stutter = easeOut(segment(frame, 20, 59));
+    for (let i = 0; i < 8; i += 1) {
+      const y = 50 + ((i * 19 + frame * 5) % 91);
+      line(ctx, 43 + (i % 3) * 9, y, 145 - (i % 4) * 8, y, i % 2 ? '#6a5b97' : '#a9eaff', 2, alpha * stutter);
+    }
+  }
+  if (frame >= 59) {
+    const p = easeOut(segment(frame, 59, 74));
+    poly(ctx, [[37, 94], [55, 56], [96, 39], [139, 58], [158, 96], [137, 135], [96, 151], [54, 134]], null, alpha, '#f5c2ff', 4);
+    burst(ctx, 96, 98, 15 + p * 54, 7, '#b4edff', alpha, .22);
+  }
+}
+
+function drawMoonFlute(ctx, frame) {
+  const alpha = fade(frame, 8, 93, 110);
+  const rise = easeOut(segment(frame, 0, 26));
+  ring(ctx, 94, 78, 34, '#fff0a6', 8, alpha * rise, -.8, Math.PI * 1.35);
+  ring(ctx, 107, 68, 31, '#0b173c', 10, alpha * rise, -.8, Math.PI * 1.35);
+  if (frame >= 25) {
+    const song = easeOut(segment(frame, 25, 74));
+    for (let i = 0; i < 7; i += 1) {
+      const a = Math.PI + i * Math.PI / 6 + frame * .018;
+      ring(ctx, 96, 93, 20 + i * 10 * song, i % 2 ? '#de7e9e' : '#f0d28f', 2, alpha * song, a, a + Math.PI * .8);
+      diamond(ctx, 58 + i * 13, 123 + Math.sin(frame * .08 + i) * 13, 4, '#ffdc87', alpha * song, '#ffffff');
+    }
+  }
+  if (frame >= 74) {
+    const p = easeOut(segment(frame, 74, 93));
+    burst(ctx, 96, 98, 19 + p * 68, 14, '#ff7a85', alpha, frame * .03);
+    for (let i = 0; i < 4; i += 1) ring(ctx, 96, 98, 28 + i * 13 + p * 11, '#d84867', 3, alpha * (1 - i * .13));
+  }
+}
+
+function drawLilliputianLyric(ctx, frame) {
+  const alpha = fade(frame, 7, 81, 96);
+  const song = easeOut(segment(frame, 0, 22));
+  for (let i = 0; i < 5; i += 1) line(ctx, 45, 55 + i * 17, 148, 55 + i * 17, '#7cb3ce', 2, alpha * song);
+  const shrink = 1 - easeInOut(segment(frame, 21, 65)) * .76;
+  const cx = 96; const cy = 98;
+  ring(ctx, cx, cy, 36 * shrink, '#f3da8d', 4, alpha);
+  line(ctx, cx + 24 * shrink, cy - 43 * shrink, cx + 24 * shrink, cy + 19 * shrink, '#fff1b6', Math.max(2, 6 * shrink), alpha);
+  diamond(ctx, cx - 8 * shrink, cy + 22 * shrink, 13 * shrink, '#e7c262', alpha, '#ffffff');
+  for (let i = 0; i < 4; i += 1) {
+    const t = easeOut(segment(frame, 22 + i * 6, 65));
+    diamond(ctx, 54 + i * 28, 64 + Math.sin(frame * .07 + i) * 18, 5 - t * 2, '#a9e8ff', alpha * t);
+  }
+  if (frame >= 65) {
+    const p = easeOut(segment(frame, 65, 81));
+    poly(ctx, [[96, 82], [102, 91], [101, 112], [110, 127], [82, 127], [91, 112], [90, 91]], '#efca82', alpha * p, '#fff9dc', 2);
+    ring(ctx, 96, 104, 10 + p * 29, '#a2dbef', 2, alpha);
+  }
+}
+
+function drawPondsChorus(ctx, frame) {
+  const alpha = fade(frame, 7, 83, 98);
+  const ripple = easeOut(segment(frame, 0, 22));
+  for (let i = 0; i < 4; i += 1) ring(ctx, 96, 133, 17 + i * 14 * ripple, i % 2 ? '#71d3d0' : '#b5fff0', 3, alpha * ripple, 0, Math.PI);
+  const hop = easeInOut(segment(frame, 21, 66));
+  const frogY = 121 - Math.sin(hop * Math.PI * 2) * 34;
+  ring(ctx, 96, frogY, 25, '#6ecf78', 5, alpha);
+  ring(ctx, 82, frogY - 19, 9, '#9ded91', 4, alpha); ring(ctx, 110, frogY - 19, 9, '#9ded91', 4, alpha);
+  diamond(ctx, 82, frogY - 20, 3, '#102635', alpha); diamond(ctx, 110, frogY - 20, 3, '#102635', alpha);
+  line(ctx, 82, frogY + 9, 110, frogY + 9, '#255b4e', 3, alpha);
+  for (let i = 0; i < 5; i += 1) diamond(ctx, 59 + i * 19, 55 + Math.sin(frame * .1 + i) * 13, 4, '#e4ffb2', alpha * hop, '#ffffff');
+  if (frame >= 66) {
+    const p = easeOut(segment(frame, 66, 83));
+    ring(ctx, 96, 104, 17 + p * 55, '#80ef91', 5, alpha);
+    poly(ctx, [[64, 135], [78, 112], [96, 125], [114, 112], [128, 135]], '#5aa767', alpha * p, '#ccffbe', 3);
+  }
+}
+
+function drawLevel4Graviga(ctx, frame) {
+  const alpha = fade(frame, 8, 95, 112);
+  const scan = easeOut(segment(frame, 0, 28));
+  drawDigit(ctx, 4, 79, 42, 5, '#edc7ff', alpha * scan);
+  ring(ctx, 96, 76, 31, '#8e6ad3', 3, alpha * scan);
+  if (frame >= 27) {
+    const collapse = easeOut(segment(frame, 27, 76));
+    [[55, 118], [83, 137], [109, 137], [137, 118]].forEach(([x, y], index) => {
+      ring(ctx, x + (96 - x) * collapse * .38, y + (96 - y) * collapse * .38, 13 + collapse * 9, index % 2 ? '#c37aff' : '#7652b7', 4, alpha * collapse);
+      diamond(ctx, x + (96 - x) * collapse * .38, y + (96 - y) * collapse * .38, 6, '#090414', alpha, '#f0d2ff');
+    });
+  }
+  if (frame >= 76) {
+    const p = easeOut(segment(frame, 76, 95));
+    burst(ctx, 96, 105, 20 + p * 65, 16, '#cf9dff', alpha, Math.PI / 8);
+    drawDigit(ctx, 4, 75, 73, 7, '#ffffff', alpha);
+  }
+}
+
+function drawDoom(ctx, frame) {
+  const alpha = fade(frame, 7, 91, 108);
+  const clockIn = easeOut(segment(frame, 0, 27));
+  ring(ctx, 96, 97, 54, '#c94766', 5, alpha * clockIn);
+  ring(ctx, 96, 97, 44, '#3e1534', 3, alpha * clockIn);
+  const countdown = frame < 42 ? 3 : frame < 58 ? 2 : 1;
+  drawDigit(ctx, countdown, 78, 60, 6, countdown === 1 ? '#ff5b72' : '#f3ccd7', alpha);
+  const hand = -Math.PI / 2 + easeInOut(segment(frame, 26, 73)) * Math.PI * 2;
+  line(ctx, 96, 97, 96 + Math.cos(hand) * 38, 97 + Math.sin(hand) * 38, '#fff1af', 4, alpha);
+  for (let i = 0; i < 6; i += 1) {
+    const a = i * Math.PI / 3;
+    diamond(ctx, 96 + Math.cos(a) * 62, 97 + Math.sin(a) * 52, 4, '#6d254c', alpha * clockIn, '#e8819b');
+  }
+  if (frame >= 73) {
+    const p = easeOut(segment(frame, 73, 91));
+    poly(ctx, [[96, 39 - p * 8], [115, 71], [142 + p * 12, 89], [121, 110], [131, 150 + p * 7], [96, 127], [61, 150 + p * 7], [71, 110], [50 - p * 12, 89], [77, 71]], '#170718', alpha * p, '#ed5478', 4);
+    line(ctx, 50, 142, 142, 50, '#fff0b3', 6, alpha * p);
+  }
+}
+
+function drawLevel2Old(ctx, frame) {
+  const alpha = fade(frame, 8, 93, 110);
+  const scan = easeOut(segment(frame, 0, 28));
+  drawDigit(ctx, 2, 79, 43, 5, '#d9c195', alpha * scan);
+  ring(ctx, 96, 78, 31, '#92775d', 3, alpha * scan);
+  if (frame >= 27) {
+    const age = easeOut(segment(frame, 27, 75));
+    [[72, 111], [120, 111]].forEach(([x, y], index) => {
+      poly(ctx, [[x - 14, y - 30], [x + 14, y - 30], [x + 5, y], [x + 14, y + 30], [x - 14, y + 30], [x - 5, y]], 'rgba(112,78,50,.28)', alpha * age, index ? '#d1b983' : '#aa8b68', 2);
+    });
+    motes(ctx, 18, frame * 2, '#c5ad7c', 'fall', 72, alpha * age);
+  }
+  if (frame >= 75) {
+    const p = easeOut(segment(frame, 75, 93));
+    for (let i = 0; i < 7; i += 1) line(ctx, 48 + i * 16, 83, 61 + i * 12, 146 + i % 2 * 8, i % 2 ? '#77604b' : '#c9ae78', 3, alpha * p);
+    drawDigit(ctx, 2, 75, 70, 7, '#fff0c4', alpha);
+  }
+}
+
+function drawTransfusion(ctx, frame, sceneContext) {
+  const alpha = fade(frame, 8, 108, 122);
+  const caster = scenePoint(sceneContext, 'caster', { x: 29, y: 56 });
+  const target = scenePoint(sceneContext, 'target', { x: 70, y: 49 });
+  const link = easeOut(segment(frame, 0, 28));
+  ring(ctx, caster.x, caster.y, 12 + link * 22, '#f07d9e', 4, alpha * link);
+  ring(ctx, target.x, target.y, 12 + link * 22, '#76e8c4', 4, alpha * link);
+  line(ctx, caster.x, caster.y, target.x, target.y, '#b8efff', 2, alpha * link);
+  if (frame >= 27) {
+    const transfer = easeInOut(segment(frame, 27, 82));
+    const dx = target.x - caster.x; const dy = target.y - caster.y;
+    for (let i = 0; i < 10; i += 1) {
+      const t = (transfer + i * .11) % 1;
+      const arc = Math.sin(t * Math.PI) * (i % 2 ? 18 : -18);
+      const length = Math.max(1, Math.hypot(dx, dy));
+      const x = caster.x + dx * t - dy / length * arc;
+      const y = caster.y + dy * t + dx / length * arc;
+      diamond(ctx, x, y, i % 3 === 0 ? 5 : 3, i % 2 ? '#73e8d0' : '#f59ab1', alpha, '#ffffff');
+    }
+    poly(ctx, [[caster.x, caster.y - 14], [caster.x + 8, caster.y], [caster.x, caster.y + 15], [caster.x - 8, caster.y]], '#d8567e', alpha * (1 - transfer * .78), '#ffdce4', 2);
+  }
+  if (frame >= 82) {
+    const restore = easeOut(segment(frame, 82, 102));
+    ring(ctx, target.x, target.y, 15 + restore * 44, '#8affd5', 5, alpha);
+    burst(ctx, target.x, target.y, 14 + restore * 48, 12, '#efffff', alpha, Math.PI / 12);
+    line(ctx, target.x - 28, target.y, target.x + 28, target.y, '#ffffff', 7, alpha * restore);
+    line(ctx, target.x, target.y - 28, target.x, target.y + 28, '#ffffff', 7, alpha * restore);
+    if (frame >= 101) {
+      const fadeCaster = easeOut(segment(frame, 101, 121));
+      for (let i = 0; i < 7; i += 1) line(ctx, caster.x - 20, caster.y - 24 + i * 8, caster.x + 20 - fadeCaster * 35, caster.y - 24 + i * 8, '#592c4f', 3, alpha * (1 - fadeCaster * .7));
+    }
+  }
+}
+
+function drawLevel3Flare(ctx, frame) {
+  const alpha = fade(frame, 8, 105, 124);
+  const scan = easeOut(segment(frame, 0, 30));
+  drawDigit(ctx, 3, 79, 38, 5, '#d8f8ff', alpha * scan);
+  ring(ctx, 96, 72, 33, '#8b9aff', 3, alpha * scan);
+  const cores = [[96, 62], [59, 125], [133, 125]];
+  if (frame >= 29) {
+    const charge = easeOut(segment(frame, 29, 84));
+    cores.forEach(([x, y], index) => {
+      ring(ctx, x, y, 7 + charge * 16, index === 0 ? '#ffffff' : index === 1 ? '#7deaff' : '#caa0ff', 4, alpha);
+      diamond(ctx, x, y, 5 + charge * 6, '#f7ffff', alpha, '#6e82da');
+      const next = cores[(index + 1) % cores.length];
+      line(ctx, x, y, x + (next[0] - x) * charge, y + (next[1] - y) * charge, '#bfeaff', 2, alpha * charge);
+    });
+    motes(ctx, 21, frame, '#abdfff', 'converge', 82 - charge * 42, alpha * charge);
+  }
+  if (frame >= 84) {
+    const p = easeOut(segment(frame, 84, 105));
+    cores.forEach(([x, y], index) => burst(ctx, x, y, 14 + p * 44, 9 + index * 2, index === 1 ? '#7be9ff' : '#ead8ff', alpha, index * .18));
+    ring(ctx, 96, 103, 17 + p * 78, '#e8ffff', 6, alpha);
+    drawDigit(ctx, 3, 72, 65, 8, '#ffffff', alpha);
+  }
+}
+
+function drawOffGuard(ctx, frame) {
+  const alpha = fade(frame, 7, 81, 96);
+  const grid = easeOut(segment(frame, 0, 23));
+  const columns = 5; const rows = 5;
+  for (let row = 0; row <= rows; row += 1) line(ctx, 51, 54 + row * 18, 141, 54 + row * 18, '#8ec3df', 2, alpha * grid);
+  for (let col = 0; col <= columns; col += 1) line(ctx, 51 + col * 18, 54, 51 + col * 18, 144, '#8ec3df', 2, alpha * grid);
+  poly(ctx, [[96, 39], [142, 60], [142, 116], [96, 151], [50, 116], [50, 60]], 'rgba(65,117,148,.2)', alpha * grid, '#d8f3ff', 3);
+  if (frame >= 22) {
+    const fracture = easeOut(segment(frame, 22, 65));
+    const cracks = [[96, 39, 87, 77], [87, 77, 112, 96], [112, 96, 91, 120], [91, 120, 96, 151], [112, 96, 141, 73], [87, 77, 56, 63]];
+    cracks.forEach(([x1, y1, x2, y2], index) => line(ctx, x1, y1, x1 + (x2 - x1) * fracture, y1 + (y2 - y1) * fracture, index % 2 ? '#ffcf78' : '#ffffff', 5, alpha * fracture));
+  }
+  if (frame >= 65) {
+    const p = easeOut(segment(frame, 65, 81));
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < columns; col += 1) {
+        if ((row + col) % 2) continue;
+        const x = 54 + col * 18 + (col - 2) * p * 11;
+        const y = 57 + row * 18 + p * (25 + row * 6);
+        poly(ctx, [[x, y], [x + 13, y + 2], [x + 11, y + 13], [x - 2, y + 10]], '#426c85', alpha * (1 - p * .35), '#c9ecfa', 2);
+      }
+    }
+    line(ctx, 42, 96, 150, 96, '#ffbd65', 7, alpha * p);
+  }
+}
+
+function drawDarkSpark(ctx, frame) {
+  const alpha = fade(frame, 7, 86, 102);
+  const lens = easeOut(segment(frame, 0, 24));
+  ring(ctx, 96, 82, 17 + lens * 35, '#8861c2', 4, alpha * lens);
+  ring(ctx, 96, 82, 9 + lens * 20, '#261232', 7, alpha * lens);
+  diamond(ctx, 96, 82, 7 + lens * 7, '#08050d', alpha, '#d7adff');
+  ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#251535'; ctx.fillRect(48, 126, 96, 16); ctx.fillStyle = '#b28be8'; ctx.fillRect(53, 131, 86, 6); ctx.restore();
+  if (frame >= 23) {
+    const cut = easeOut(segment(frame, 23, 69));
+    line(ctx, 42, 45, 150, 151, '#d592ff', 6, alpha * cut);
+    line(ctx, 47, 39, 155, 145, '#2c123e', 2, alpha * cut);
+    ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#090611'; ctx.fillRect(Math.round(96 + cut * 43), 126, Math.round(43 * cut), 16); ctx.restore();
+  }
+  if (frame >= 69) {
+    const p = easeOut(segment(frame, 69, 86));
+    drawDigit(ctx, 1, 58, 54, 5, '#efdcff', alpha);
+    line(ctx, 84, 52, 105, 117, '#d48aff', 4, alpha * p);
+    drawDigit(ctx, 2, 111, 54, 5, '#efdcff', alpha);
+    ring(ctx, 96, 99, 17 + p * 56, '#7f4ba3', 5, alpha);
+    for (let i = 0; i < 8; i += 1) line(ctx, 96, 99, 96 + Math.cos(i * Math.PI / 4) * (25 + p * 45), 99 + Math.sin(i * Math.PI / 4) * (25 + p * 45), '#39204c', 3, alpha * p);
+  }
+}
+
 function drawTime(ctx, frame, mode) {
   const total = mode === 'haste' ? 72 : mode === 'slow' ? 76 : 84;
   const alpha = fade(frame, 9, total - 14, total);
@@ -7462,7 +8022,7 @@ function drawSummon(ctx, frame, kind) {
   }
 }
 
-function renderScene(ctx, sceneId, frame) {
+function renderScene(ctx, sceneId, frame, sceneContext = {}) {
   if (sceneId === 'fire') return drawFire(ctx, frame, 1);
   if (sceneId === 'fira') return drawFire(ctx, frame, 2);
   if (sceneId === 'firaga') return drawFire(ctx, frame, 3);
@@ -7504,6 +8064,30 @@ function renderScene(ctx, sceneId, frame) {
   if (sceneId === 'white-wind') return drawWhiteWind(ctx, frame);
   if (sceneId === 'aqua-breath') return drawAquaBreath(ctx, frame);
   if (sceneId === 'mighty-guard') return drawMightyGuard(ctx, frame);
+  if (sceneId === 'goblin-punch') return drawGoblinPunch(ctx, frame);
+  if (sceneId === 'magic-hammer') return drawMagicHammer(ctx, frame);
+  if (sceneId === 'aero') return drawAero(ctx, frame, 1);
+  if (sceneId === 'aera') return drawAero(ctx, frame, 2);
+  if (sceneId === 'aeroga') return drawAero(ctx, frame, 3);
+  if (sceneId === 'flame-thrower') return drawFlameThrower(ctx, frame);
+  if (sceneId === 'time-slip') return drawTimeSlip(ctx, frame);
+  if (sceneId === 'death-claw') return drawDeathClaw(ctx, frame);
+  if (sceneId === 'mind-blast') return drawMindBlast(ctx, frame);
+  if (sceneId === 'flash') return drawFlash(ctx, frame);
+  if (sceneId === 'roulette') return drawRoulette(ctx, frame, sceneContext);
+  if (sceneId === 'self-destruct') return drawSelfDestruct(ctx, frame);
+  if (sceneId === 'vampire') return drawVampire(ctx, frame, sceneContext);
+  if (sceneId === 'question-marks') return drawQuestionMarks(ctx, frame);
+  if (sceneId === 'moon-flute') return drawMoonFlute(ctx, frame);
+  if (sceneId === 'lilliputian-lyric') return drawLilliputianLyric(ctx, frame);
+  if (sceneId === 'ponds-chorus') return drawPondsChorus(ctx, frame);
+  if (sceneId === 'level-4-graviga') return drawLevel4Graviga(ctx, frame);
+  if (sceneId === 'doom') return drawDoom(ctx, frame);
+  if (sceneId === 'level-2-old') return drawLevel2Old(ctx, frame);
+  if (sceneId === 'transfusion') return drawTransfusion(ctx, frame, sceneContext);
+  if (sceneId === 'level-3-flare') return drawLevel3Flare(ctx, frame);
+  if (sceneId === 'off-guard') return drawOffGuard(ctx, frame);
+  if (sceneId === 'dark-spark') return drawDarkSpark(ctx, frame);
   return undefined;
 }
 
@@ -7552,17 +8136,42 @@ function renderSpellCanvasFrame(canvas, sceneId, frame, sceneContext = {}) {
   const scratchCtx = scratch?.getContext?.('2d', { alpha: true, desynchronized: true, willReadFrequently: true });
   if (!ctx || !scratchCtx || !spec) return false;
   setup(scratchCtx);
-  renderScene(scratchCtx, sceneId, Math.max(0, Math.min(spec.frameCount - 1, Math.floor(frame))));
+  renderScene(scratchCtx, sceneId, Math.max(0, Math.min(spec.frameCount - 1, Math.floor(frame))), sceneContext);
   quantizePixelFrame(scratchCtx);
   setup(ctx, canvas.width, canvas.height);
+  const suppliedTargets = Array.isArray(sceneContext.targets) ? sceneContext.targets : [];
   const fallbackPoint = { x: Number(sceneContext.targetX ?? 50), y: Number(sceneContext.targetY ?? 50) };
-  const targetPoints = spec.placement === 'each-target' && ['multi', 'mixed'].includes(sceneContext.targetMode) && Array.isArray(sceneContext.targets) && sceneContext.targets.length
-    ? sceneContext.targets
-    : [fallbackPoint];
+  const casterPoint = { x: Number(sceneContext.casterX ?? fallbackPoint.x), y: Number(sceneContext.casterY ?? fallbackPoint.y) };
+  const groupCentroid = suppliedTargets.length ? {
+    x: suppliedTargets.reduce((sum, point) => sum + Number(point.x ?? fallbackPoint.x), 0) / suppliedTargets.length,
+    y: suppliedTargets.reduce((sum, point) => sum + Number(point.y ?? fallbackPoint.y), 0) / suppliedTargets.length,
+  } : fallbackPoint;
+  const targetPoints = spec.sceneSpace === 'stage'
+    ? [{ x: 50, y: 50 }]
+    : spec.sceneSpace === 'caster-local'
+      ? [casterPoint]
+    : spec.sceneSpace === 'party-field'
+      ? [groupCentroid]
+      : spec.placement === 'each-target' && ['multi', 'mixed'].includes(sceneContext.targetMode) && suppliedTargets.length
+        ? suppliedTargets
+        : [fallbackPoint];
   targetPoints.forEach((point) => {
     const targetX = clamp(Number(point.x ?? fallbackPoint.x), 0, 100) / 100 * canvas.width;
     const targetY = clamp(Number(point.y ?? fallbackPoint.y), 0, 100) / 100 * canvas.height;
-    ctx.drawImage(scratch, Math.round(targetX - LOGICAL_SIZE / 2), Math.round(targetY - LOGICAL_SIZE / 2));
+    const horizontalFit = Math.max(1, Math.min(targetX, canvas.width - targetX) * 2);
+    const verticalFit = Math.max(1, Math.min(targetY, canvas.height - targetY) * 2);
+    const drawSize = Math.max(1, Math.min(LOGICAL_SIZE, horizontalFit, verticalFit));
+    ctx.drawImage(
+      scratch,
+      0,
+      0,
+      LOGICAL_SIZE,
+      LOGICAL_SIZE,
+      Math.round(targetX - drawSize / 2),
+      Math.round(targetY - drawSize / 2),
+      Math.round(drawSize),
+      Math.round(drawSize),
+    );
   });
   return true;
 }
@@ -7581,19 +8190,30 @@ function playSpellCanvas(layer, durationMs, onCue = null, sceneContext = {}) {
   const duration = Math.max(300, Number(durationMs) || (spec.frameCount / spec.fps) * 1000);
   const startedAt = performance.now();
   const firedImpacts = new Set();
+  const pendingImpacts = [];
+  let lastPresentedFrame = -1;
   let rafId = 0;
   let cancelled = false;
   const draw = (now) => {
     if (cancelled || !canvas.isConnected) return;
     const progress = clamp((now - startedAt) / duration);
     const frame = Math.min(spec.frameCount - 1, Math.floor(progress * spec.frameCount));
-    renderSpellCanvasFrame(canvas, sceneId, frame, sceneContext);
     spec.impactFrames.forEach((impactFrame, impactIndex) => {
-      if (frame >= impactFrame && !firedImpacts.has(impactFrame)) {
+      if (impactFrame > lastPresentedFrame && frame >= impactFrame && !firedImpacts.has(impactFrame)) {
         firedImpacts.add(impactFrame);
-        onCue?.({ type: 'impact', sceneId, frame: impactFrame, impactIndex });
+        pendingImpacts.push({ impactFrame, impactIndex });
       }
     });
+    if (pendingImpacts.length) {
+      const cue = pendingImpacts.shift();
+      renderSpellCanvasFrame(canvas, sceneId, cue.impactFrame, sceneContext);
+      lastPresentedFrame = cue.impactFrame;
+      onCue?.({ type: 'impact', sceneId, frame: cue.impactFrame, impactIndex: cue.impactIndex });
+      rafId = requestAnimationFrame(draw);
+      return;
+    }
+    renderSpellCanvasFrame(canvas, sceneId, frame, sceneContext);
+    lastPresentedFrame = Math.max(lastPresentedFrame, frame);
     if (progress < 1) rafId = requestAnimationFrame(draw);
     else onCue?.({ type: 'end', sceneId, frame: spec.frameCount - 1 });
   };
@@ -7679,6 +8299,30 @@ const SPELL_CHOREOGRAPHIES = Object.freeze({
   magic_white_wind: scene('white-wind', [beat('white-feather', 13), beat('party-sweep', 4), beat('white-heal', 12)], 1.18),
   magic_aqua_breath: scene('aqua-breath', [beat('water-orb', 6), beat('breath-band', 7), beat('tidal-impact', 14)], 1.26),
   magic_mighty_guard: scene('mighty-guard', [beat('triple-shield', 3), beat('field-assemble', 3), beat('mighty-lock', 12)], 1.26),
+  magic_goblin_punch: scene('goblin-punch', [beat('knuckle-mark', 1), beat('goblin-fist', 1), beat('level-impact', 10)], 1.02),
+  magic_magic_hammer: scene('magic-hammer', [beat('mana-nail', 6), beat('mana-hammer', 1), beat('mp-shatter', 8)], 1.12),
+  magic_aero: scene('aero', [beat('wind-seed', 4), beat('single-crescent', 1), beat('air-cut', 8)], .96),
+  magic_aera: scene('aera', [beat('wind-tunnel', 4), beat('cross-crescent', 2), beat('cross-impact', 12)], 1.1),
+  magic_aeroga: scene('aeroga', [beat('pressure-eye', 1), beat('tornado-ring', 8), beat('vacuum-impact', 14)], 1.24),
+  magic_flame_thrower: scene('flame-thrower', [beat('ignition-nozzle', 1), beat('flame-jet', 5), beat('burn-line', 6)], 1.16),
+  magic_time_slip: scene('time-slip', [beat('dream-clock', 6), beat('slipping-hourglass', 2), beat('sleep-age-lock', 4)], 1.16),
+  magic_death_claw: scene('death-claw', [beat('shadow-palm', 1), beat('claw-rake', 4), beat('critical-grip', 8)], 1.18),
+  magic_mind_blast: scene('mind-blast', [beat('mind-eye', 1), beat('neural-knot', 10), beat('psyche-wave', 5)], 1.18),
+  magic_flash: scene('flash', [beat('light-aperture', 8), beat('whiteout', 1), beat('blind-eye', 1)], 1.14),
+  magic_roulette: scene('roulette', [beat('unit-marker', 4), beat('roulette-wheel', 8), beat('random-cut', 6)], 1.22),
+  magic_self_destruct: scene('self-destruct', [beat('caster-core', 1), beat('critical-crack', 9), beat('sacrifice-burst', 20)], 1.28),
+  magic_vampire: scene('vampire', [beat('fang-mark', 1), beat('blood-return', 5), beat('life-restore', 8)], 1.18),
+  magic_question_marks: scene('question-marks', [beat('broken-question', 3), beat('glitch-line', 8), beat('unknown-impact', 7)], 1.08),
+  magic_moon_flute: scene('moon-flute', [beat('moon-crescent', 1), beat('lunar-note', 7), beat('berserk-wave', 4)], 1.22),
+  magic_lilliputian_lyric: scene('lilliputian-lyric', [beat('music-staff', 5), beat('shrinking-note', 1), beat('tiny-lock', 1)], 1.08),
+  magic_pond_s_chorus: scene('ponds-chorus', [beat('pond-ripple', 4), beat('frog-song', 1), beat('toad-lock', 5)], 1.1),
+  magic_level_4_graviga: scene('level-4-graviga', [beat('level-four', 1), beat('gravity-well', 4), beat('fourfold-impact', 16)], 1.24),
+  magic_doom: scene('doom', [beat('doom-clock', 1), beat('countdown-digit', 3), beat('death-sentence', 1)], 1.2),
+  magic_level_2_old: scene('level-2-old', [beat('level-two', 1), beat('double-hourglass', 2), beat('age-lines', 7)], 1.2),
+  magic_transfusion: scene('transfusion', [beat('soul-link', 2), beat('life-mana-stream', 10), beat('ally-restore', 12), beat('caster-fade', 7)], 1.24),
+  magic_level_3_flare: scene('level-3-flare', [beat('level-three', 1), beat('triple-star-core', 3), beat('threefold-nova', 27)], 1.3),
+  magic_off_guard: scene('off-guard', [beat('defense-lattice', 10), beat('shield-fracture', 6), beat('armor-shard', 13)], 1.12),
+  magic_dark_spark: scene('dark-spark', [beat('level-lens', 3), beat('dark-bisect', 2), beat('half-level', 2)], 1.16),
 });
 
 const SPELL_ART_BLUEPRINTS = Object.freeze({
