@@ -10,6 +10,7 @@ class FakeContext2D {
     this.drawCalls = [];
     this.arcs = [];
     this.pathPoints = [];
+    this.rects = [];
   }
 
   count(name) { this.paintOps += 1; this.opCounts[name] = (this.opCounts[name] ?? 0) + 1; }
@@ -27,7 +28,7 @@ class FakeContext2D {
   arc(...args) { this.count('arc'); this.arcs.push(args); }
   fill() { this.count('fill'); }
   stroke() { this.count('stroke'); }
-  fillRect() { this.count('fillRect'); }
+  fillRect(...args) { this.count('fillRect'); this.rects.push(args); }
   drawImage(...args) { this.count('drawImage'); this.drawCalls.push(args); }
   getImageData() { return { data: new Uint8ClampedArray(192 * 192 * 4) }; }
   putImageData() {}
@@ -101,7 +102,7 @@ const priorityScenes = [
   'raise', 'protect', 'holy', 'steal', 'jump', 'rapid-fire', 'zeninage', 'mix',
   'atomic-ray', 'wave-cannon', 'blaster', 'maelstrom', 'delta-attack',
   'almagest', 'grand-cross',
-  'shell', 'reflect', 'gravity', 'graviga', 'return',
+  'shell', 'reflect', 'haste', 'gravity', 'graviga', 'meteor', 'return',
   '1000-needles', 'white-wind', 'aqua-breath', 'mighty-guard',
   'goblin-punch', 'magic-hammer', 'aero', 'aera', 'aeroga',
   'flame-thrower', 'time-slip', 'death-claw', 'mind-blast', 'flash',
@@ -243,6 +244,19 @@ const teleportHostileMoved = geometryTraceFor('teleport', { targets: [{ x: 24, y
 assert.notDeepEqual(teleportLeft, teleportRight, 'Teleport ignored the allied-side anchor');
 assert.deepEqual(teleportLeft, teleportHostileMoved, 'Teleport must not draw a removal effect on hostile targets');
 
+const stageGeometryTraceFor = (sceneId, sceneContext) => {
+  const canvas = createSpellCanvas(sceneId);
+  renderSpellCanvasFrame(canvas, sceneId, SPELL_PIXEL_SEQUENCES[sceneId].impactFrames[0], sceneContext);
+  return { arcs: canvas.context.arcs, pathPoints: canvas.context.pathPoints, rects: canvas.context.rects };
+};
+for (const sceneId of ['haste', 'gravity', 'meteor', 'return']) {
+  assert.notDeepEqual(
+    stageGeometryTraceFor(sceneId, leftHostileContext),
+    stageGeometryTraceFor(sceneId, rightHostileContext),
+    `${sceneId}: reference-locked time-magic effect ignored the actual target anchor`,
+  );
+}
+
 const queuedRafs = [];
 globalThis.requestAnimationFrame = (callback) => { queuedRafs.push(callback); return queuedRafs.length; };
 globalThis.cancelAnimationFrame = () => {};
@@ -269,6 +283,7 @@ console.log(JSON.stringify({
   crossSideAnchors: 8,
   resultBranches: 6,
   finalMagicAnchorCases: 7,
+  timeMagicAnchorCases: 4,
   multiImpactCueFrames: cueTicks.length,
   status: 'ok',
 }, null, 2));

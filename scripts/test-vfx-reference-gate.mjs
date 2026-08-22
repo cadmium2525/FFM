@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { SPELL_PIXEL_SEQUENCES } from '../src/ui/SpellCanvasRenderer.js';
 
-// User-approved legacy exception: these 91 sequences existed before the
+// User-approved legacy exception: these 87 sequences existed before the
 // reference-first production gate was introduced on 2026-08-22. They remain
 // provisional and must never be counted as original-reference passes.
 const GRANDFATHERED_PROVISIONAL_SCENES = new Set([
@@ -38,8 +38,6 @@ const GRANDFATHERED_PROVISIONAL_SCENES = new Set([
   'goblin-punch',
   'golem',
   'graviga',
-  'gravity',
-  'haste',
   'hastega',
   'ifrit',
   'jump',
@@ -51,7 +49,6 @@ const GRANDFATHERED_PROVISIONAL_SCENES = new Set([
   'lilliputian-lyric',
   'maelstrom',
   'magic-hammer',
-  'meteor',
   'mighty-guard',
   'mind-blast',
   'mini',
@@ -73,7 +70,6 @@ const GRANDFATHERED_PROVISIONAL_SCENES = new Set([
   'reflect',
   'regen',
   'remora',
-  'return',
   'roulette',
   'self-destruct',
   'shell',
@@ -98,7 +94,7 @@ const GRANDFATHERED_PROVISIONAL_SCENES = new Set([
   'zeninage',
 ]);
 
-assert.equal(GRANDFATHERED_PROVISIONAL_SCENES.size, 91, 'legacy VFX exception list changed');
+assert.equal(GRANDFATHERED_PROVISIONAL_SCENES.size, 87, 'legacy VFX exception list changed');
 
 const requiredReferenceFields = [
   'sourceCitation',

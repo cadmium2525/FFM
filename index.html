@@ -6952,6 +6952,37 @@ const whiteReferenceSequence = ({ sceneId, mediaHash, frames, frameCount, impact
   },
 );
 
+const timeReferenceSequence = ({
+  sceneId,
+  mediaHash,
+  frames,
+  frameCount,
+  impactFrames,
+  phases,
+  originalEffectHeader,
+  family,
+  resultPolicy = 'final-impact',
+  placement = 'centroid',
+}) => sequence(frameCount, impactFrames, phases, {
+  ...referenceLockedOptions({
+    captureId: `yt--2avOoXFONk-${sceneId}-${frames[0].seconds}-${frames.at(-1).seconds}`,
+    sourceCitation: 'https://www.youtube.com/watch?v=-2avOoXFONk',
+    mediaHash,
+    frames,
+    mode: sceneId === 'meteor'
+      ? 'full-stage-sfc-4x3-to-portrait'
+      : sceneId === 'return'
+        ? 'target-pixel-dissolve-and-blackout-sfc-4x3-to-portrait'
+        : 'caster-target-sfc-4x3-to-portrait',
+    placement,
+    sceneSpace: 'stage',
+    renderMode: 'stage-direct',
+  }),
+  originalEffectHeader,
+  sharedOriginalFamily: family,
+  resultPolicy,
+});
+
 const SPELL_PIXEL_SEQUENCES = Object.freeze({
   fire: elementalReferenceSequence({ sceneId: 'fire', mediaHash: 'fd3df4efcedd8ce9f6404058738161f4aa95b33eafa2105249380b78c7572fe7', frames: [
     { role: 'cast', seconds: 0.919045, sha256: 'dc7de31b2741abe0ce7c3a7305f7f9b2c560fffb17d91562a1f60cb145c1a736' },
@@ -7057,14 +7088,51 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
   ] }),
   shell: sequence(88, [60], [phase('prism-seed', 0, 21), phase('shell-weave', 22, 59), phase('prism-lock', 60, 74), phase('decay', 75, 87)]),
   reflect: sequence(96, [68], [phase('mirror-shards', 0, 24), phase('mirror-form', 25, 67), phase('reflect-lock', 68, 82), phase('decay', 83, 95)]),
-  haste: sequence(72, [49], [phase('clock', 0, 20), phase('accelerate', 21, 48), phase('latch', 49, 60), phase('decay', 61, 71)], { originalEffectHeader: '2A 10 2D 00 6B', sharedOriginalFamily: 'haste-header-2a-10-2d-00-6b' }),
+  haste: timeReferenceSequence({
+    sceneId: 'haste', mediaHash: 'efde18707ce7efd608531dcd5b16c8b81ded7dacdcdc05e23392267435f5d6d0', frameCount: 96, impactFrames: [62], originalEffectHeader: '2A 10 2D 00 6B', family: 'haste-header-2a-10-2d-00-6b',
+    phases: [phase('target-white-radial-seed', 0, 22), phase('silver-shard-fan', 23, 47), phase('orange-core-four-satellites', 48, 61), phase('haste-latch', 62, 72), phase('decay', 73, 95)],
+    frames: [
+      { role: 'cast', seconds: 25, sha256: 'be9050a705a84106ecc9ac45bacf9d252ab4e16234f9595822a8c717e4a763d9' },
+      { role: 'development', seconds: 26, sha256: '24f920bf57c1e3874d58db0d5c537a66d33418f1b6dd9c73c205b19ddcb9c494' },
+      { role: 'impact', seconds: 27, sha256: 'd999b95dc1cb04dea17ecf90ebd48d35196e08b95d08548f7ace79399786d6e4' },
+      { role: 'decay', seconds: 28, sha256: '5318bbe7bac5d857512a1125193175d4feb5919cca5de64263710d72e4619f6d' },
+    ],
+  }),
   slow: sequence(76, [52], [phase('clock', 0, 20), phase('drag', 21, 51), phase('latch', 52, 64), phase('decay', 65, 75)], { originalEffectHeader: '2A 19 2C 8F 39', sharedOriginalFamily: 'slow-header-2a-19-2c-8f-39' }),
   stop: sequence(84, [57], [phase('clock', 0, 23), phase('freeze', 24, 56), phase('latch', 57, 70), phase('decay', 71, 83)]),
   comet: sequence(78, [53], [phase('sky', 0, 18), phase('fall', 19, 52), phase('crater', 53, 66), phase('decay', 67, 77)]),
-  meteor: sequence(118, [62, 72, 82, 91], [phase('rift', 0, 27), phase('fall', 28, 61), phase('barrage', 62, 98), phase('decay', 99, 117)], { resultPolicy: 'split-amount', placement: 'centroid', sceneSpace: 'stage' }),
-  gravity: sequence(86, [58], [phase('lens', 0, 20), phase('compress', 21, 57), phase('half-crush', 58, 72), phase('decay', 73, 85)]),
+  meteor: timeReferenceSequence({
+    sceneId: 'meteor', mediaHash: 'daa33ed4a806f72108c604fb49affd5090d785e893bbb036f7ee4fc3063c359f', frameCount: 252, impactFrames: [98, 126, 154, 182], originalEffectHeader: '04 10 7B 91 46', family: 'time-magic-script-7b', resultPolicy: 'split-amount',
+    phases: [phase('caster-white-radial-seed', 0, 31), phase('red-black-palette-field', 32, 71), phase('fireball-descent', 72, 97), phase('four-hit-barrage', 98, 197), phase('red-black-afterfield', 198, 227), phase('decay', 228, 251)],
+    frames: [
+      { role: 'cast', seconds: 99, sha256: '35bca98ec1ff7ddeb2a779bf2e983bb0a770e982bc108bebeda751557d21ea83' },
+      { role: 'development', seconds: 100, sha256: '78b7d39b659c6436497feb1c7102ba04ec7c8b3930acb748fc38aa2f1694f9eb' },
+      { role: 'impact-a', seconds: 101, sha256: '82d3d5b76f1c05ac8c62ee8b55ad8d4df1285b2cf5cbc756119c2bca2ce9e157' },
+      { role: 'impact-b', seconds: 102, sha256: '1092ff2e9d4ba7b500862f0f2377e05b64afcbb3eaa1a0d0916d2ba28a3b3c35' },
+      { role: 'decay', seconds: 103, sha256: '3d6c572fab3b79d6a8de5f1f31755092234548900fd90ef2db0785d602d02bef' },
+    ],
+  }),
+  gravity: timeReferenceSequence({
+    sceneId: 'gravity', mediaHash: 'df0c0a76c07dcbf3c12086d61c080c40f1a81993db675c5014b7383caef7757f', frameCount: 108, impactFrames: [74], originalEffectHeader: '2E 25 7A 00 2D', family: 'time-magic-script-7a',
+    phases: [phase('caster-white-radial-seed', 0, 22), phase('indigo-orb-launch', 23, 50), phase('target-orb-capture', 51, 73), phase('white-lightning-latch', 74, 88), phase('decay', 89, 107)],
+    frames: [
+      { role: 'cast', seconds: 38, sha256: 'ff4cd782d6f4737db75b8486553992237873c0598a1c913fda67c5b7e280d88a' },
+      { role: 'development', seconds: 39, sha256: '5b4d03f8f93d4e8a1be7b2f5e6ee659097c8656c2f2f9eec7e300b5a2ae30a87' },
+      { role: 'impact', seconds: 40, sha256: '833434703e85595567577a8d64a976bce6c7825705edd3c5466856de3bd2591b' },
+      { role: 'decay', seconds: 41, sha256: '75ca0aa90a6bdb6ff66b6563d64cd6cfe40f186dd893c2f52790b8a206affbf6' },
+    ],
+  }),
   graviga: sequence(104, [70], [phase('black-lens', 0, 25), phase('triple-collapse', 26, 69), phase('three-quarter-crush', 70, 87), phase('decay', 88, 103)]),
-  return: sequence(122, [84], [phase('hourglass', 0, 28), phase('rewind', 29, 83), phase('timeline-snap', 84, 101), phase('decay', 102, 121)], { placement: 'centroid', sceneSpace: 'stage' }),
+  return: timeReferenceSequence({
+    sceneId: 'return', mediaHash: '6d9c605bf817f99c6ee82988fb54498452f5a98f71e87a8696b29b6713c5edb3', frameCount: 168, impactFrames: [110], originalEffectHeader: '00 00 75 00 08', family: 'time-magic-script-75',
+    phases: [phase('caster-white-radial-seed', 0, 27), phase('target-pixel-expansion', 28, 73), phase('stage-block-fracture', 74, 109), phase('timeline-reset-blackout', 110, 129), phase('decay', 130, 167)],
+    frames: [
+      { role: 'cast', seconds: 73, sha256: '9f92cb8168871b60b163082cb39d5dea0503a89f489b708f94fe5e2cf05556bf' },
+      { role: 'development', seconds: 75, sha256: 'c8ff164f336362638dba607f4355ffe34dd67ab105ff8a8c19bb200300784e25' },
+      { role: 'impact', seconds: 76, sha256: 'f203e159bbd1b3bb4d33d17feeb6c961ed61eb578753098748325cae01efc10e' },
+      { role: 'decay', seconds: 77, sha256: 'bbd05efb2c78aacb7e2599eb0689b8bc3cd80c29f8a85d84057f072903a1142f' },
+    ],
+  }),
   missile: sequence(72, [54], [
     phase('white-orb-launch', 0, 11),
     phase('crescent-echo-flight', 12, 41),
@@ -7278,7 +7346,7 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
   float: sequence(108, [73], [phase('ground-mark', 0, 24), phase('target-liftoff', 25, 72), phase('air-cushion-lock', 73, 90), phase('decay', 91, 107)], { originalEffectHeader: '24 20 43 80 24' }),
   old: sequence(104, [70], [phase('script-0f-seed', 0, 24), phase('script-0f-motion', 25, 69), phase('status-lock', 70, 87), phase('decay', 88, 103)], { originalEffectHeader: '21 26 0F 00 0F', sharedOriginalFamily: 'status-script-0f' }),
   slowga: sequence(76, [52], [phase('clock', 0, 20), phase('drag', 21, 51), phase('latch', 52, 64), phase('decay', 65, 75)], { originalEffectHeader: '2A 19 2C 8F 39', sharedOriginalFamily: 'slow-header-2a-19-2c-8f-39' }),
-  hastega: sequence(72, [49], [phase('clock', 0, 20), phase('accelerate', 21, 48), phase('latch', 49, 60), phase('decay', 61, 71)], { originalEffectHeader: '2A 10 2D 00 6B', sharedOriginalFamily: 'haste-header-2a-10-2d-00-6b' }),
+  hastega: sequence(96, [62], [phase('target-white-radial-seed', 0, 22), phase('silver-shard-fan', 23, 47), phase('orange-core-four-satellites', 48, 61), phase('haste-latch', 62, 72), phase('decay', 73, 95)], { placement: 'centroid', sceneSpace: 'stage', renderMode: 'stage-direct', originalEffectHeader: '2A 10 2D 00 6B', sharedOriginalFamily: 'haste-header-2a-10-2d-00-6b' }),
   remora: sequence(106, [71], [phase('chain-soul-crystal', 0, 24), phase('hook-converge', 25, 70), phase('chain-lock', 71, 89), phase('decay', 90, 105)], { originalEffectHeader: '1C 2C 25 99 7C' }),
   catoblepas: sequence(118, [80], [phase('gaze-soul-crystal', 0, 27), phase('facet-scan', 28, 79), phase('petrify-gaze-lock', 80, 99), phase('decay', 100, 117)], { originalEffectHeader: '42 10 A5 00 14' }),
   chocobo: sequence(116, [78], [phase('feather-soul-crystal', 0, 26), phase('diagonal-charge', 27, 77), phase('comet-stamp', 78, 97), phase('decay', 98, 115)], { originalEffectHeader: '76 68 DD 00 29', originalVariantHeaders: { fat: '00 10 98 C0 2E' } }),
@@ -9862,6 +9930,165 @@ function stageTargets(sceneContext, fallback = [{ x: 78, y: 28 }, { x: 78, y: 44
   return fallback;
 }
 
+function drawReferenceCastBurst(ctx, point, progress, alpha = 1) {
+  for (let ray = 0; ray < 12; ray += 1) {
+    const angle = ray * Math.PI * 2 / 12 + (ray % 2 ? .09 : -.05);
+    const inner = 9 + progress * 3;
+    const outer = 18 + progress * 13 + (ray % 3) * 3;
+    line(ctx, point.x + Math.cos(angle) * inner, point.y + Math.sin(angle) * inner, point.x + Math.cos(angle) * outer, point.y + Math.sin(angle) * outer, ray % 3 ? '#e8e0c8' : '#ffffff', ray % 2 ? 2 : 3, alpha);
+  }
+}
+
+function drawHasteReference(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const fallback = [{ x: Number(sceneContext.targetX ?? 76), y: Number(sceneContext.targetY ?? 50) }];
+  const targets = stagePointList(sceneContext, 'targets', fallback, width, height);
+  const alpha = Math.min(segment(frame, 0, 6), 1 - segment(frame, 73, 96));
+  const seed = Math.min(segment(frame, 0, 17), 1 - segment(frame, 39, 48));
+  const orb = Math.min(segment(frame, 38, 54), 1 - segment(frame, 72, 96));
+
+  targets.forEach((target, targetIndex) => {
+    drawReferenceCastBurst(ctx, target, easeOut(segment(frame, 0, 28)), alpha * seed);
+    if (orb <= 0) return;
+    const breathe = 1 + Math.sin((frame + targetIndex * 3) * Math.PI / 8) * .08;
+    pixelDisc(ctx, target.x, target.y, 13 * breathe, '#f07818', alpha * orb);
+    pixelDisc(ctx, target.x - 2, target.y - 2, 9 * breathe, '#ffd838', alpha * orb);
+    ring(ctx, target.x, target.y, 15 * breathe, '#fff0a0', 3, alpha * orb);
+    const satellites = [[-23, -12, 6], [2, -27, 6], [26, -8, 6], [17, 23, 7]];
+    satellites.forEach(([dx, dy, radius], satelliteIndex) => {
+      const pulse = 1 + Math.sin(frame * .31 + satelliteIndex * 1.7) * .12;
+      pixelDisc(ctx, target.x + dx, target.y + dy, radius * pulse, '#f08018', alpha * orb);
+      pixelDisc(ctx, target.x + dx - 1, target.y + dy - 1, Math.max(2, radius * pulse - 3), '#ffd838', alpha * orb);
+      ring(ctx, target.x + dx, target.y + dy, radius * pulse + 2, '#fff0a0', 2, alpha * orb);
+    });
+  });
+}
+
+function drawGravityReference(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const caster = stageRolePoint(sceneContext, 'caster', { x: 76, y: 50 }, width, height);
+  const target = stageRolePoint(sceneContext, 'target', { x: 24, y: 50 }, width, height);
+  const alpha = Math.min(segment(frame, 0, 6), 1 - segment(frame, 89, 108));
+  const cast = Math.min(segment(frame, 0, 13), 1 - segment(frame, 26, 35));
+  drawReferenceCastBurst(ctx, caster, easeOut(segment(frame, 0, 22)), alpha * cast);
+
+  const travel = easeInOut(segment(frame, 20, 66));
+  const orbX = caster.x + (target.x - caster.x) * travel;
+  const orbY = caster.y + (target.y - caster.y) * travel;
+  const capture = frame < 66 ? 1 : 1 - segment(frame, 89, 108);
+  pixelDisc(ctx, orbX, orbY, 16 + Math.sin(frame * .24) * 2, '#202040', alpha * capture);
+  ring(ctx, orbX, orbY, 18 + Math.sin(frame * .24) * 2, '#7898d8', 3, alpha * capture);
+  ring(ctx, orbX, orbY, 21 + Math.sin(frame * .19) * 2, '#b8d8f0', 2, alpha * capture * .72);
+
+  if (frame >= 62) {
+    const crack = Math.min(segment(frame, 62, 74), 1 - segment(frame, 89, 108));
+    const branches = [
+      [[-10, -10], [-3, -3], [-8, 4], [0, 9]],
+      [[7, -13], [2, -5], [8, 1], [3, 12]],
+      [[-15, 1], [-7, 2], [-2, 8], [8, 10]],
+    ];
+    branches.forEach((points) => {
+      for (let index = 1; index < points.length; index += 1) {
+        line(ctx, target.x + points[index - 1][0], target.y + points[index - 1][1], target.x + points[index][0], target.y + points[index][1], '#ffffff', 2, alpha * crack);
+      }
+    });
+  }
+}
+
+const METEOR_REFERENCE_TRACKS = Object.freeze([
+  { start: 56, impact: 98, fromX: .94, fromY: .04, offsetX: -18, offsetY: -12 },
+  { start: 80, impact: 126, fromX: .08, fromY: .08, offsetX: 18, offsetY: 7 },
+  { start: 104, impact: 154, fromX: .72, fromY: -.05, offsetX: -5, offsetY: 16 },
+  { start: 132, impact: 182, fromX: .28, fromY: .02, offsetX: 13, offsetY: -18 },
+  { start: 64, impact: 112, fromX: .54, fromY: -.08, offsetX: 28, offsetY: -22 },
+  { start: 116, impact: 170, fromX: 1.05, fromY: .16, offsetX: -29, offsetY: 18 },
+]);
+
+function drawMeteorReference(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const caster = stageRolePoint(sceneContext, 'caster', { x: 76, y: 50 }, width, height);
+  const target = stageRolePoint(sceneContext, 'target', { x: 24, y: 50 }, width, height);
+  const castAlpha = Math.min(segment(frame, 0, 10), 1 - segment(frame, 28, 38));
+  drawReferenceCastBurst(ctx, caster, easeOut(segment(frame, 0, 31)), castAlpha);
+
+  const field = Math.min(segment(frame, 32, 48), 1 - segment(frame, 228, 252));
+  stageFill(ctx, width, height, frame % 22 < 11 ? '#180000' : '#380400', field * .68);
+  for (let band = 0; band < 9; band += 1) {
+    const y = ((band * 47 + frame * (band % 3 + 1)) % (height + 54)) - 27;
+    const wave = Math.sin(frame * .07 + band * 1.9) * 18;
+    line(ctx, -20, y, width * .34 + wave, y - 7, band % 3 ? '#580b08' : '#9a1b0d', band % 2 ? 5 : 9, field * .72);
+    line(ctx, width * .56 - wave, y + 5, width + 20, y - 2, band % 2 ? '#2b0000' : '#781008', band % 3 ? 6 : 10, field * .64);
+  }
+
+  METEOR_REFERENCE_TRACKS.forEach((track, trackIndex) => {
+    const destination = { x: target.x + track.offsetX, y: target.y + track.offsetY };
+    if (frame >= track.start && frame <= track.impact) {
+      const travel = easeInOut(segment(frame, track.start, track.impact));
+      const x = track.fromX * width + (destination.x - track.fromX * width) * travel;
+      const y = track.fromY * height + (destination.y - track.fromY * height) * travel;
+      for (let tail = 5; tail >= 1; tail -= 1) {
+        const trailX = x - (destination.x - track.fromX * width) / Math.max(42, track.impact - track.start) * tail * 3;
+        const trailY = y - (destination.y - track.fromY * height) / Math.max(42, track.impact - track.start) * tail * 3;
+        pixelDisc(ctx, trailX, trailY, Math.max(2, 7 - tail), tail % 2 ? '#d83810' : '#ff8c18', field * (1 - tail * .12));
+      }
+      pixelDisc(ctx, x, y, 8 + trackIndex % 3 * 2, '#dc3410', field);
+      pixelDisc(ctx, x - 1, y - 1, 5 + trackIndex % 2 * 2, '#ff9418', field);
+      pixelDisc(ctx, x - 2, y - 2, 2 + trackIndex % 2, '#ffe060', field);
+    }
+    if (frame >= track.impact && frame <= track.impact + 24) {
+      const blast = Math.min(segment(frame, track.impact - 4, track.impact + 6), 1 - segment(frame, track.impact + 7, track.impact + 24));
+      pixelDisc(ctx, destination.x, destination.y, 6 + blast * 15, '#ff7c10', field * blast);
+      pixelDisc(ctx, destination.x - 1, destination.y - 1, 3 + blast * 9, '#ffe048', field * blast);
+      ring(ctx, destination.x, destination.y, 8 + blast * 22, trackIndex % 2 ? '#ff3810' : '#ff9c20', 4, field * blast);
+    }
+  });
+}
+
+function drawReturnReference(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const caster = stageRolePoint(sceneContext, 'caster', { x: 76, y: 50 }, width, height);
+  const target = stageRolePoint(sceneContext, 'target', { x: 24, y: 50 }, width, height);
+  const cast = Math.min(segment(frame, 0, 12), 1 - segment(frame, 25, 34));
+  drawReferenceCastBurst(ctx, caster, easeOut(segment(frame, 0, 27)), cast);
+
+  const fracture = Math.min(segment(frame, 28, 62), 1 - segment(frame, 121, 150));
+  const blockSize = 3 + Math.floor(segment(frame, 28, 92) * 8);
+  const silhouette = [
+    [-1, -4], [0, -4], [-2, -3], [-1, -3], [0, -3], [1, -3],
+    [-2, -2], [-1, -2], [0, -2], [1, -2], [2, -2],
+    [-2, -1], [-1, -1], [0, -1], [1, -1], [2, -1],
+    [-2, 0], [-1, 0], [0, 0], [1, 0], [2, 0],
+    [-1, 1], [0, 1], [1, 1], [-2, 2], [1, 2], [-2, 3], [2, 3],
+  ];
+  const colors = ['#e0d0a8', '#807868', '#282820', '#f0e8c8', '#5a5448'];
+  ctx.save();
+  ctx.globalAlpha = clamp(fracture);
+  silhouette.forEach(([gridX, gridY], index) => {
+    const expansion = 1 + segment(frame, 52, 110) * (1.7 + index % 3 * .22);
+    const x = Math.round(target.x + gridX * blockSize * expansion + (index % 2 ? 1 : -1) * segment(frame, 74, 110) * 9);
+    const y = Math.round(target.y + gridY * blockSize * expansion + ((index % 3) - 1) * segment(frame, 74, 110) * 6);
+    ctx.fillStyle = colors[index % colors.length];
+    ctx.fillRect(x, y, blockSize, blockSize);
+  });
+  ctx.restore();
+
+  const darkness = Math.min(segment(frame, 64, 110), 1 - segment(frame, 130, 168));
+  stageFill(ctx, width, height, '#000000', darkness * .94);
+  if (frame >= 92) {
+    const reset = Math.min(segment(frame, 92, 110), 1 - segment(frame, 130, 168));
+    for (let row = 0; row < 6; row += 1) {
+      const size = 7 + row % 3 * 4;
+      const x = target.x + ((row * 29 + frame * 3) % 80) - 40;
+      const y = target.y + ((row * 17 - frame * 2) % 96) - 48;
+      ctx.save(); ctx.globalAlpha = clamp(reset * .76); ctx.fillStyle = row % 2 ? '#d8d0b0' : '#403c34'; ctx.fillRect(Math.round(x), Math.round(y), size, size); ctx.restore();
+    }
+  }
+}
+
 function drawAlmagest(ctx, frame, sceneContext = {}) {
   const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
   const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
@@ -10025,12 +10252,13 @@ function renderScene(ctx, sceneId, frame, sceneContext = {}) {
   if (sceneId === 'holy') return drawHoly(ctx, frame, sceneContext);
   if (sceneId === 'shell') return drawShell(ctx, frame);
   if (sceneId === 'reflect') return drawReflect(ctx, frame);
-  if (['haste', 'slow', 'stop'].includes(sceneId)) return drawTime(ctx, frame, sceneId);
+  if (sceneId === 'haste') return drawHasteReference(ctx, frame, sceneContext);
+  if (['slow', 'stop'].includes(sceneId)) return drawTime(ctx, frame, sceneId);
   if (sceneId === 'comet') return drawComet(ctx, frame, false);
-  if (sceneId === 'meteor') return drawComet(ctx, frame, true);
-  if (sceneId === 'gravity') return drawGravity(ctx, frame, 1);
+  if (sceneId === 'meteor') return drawMeteorReference(ctx, frame, sceneContext);
+  if (sceneId === 'gravity') return drawGravityReference(ctx, frame, sceneContext);
   if (sceneId === 'graviga') return drawGravity(ctx, frame, 2);
-  if (sceneId === 'return') return drawReturn(ctx, frame);
+  if (sceneId === 'return') return drawReturnReference(ctx, frame, sceneContext);
   if (sceneId === 'missile') return drawMissile(ctx, frame, sceneContext);
   if (sceneId === 'flare') return drawFlare(ctx, frame, sceneContext);
   if (sceneId === 'level-5-death') return drawLevel5Death(ctx, frame, sceneContext);
@@ -10106,7 +10334,7 @@ function renderScene(ctx, sceneId, frame, sceneContext = {}) {
   if (sceneId === 'float') return drawFloat(ctx, frame);
   if (sceneId === 'old') return drawOld(ctx, frame);
   if (sceneId === 'slowga') return drawTime(ctx, frame, 'slow');
-  if (sceneId === 'hastega') return drawTime(ctx, frame, 'haste');
+  if (sceneId === 'hastega') return drawHasteReference(ctx, frame, sceneContext);
   if (sceneId === 'remora') return drawRemora(ctx, frame);
   if (sceneId === 'catoblepas') return drawCatoblepas(ctx, frame);
   if (sceneId === 'chocobo') return drawChocobo(ctx, frame, sceneContext);
@@ -10324,14 +10552,14 @@ const SPELL_CHOREOGRAPHIES = Object.freeze({
   magic_shell: scene('shell', [beat('prism-facet', 5), beat('shell-weave', 5), beat('prism-lock', 2)], 1.06),
   magic_reflect: scene('reflect', [beat('mirror-shard', 6), beat('mirror-form', 1), beat('reflection-line', 2)], 1.12),
 
-  magic_haste: scene('haste', [beat('clock-face', 1), beat('fast-hand', 2), beat('speed-trail', 6)], 1),
+  magic_haste: scene('haste', [beat('target-white-radial-seed', 12), beat('silver-shard-fan', 12), beat('orange-core-four-satellites', 5)], 1),
   magic_slow: scene('slow', [beat('clock-face', 1), beat('slow-hand', 2), beat('time-weight', 4)], .96),
   magic_stop: scene('stop', [beat('clock-face', 1), beat('frozen-hand', 2), beat('glass-lock', 4)], 1.08),
   magic_comet: scene('comet', [beat('comet-tail', 4), beat('comet-core', 1), beat('crater', 5)], 1.02),
-  magic_meteor: scene('meteor', [beat('sky-rift', 2), beat('meteor-body', 5), beat('meteor-crater', 7)], 1.24),
-  magic_gravity: scene('gravity', [beat('gravity-lens', 3), beat('compress-ring', 3), beat('half-crush', 2)], 1.08),
+  magic_meteor: scene('meteor', [beat('red-black-palette-field', 1), beat('fireball-descent', 8), beat('four-hit-barrage', 4)], 1.24),
+  magic_gravity: scene('gravity', [beat('caster-white-radial-seed', 12), beat('indigo-orb-launch', 1), beat('target-white-lightning', 5)], 1.08),
   magic_graviga: scene('graviga', [beat('black-lens', 5), beat('triple-collapse', 5), beat('three-quarter-crush', 3)], 1.22),
-  magic_return: scene('return', [beat('hourglass', 2), beat('rewind-line', 12), beat('timeline-snap', 16)], 1.24),
+  magic_return: scene('return', [beat('caster-white-radial-seed', 12), beat('target-pixel-expansion', 18), beat('stage-blackout', 1)], 1.24),
 
   magic_missile: scene('missile', [beat('white-orb', 1), beat('crescent-echo-trail', 5), beat('orange-blue-flicker', 2)], 1.02),
   magic_flare: scene('flare', [beat('green-caster-aura', 6), beat('red-black-orb-field', 15), beat('white-hot-sphere', 1), beat('afterflash', 6)], 1.25),

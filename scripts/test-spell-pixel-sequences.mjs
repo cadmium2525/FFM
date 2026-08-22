@@ -80,6 +80,23 @@ for (const [sceneId, expected] of Object.entries(whiteReferenceScenes)) {
   assert.equal(spec.sharedOriginalFamily, expected.family, `${sceneId}: original rendering family regressed`);
   assert.deepEqual(spec.phases.map((entry) => entry.type), expected.phases, `${sceneId}: observed phase order regressed`);
 }
+const timeReferenceScenes = {
+  haste: { header: '2A 10 2D 00 6B', family: 'haste-header-2a-10-2d-00-6b', phases: ['target-white-radial-seed', 'silver-shard-fan', 'orange-core-four-satellites', 'haste-latch', 'decay'] },
+  gravity: { header: '2E 25 7A 00 2D', family: 'time-magic-script-7a', phases: ['caster-white-radial-seed', 'indigo-orb-launch', 'target-orb-capture', 'white-lightning-latch', 'decay'] },
+  meteor: { header: '04 10 7B 91 46', family: 'time-magic-script-7b', phases: ['caster-white-radial-seed', 'red-black-palette-field', 'fireball-descent', 'four-hit-barrage', 'red-black-afterfield', 'decay'] },
+  return: { header: '00 00 75 00 08', family: 'time-magic-script-75', phases: ['caster-white-radial-seed', 'target-pixel-expansion', 'stage-block-fracture', 'timeline-reset-blackout', 'decay'] },
+};
+for (const [sceneId, expected] of Object.entries(timeReferenceScenes)) {
+  const spec = SPELL_PIXEL_SEQUENCES[sceneId];
+  assert.equal(spec.verification, 'reference-locked', `${sceneId}: SFC time-magic reference lock regressed`);
+  assert.equal(spec.renderMode, 'stage-direct', `${sceneId}: observed full-stage choreography regressed`);
+  assert.ok(spec.reference.evidenceFrames.length >= 4, `${sceneId}: four observed source frames required`);
+  assert.ok(spec.reference.goldenFrames.length >= 4, `${sceneId}: four golden anchors required`);
+  assert.equal(spec.originalEffectHeader, expected.header, `${sceneId}: SFC effect header regressed`);
+  assert.equal(spec.sharedOriginalFamily, expected.family, `${sceneId}: original rendering family regressed`);
+  assert.deepEqual(spec.phases.map((entry) => entry.type), expected.phases, `${sceneId}: observed phase order regressed`);
+}
+assert.deepEqual(SPELL_PIXEL_SEQUENCES.meteor.impactFrames, [98, 126, 154, 182], 'Meteor must preserve four separately presented hit cues');
 assert.deepEqual(
   SPELL_PIXEL_SEQUENCES.missile.phases.map((entry) => entry.type),
   ['white-orb-launch', 'crescent-echo-flight', 'orange-blue-target-flicker', 'result-latch', 'decay'],
@@ -117,6 +134,9 @@ const expectedOriginalHeaders = {
   raise: '24 20 0D 80 65',
   protect: '23 11 0E 00 4F',
   holy: '0D 12 7F A2 15',
+  gravity: '2E 25 7A 00 2D',
+  return: '00 00 75 00 08',
+  meteor: '04 10 7B 91 46',
   libra: '0F 1B 14 00 14',
   poisona: '23 11 0B 00 0F',
   silence: '28 1E 0C 31 7B',

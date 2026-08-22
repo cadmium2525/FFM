@@ -39,14 +39,14 @@ export const SPELL_CHOREOGRAPHIES = Object.freeze({
   magic_shell: scene('shell', [beat('prism-facet', 5), beat('shell-weave', 5), beat('prism-lock', 2)], 1.06),
   magic_reflect: scene('reflect', [beat('mirror-shard', 6), beat('mirror-form', 1), beat('reflection-line', 2)], 1.12),
 
-  magic_haste: scene('haste', [beat('clock-face', 1), beat('fast-hand', 2), beat('speed-trail', 6)], 1),
+  magic_haste: scene('haste', [beat('target-white-radial-seed', 12), beat('silver-shard-fan', 12), beat('orange-core-four-satellites', 5)], 1),
   magic_slow: scene('slow', [beat('clock-face', 1), beat('slow-hand', 2), beat('time-weight', 4)], .96),
   magic_stop: scene('stop', [beat('clock-face', 1), beat('frozen-hand', 2), beat('glass-lock', 4)], 1.08),
   magic_comet: scene('comet', [beat('comet-tail', 4), beat('comet-core', 1), beat('crater', 5)], 1.02),
-  magic_meteor: scene('meteor', [beat('sky-rift', 2), beat('meteor-body', 5), beat('meteor-crater', 7)], 1.24),
-  magic_gravity: scene('gravity', [beat('gravity-lens', 3), beat('compress-ring', 3), beat('half-crush', 2)], 1.08),
+  magic_meteor: scene('meteor', [beat('red-black-palette-field', 1), beat('fireball-descent', 8), beat('four-hit-barrage', 4)], 1.24),
+  magic_gravity: scene('gravity', [beat('caster-white-radial-seed', 12), beat('indigo-orb-launch', 1), beat('target-white-lightning', 5)], 1.08),
   magic_graviga: scene('graviga', [beat('black-lens', 5), beat('triple-collapse', 5), beat('three-quarter-crush', 3)], 1.22),
-  magic_return: scene('return', [beat('hourglass', 2), beat('rewind-line', 12), beat('timeline-snap', 16)], 1.24),
+  magic_return: scene('return', [beat('caster-white-radial-seed', 12), beat('target-pixel-expansion', 18), beat('stage-blackout', 1)], 1.24),
 
   magic_missile: scene('missile', [beat('white-orb', 1), beat('crescent-echo-trail', 5), beat('orange-blue-flicker', 2)], 1.02),
   magic_flare: scene('flare', [beat('green-caster-aura', 6), beat('red-black-orb-field', 15), beat('white-hot-sphere', 1), beat('afterflash', 6)], 1.25),
