@@ -63,6 +63,23 @@ for (const sceneId of elementalScenes) {
     `${sceneId}: observed script 07 phase order regressed`,
   );
 }
+const whiteReferenceScenes = {
+  cure: { header: '20 11 08 00 13', family: 'white-magic-script-08', phases: ['white-caster-sparkle', 'script-08-yellow-stars', 'script-08-green-cross', 'heal-latch', 'decay'] },
+  cura: { header: '20 11 09 00 13', family: 'white-magic-script-09', phases: ['white-caster-sparkle', 'script-09-yellow-star-chain', 'script-09-green-cross', 'heal-latch', 'decay'] },
+  curaga: { header: '20 12 0A 2C 13', family: 'white-magic-script-0a', phases: ['white-caster-sparkle', 'script-0a-blue-starbursts', 'script-0a-green-cross', 'heal-latch', 'decay'] },
+  raise: { header: '24 20 0D 80 65', family: 'white-magic-script-0d', phases: ['white-caster-sparkle', 'script-0d-winged-halo', 'script-0d-life-star', 'revive-latch', 'decay'] },
+  protect: { header: '23 11 0E 00 4F', family: 'white-magic-script-0e', phases: ['white-caster-sparkle', 'script-0e-gold-brackets', 'script-0e-ward-pulse', 'protect-latch', 'decay'] },
+  holy: { header: '0D 12 7F A2 15', family: 'white-magic-script-7f', phases: ['white-caster-sparkle', 'script-7f-square-descent', 'script-7f-blue-blackout-orbit', 'script-7f-light-columns', 'holy-latch', 'decay'] },
+};
+for (const [sceneId, expected] of Object.entries(whiteReferenceScenes)) {
+  const spec = SPELL_PIXEL_SEQUENCES[sceneId];
+  assert.equal(spec.verification, 'reference-locked', `${sceneId}: SFC white-magic reference lock regressed`);
+  assert.equal(spec.reference.evidenceFrames.length, 4, `${sceneId}: four observed source frames required`);
+  assert.equal(spec.reference.goldenFrames.length, 4, `${sceneId}: four golden anchors required`);
+  assert.equal(spec.originalEffectHeader, expected.header, `${sceneId}: SFC effect header regressed`);
+  assert.equal(spec.sharedOriginalFamily, expected.family, `${sceneId}: original rendering family regressed`);
+  assert.deepEqual(spec.phases.map((entry) => entry.type), expected.phases, `${sceneId}: observed phase order regressed`);
+}
 assert.deepEqual(
   SPELL_PIXEL_SEQUENCES.missile.phases.map((entry) => entry.type),
   ['white-orb-launch', 'crescent-echo-flight', 'orange-blue-target-flicker', 'result-latch', 'decay'],
@@ -94,6 +111,12 @@ const expectedOriginalHeaders = {
   thunder: '20 10 07 00 FF',
   thundara: '20 10 07 00 FF',
   thundaga: '20 10 07 00 FF',
+  cure: '20 11 08 00 13',
+  cura: '20 11 09 00 13',
+  curaga: '20 12 0A 2C 13',
+  raise: '24 20 0D 80 65',
+  protect: '23 11 0E 00 4F',
+  holy: '0D 12 7F A2 15',
   libra: '0F 1B 14 00 14',
   poisona: '23 11 0B 00 0F',
   silence: '28 1E 0C 31 7B',

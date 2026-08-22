@@ -96,6 +96,7 @@ for (const [sceneId, spec] of Object.entries(SPELL_PIXEL_SEQUENCES)) {
 
 const priorityScenes = [
   'fire', 'fira', 'firaga', 'blizzard', 'blizzara', 'blizzaga', 'thunder', 'thundara', 'thundaga',
+  'cure', 'cura', 'curaga',
   'missile', 'flare', 'level-5-death',
   'raise', 'protect', 'holy', 'steal', 'jump', 'rapid-fire', 'zeninage', 'mix',
   'atomic-ray', 'wave-cannon', 'blaster', 'maelstrom', 'delta-attack',

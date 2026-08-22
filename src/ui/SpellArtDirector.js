@@ -30,12 +30,12 @@ export const SPELL_CHOREOGRAPHIES = Object.freeze({
   magic_thundara: scene('thundara', [beat('green-caster-aura', 2), beat('script-07-gold-bolt', 5), beat('palette-cycle-impact', 3)], 1.02),
   magic_thundaga: scene('thundaga', [beat('green-caster-aura', 2), beat('script-07-violet-strobe', 5), beat('palette-cycle-impact', 3)], 1.02),
 
-  magic_cure: scene('cure', [beat('life-seed', 3), beat('heal-drop', 4), beat('soft-cross', 1)], .88),
-  magic_cura: scene('cura', [beat('double-halo', 2), beat('life-petal', 6), beat('heal-cross', 1)], 1.04),
-  magic_curaga: scene('curaga', [beat('sanctuary-ring', 3), beat('life-column', 6), beat('radiant-cross', 1)], 1.18),
-  magic_raise: scene('raise', [beat('soul-mark', 4), beat('return-soul', 1), beat('revive-halo', 2)], 1.08),
-  magic_protect: scene('protect', [beat('shield-trace', 6), beat('ward-lattice', 3), beat('ward-lock', 2)], 1.02),
-  magic_holy: scene('holy', [beat('holy-stars', 7), beat('judgment-column', 5), beat('radiant-cross', 1)], 1.28),
+  magic_cure: scene('cure', [beat('white-caster-sparkle', 4), beat('script-08-yellow-stars', 4), beat('script-08-green-cross', 1)], .96),
+  magic_cura: scene('cura', [beat('white-caster-sparkle', 4), beat('script-09-yellow-star-chain', 7), beat('script-09-green-cross', 2)], 1.04),
+  magic_curaga: scene('curaga', [beat('white-caster-sparkle', 4), beat('script-0a-blue-starbursts', 8), beat('script-0a-green-cross', 3)], 1.12),
+  magic_raise: scene('raise', [beat('white-caster-sparkle', 4), beat('script-0d-winged-halo', 2), beat('script-0d-life-star', 1)], 1.08),
+  magic_protect: scene('protect', [beat('white-caster-sparkle', 4), beat('script-0e-gold-brackets', 6), beat('script-0e-ward-pulse', 2)], 1.02),
+  magic_holy: scene('holy', [beat('white-caster-sparkle', 4), beat('script-7f-square-descent', 14), beat('script-7f-blue-blackout-orbit', 12), beat('script-7f-light-columns', 3)], 1.28),
   magic_shell: scene('shell', [beat('prism-facet', 5), beat('shell-weave', 5), beat('prism-lock', 2)], 1.06),
   magic_reflect: scene('reflect', [beat('mirror-shard', 6), beat('mirror-form', 1), beat('reflection-line', 2)], 1.12),
 

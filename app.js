@@ -6744,6 +6744,26 @@ const elementalReferenceSequence = ({ sceneId, mediaHash, frames }) => sequence(
   sharedOriginalFamily: SFC_SCRIPT_07_FAMILY,
 });
 
+const whiteReferenceSequence = ({ sceneId, mediaHash, frames, frameCount, impactFrame, phases, originalEffectHeader, family }) => sequence(
+  frameCount,
+  [impactFrame],
+  phases,
+  {
+    ...referenceLockedOptions({
+      captureId: `yt-hT8dptEpahs-${sceneId}-${frames[0].seconds}-${frames.at(-1).seconds}`,
+      sourceCitation: 'https://www.youtube.com/watch?v=hT8dptEpahs',
+      mediaHash,
+      frames,
+      mode: 'target-local-sfc-4x3-to-portrait',
+      placement: 'each-target',
+      sceneSpace: 'stage',
+      renderMode: 'stage-direct',
+    }),
+    originalEffectHeader,
+    sharedOriginalFamily: family,
+  },
+);
+
 const SPELL_PIXEL_SEQUENCES = Object.freeze({
   fire: elementalReferenceSequence({ sceneId: 'fire', mediaHash: 'fd3df4efcedd8ce9f6404058738161f4aa95b33eafa2105249380b78c7572fe7', frames: [
     { role: 'cast', seconds: 0.919045, sha256: 'dc7de31b2741abe0ce7c3a7305f7f9b2c560fffb17d91562a1f60cb145c1a736' },
@@ -6799,12 +6819,54 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
     { role: 'impact', seconds: 94.979887, sha256: 'dcbb8b5b16ef2987468d1147c9e513909fa1458bab2ca08f62575edd361a88c5' },
     { role: 'decay', seconds: 95.471761, sha256: '02afb5303957937feee98e9432c18d958abff935bb388da9aa410cd42cf68694' },
   ] }),
-  cure: sequence(70, [48], [phase('seed', 0, 18), phase('rise', 19, 47), phase('restore', 48, 59), phase('decay', 60, 69)]),
-  cura: sequence(82, [56], [phase('halo', 0, 21), phase('petals', 22, 55), phase('restore', 56, 70), phase('decay', 71, 81)]),
-  curaga: sequence(96, [64], [phase('sanctuary', 0, 24), phase('column', 25, 63), phase('restore', 64, 81), phase('decay', 82, 95)]),
-  raise: sequence(96, [66], [phase('soul-mark', 0, 24), phase('return', 25, 65), phase('revive', 66, 82), phase('decay', 83, 95)]),
-  protect: sequence(84, [58], [phase('trace', 0, 20), phase('shield-form', 21, 57), phase('ward-lock', 58, 70), phase('decay', 71, 83)]),
-  holy: sequence(118, [78], [phase('stars', 0, 26), phase('judgment', 27, 77), phase('holy-impact', 78, 98), phase('decay', 99, 117)]),
+  cure: whiteReferenceSequence({ sceneId: 'cure', mediaHash: '144a209c37d55ad844f0f0f091320c241257a94ba6798d1dbb0abd60442ee067', frameCount: 72, impactFrame: 52, originalEffectHeader: '20 11 08 00 13', family: 'white-magic-script-08', phases: [
+    phase('white-caster-sparkle', 0, 17), phase('script-08-yellow-stars', 18, 39), phase('script-08-green-cross', 40, 51), phase('heal-latch', 52, 61), phase('decay', 62, 71),
+  ], frames: [
+    { role: 'cast', seconds: 0.737404, sha256: '9a997b19d602c11d165f6113598ae2a94f8c77f4b20b8a842fa10f50c899b978' },
+    { role: 'development', seconds: 1.378625, sha256: '80155d79a2e199626904a11e4ae7707ce4ff8ca29b3e562ef693857b6343e1b7' },
+    { role: 'impact', seconds: 2.019847, sha256: 'b3e3f8882115ca1fa4bc6c511666b672d9170266234d86480a170857ba0543cc' },
+    { role: 'decay', seconds: 2.500763, sha256: 'd4257bdba09ef60d89d5ca4ed7559a38617d5c71aa34220c8a30129503443fa6' },
+  ] }),
+  cura: whiteReferenceSequence({ sceneId: 'cura', mediaHash: 'c1a2fa67ca6a5c9a45971872e3091d603943a6fdde980abade50f9983553b18b', frameCount: 84, impactFrame: 59, originalEffectHeader: '20 11 09 00 13', family: 'white-magic-script-09', phases: [
+    phase('white-caster-sparkle', 0, 17), phase('script-09-yellow-star-chain', 18, 43), phase('script-09-green-cross', 44, 58), phase('heal-latch', 59, 71), phase('decay', 72, 83),
+  ], frames: [
+    { role: 'cast', seconds: 41, sha256: 'd0625036bf55129ad7eb6253e66f11d15b419f139acd5e4230b8904ea9ada117' },
+    { role: 'development', seconds: 42.066153, sha256: 'ee0dad675d866e3b726bd38441790d1e51d98f1d24cd4315af83a28a1e944f59' },
+    { role: 'impact', seconds: 42.873845, sha256: '1ce9d6ec09cbc0ac1bdc22f44ccd0a898cc8309e196b3cab0e4f23a9deb9fbbe' },
+    { role: 'decay', seconds: 43.843076, sha256: '7be9b1ef6e355592b1e98a4afabc93fda91af6092e9ef6f4ba24c1f61f0a5db8' },
+  ] }),
+  curaga: whiteReferenceSequence({ sceneId: 'curaga', mediaHash: '99cdb86ce27a4175ba6ba791e6db689aa8b91edb3db88f9d51d07fe45762f75e', frameCount: 90, impactFrame: 62, originalEffectHeader: '20 12 0A 2C 13', family: 'white-magic-script-0a', phases: [
+    phase('white-caster-sparkle', 0, 17), phase('script-0a-blue-starbursts', 18, 47), phase('script-0a-green-cross', 48, 61), phase('heal-latch', 62, 75), phase('decay', 76, 89),
+  ], frames: [
+    { role: 'cast', seconds: 81, sha256: '1956fff0ea7682d2f74b903308db8e994f1470ce11655b58e8d9116f8cf17eaf' },
+    { role: 'development', seconds: 81.906666, sha256: '56889cbcb73ffa7b74db40efefeb1832f18403af00d30c13e409574eac1b7773' },
+    { role: 'impact', seconds: 82.71619, sha256: '511577f8761ee8ed733887e6a7846c97cad0a2c4ae429f83f995351b2822ee14' },
+    { role: 'decay', seconds: 83.525714, sha256: '825190b4c83c7a0181234e5dc4a4a58e92ba0aaf182c38e0244cddd4f4c6f184' },
+  ] }),
+  raise: whiteReferenceSequence({ sceneId: 'raise', mediaHash: '786c86eb38414b51d69d3b95637871d3d5c84e21a06b9014156800c61db680c1', frameCount: 108, impactFrame: 82, originalEffectHeader: '24 20 0D 80 65', family: 'white-magic-script-0d', phases: [
+    phase('white-caster-sparkle', 0, 17), phase('script-0d-winged-halo', 18, 63), phase('script-0d-life-star', 64, 81), phase('revive-latch', 82, 94), phase('decay', 95, 107),
+  ], frames: [
+    { role: 'cast', seconds: 48.850768, sha256: 'b0e1d73e93922c6f208b32d5a716a90451c457a7bdf22bed6772fb41329220dc' },
+    { role: 'development', seconds: 50.950768, sha256: 'd69ab4c700fd9160ab3de8d545a1141bcc5e2b663655af7e735c1d28ab16a358' },
+    { role: 'impact', seconds: 51.112307, sha256: '1646e0d147ea99956df483d22b1ccd83336fed1a5058e54d88ff4da321732df5' },
+    { role: 'decay', seconds: 52.404615, sha256: 'b3027f6999a5d463a82e50d6822031f022a580be07b452ba052ad9516a97e6ca' },
+  ] }),
+  protect: whiteReferenceSequence({ sceneId: 'protect', mediaHash: '0d4bf76fb1395289a5c7dd1dd2d9c1b1115b471b29649f2548bd87a9d9b51ec8', frameCount: 78, impactFrame: 55, originalEffectHeader: '23 11 0E 00 4F', family: 'white-magic-script-0e', phases: [
+    phase('white-caster-sparkle', 0, 17), phase('script-0e-gold-brackets', 18, 45), phase('script-0e-ward-pulse', 46, 54), phase('protect-latch', 55, 65), phase('decay', 66, 77),
+  ], frames: [
+    { role: 'cast', seconds: 28.838709, sha256: 'e77b94aadfb0b778c3061b359ed39946ad82ee553ec003f6843ff1a47b171a80' },
+    { role: 'development', seconds: 29.645161, sha256: '6f8160dd86c59fd1fdaec5dfa68f3bfac6df4e801cb18bb31b212b4481055345' },
+    { role: 'impact', seconds: 30.451612, sha256: 'a2e121fbb70f4d5aeec8926d82198caa90f3d34c4f939572c7148cfe41be4c73' },
+    { role: 'decay', seconds: 30.774193, sha256: '777b0dfd52d4b1f67267725c9a446bc9384113687434fc92cd253e5e4d02cda9' },
+  ] }),
+  holy: whiteReferenceSequence({ sceneId: 'holy', mediaHash: '01031173882f4512ddb3bb24c1cf992666ca954103920be44f6ef30313d6831b', frameCount: 140, impactFrame: 116, originalEffectHeader: '0D 12 7F A2 15', family: 'white-magic-script-7f', phases: [
+    phase('white-caster-sparkle', 0, 17), phase('script-7f-square-descent', 18, 45), phase('script-7f-blue-blackout-orbit', 46, 103), phase('script-7f-light-columns', 104, 115), phase('holy-latch', 116, 126), phase('decay', 127, 139),
+  ], frames: [
+    { role: 'cast', seconds: 106.830956, sha256: 'ee7a6bfcfc89af40ee4feaef9b9bb32f6c722287f1c3928b65b77293db21f950' },
+    { role: 'development', seconds: 107.96313, sha256: 'dd046a6aa705c5b090a22d2c0298e7f40c621b968e58f7c7f68d76ecc365ecd7' },
+    { role: 'impact', seconds: 110.712695, sha256: '678366ad09e2cfaaac66bff62d5129f295ae75f69d7b3815098fdcfb12dd9523' },
+    { role: 'decay', seconds: 111.359651, sha256: '253191eaebc2e395cde0c3c254194eb4aede97c1a3e15b2554b75af9109ef0eb' },
+  ] }),
   shell: sequence(88, [60], [phase('prism-seed', 0, 21), phase('shell-weave', 22, 59), phase('prism-lock', 60, 74), phase('decay', 75, 87)]),
   reflect: sequence(96, [68], [phase('mirror-shards', 0, 24), phase('mirror-form', 25, 67), phase('reflect-lock', 68, 82), phase('decay', 83, 95)]),
   haste: sequence(72, [49], [phase('clock', 0, 20), phase('accelerate', 21, 48), phase('latch', 49, 60), phase('decay', 61, 71)], { originalEffectHeader: '2A 10 2D 00 6B', sharedOriginalFamily: 'haste-header-2a-10-2d-00-6b' }),
@@ -7296,79 +7358,158 @@ function drawThunder(ctx, frame, tier, sceneContext = {}) {
   });
 }
 
-function drawCure(ctx, frame, tier) {
-  const total = tier === 1 ? 70 : tier === 2 ? 82 : 96;
-  const alpha = fade(frame, 10, total - 14, total);
-  const grow = easeOut(segment(frame, 0, tier === 1 ? 28 : 36));
-  if (tier === 1) {
-    motes(ctx, 9, frame, '#92ffc9', 'rise', 62, alpha);
-    ring(ctx, 96, 112, 8 + grow * 38, '#65e9ad', 3, alpha);
-  } else if (tier === 2) {
-    ring(ctx, 96, 111, 10 + grow * 31, '#7dffd0', 3, alpha);
-    ring(ctx, 96, 111, 20 + grow * 46, '#dffff2', 2, alpha * .8, frame * .035, frame * .035 + Math.PI * 1.5);
-    for (let i = 0; i < 6; i += 1) { const a = i * Math.PI / 3 + frame * .025; diamond(ctx, 96 + Math.cos(a) * 48, 111 + Math.sin(a) * 35, 5, '#9dffd6', alpha); }
-  } else {
-    ring(ctx, 96, 116, 20 + grow * 57, '#e9fff4', 4, alpha);
-    ring(ctx, 96, 116, 8 + grow * 43, '#59f2a7', 3, alpha);
-    for (let i = 0; i < 6; i += 1) line(ctx, 55 + i * 16, 148, 72 + i * 10, 45, i % 2 ? '#effff7' : '#72ffc1', 3, alpha * grow);
-    motes(ctx, 18, frame, '#b8ffe1', 'rise', 78, alpha);
-  }
-  const impactAt = tier === 1 ? 47 : tier === 2 ? 55 : 63;
-  if (frame > impactAt) {
-    const p = easeOut(segment(frame, impactAt, impactAt + 13));
-    if (tier === 1) {
-      ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#f3fff8';
-      ctx.fillRect(91, 88 - p * 4, 10, 50 + p * 8); ctx.fillRect(72 - p * 5, 108, 48 + p * 10, 10); ctx.restore();
-    } else if (tier === 2) {
-      ring(ctx, 96, 111, 22 + p * 43, '#effff7', 4, alpha);
-      for (let i = 0; i < 8; i += 1) {
-        const a = Math.PI / 8 + i * Math.PI / 4;
-        diamond(ctx, 96 + Math.cos(a) * (27 + p * 25), 111 + Math.sin(a) * (21 + p * 18), 7, i % 2 ? '#f7fff9' : '#75ffc1', alpha);
+function drawWhitePixelStar(ctx, x, y, size, color, alpha = 1, center = '#fff8c8') {
+  const arm = Math.max(2, Math.round(size));
+  ctx.save();
+  ctx.globalAlpha = clamp(alpha);
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.round(x - arm), Math.round(y - 2), arm * 2 + 1, 5);
+  ctx.fillRect(Math.round(x - 2), Math.round(y - arm), 5, arm * 2 + 1);
+  ctx.fillStyle = center;
+  ctx.fillRect(Math.round(x - 2), Math.round(y - 2), 5, 5);
+  ctx.restore();
+}
+
+function drawWhiteCasterSparkles(ctx, frame, caster, scale = 1) {
+  if (frame > 22) return;
+  const alpha = Math.min(segment(frame, 0, 5), 1 - segment(frame, 17, 22));
+  const offsets = [[-19, -21], [18, -14], [-27, 7], [23, 13], [-8, 25]];
+  offsets.forEach(([x, y], index) => {
+    const local = segment(frame, index * 2, index * 2 + 9);
+    if (local <= 0 || local >= 1) return;
+    drawWhitePixelStar(ctx, caster.x + x * scale, caster.y + y * scale, (3 + index % 2) * scale, index % 2 ? '#ffe048' : '#fff398', alpha * Math.sin(local * Math.PI));
+  });
+}
+
+function whiteMagicTargets(sceneContext, width, height) {
+  return stagePointList(sceneContext, 'targets', [{
+    x: Number(sceneContext.targetX ?? 76),
+    y: Number(sceneContext.targetY ?? 50),
+  }], width, height);
+}
+
+function drawCure(ctx, frame, tier, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  stageFill(ctx, width, height, '#000000', 0);
+  const scale = Math.max(.72, Math.min(1.2, height / STAGE_HEIGHT));
+  const caster = stageRolePoint(sceneContext, 'caster', { x: 24, y: 48 }, width, height);
+  const targets = whiteMagicTargets(sceneContext, width, height);
+  const total = tier === 1 ? 72 : tier === 2 ? 84 : 90;
+  const impactAt = tier === 1 ? 52 : tier === 2 ? 59 : 62;
+  const alpha = Math.min(segment(frame, 0, 5), 1 - segment(frame, total - 12, total));
+  drawWhiteCasterSparkles(ctx, frame, caster, scale);
+
+  targets.forEach((target, targetIndex) => {
+    const delay = targetIndex * 3;
+    if (tier < 3) {
+      const starCount = tier === 1 ? 3 : 5;
+      for (let index = 0; index < starCount; index += 1) {
+        const start = 18 + delay + index * (tier === 1 ? 5 : 4);
+        const life = segment(frame, start, start + 14);
+        if (life <= 0 || life >= 1) continue;
+        const side = index % 2 ? 1 : -1;
+        const x = target.x + side * (9 + index * 4) * scale;
+        const y = target.y + (-24 + index * 12) * scale;
+        drawWhitePixelStar(ctx, x, y, (tier === 1 ? 4 : 5) * scale, index % 2 ? '#ffe24c' : '#fff7a0', alpha * Math.sin(life * Math.PI));
+      }
+      const greenStart = tier === 1 ? 40 : 44;
+      for (let index = 0; index < (tier === 1 ? 2 : 3); index += 1) {
+        const life = segment(frame, greenStart + delay + index * 4, impactAt + 8 + delay + index * 3);
+        if (life <= 0 || life >= 1) continue;
+        const side = index % 2 ? 1 : -1;
+        drawWhitePixelStar(ctx, target.x + side * (10 + index * 8) * scale, target.y + (-20 + index * 19) * scale, (5 + tier) * scale, '#23c85a', alpha * Math.sin(life * Math.PI), '#9cff92');
       }
     } else {
-      ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#f3fff8';
-      ctx.fillRect(89, 64 - p * 8, 14, 91 + p * 15); ctx.fillRect(48 - p * 8, 105, 96 + p * 16, 14); ctx.restore();
-      burst(ctx, 96, 112, 36 + p * 66, 16, '#90ffd0', alpha, Math.PI / 16);
+      const burstStart = 20 + delay;
+      const pulse = segment(frame, burstStart, 49 + delay);
+      if (pulse > 0 && pulse < 1) {
+        const radius = (8 + pulse * 22) * scale;
+        for (let ray = 0; ray < 12; ray += 1) {
+          const angle = ray * Math.PI / 6 + (ray % 2 ? .12 : 0);
+          const inner = 5 * scale;
+          line(ctx, target.x + Math.cos(angle) * inner, target.y + Math.sin(angle) * inner, target.x + Math.cos(angle) * radius, target.y + Math.sin(angle) * radius, ray % 2 ? '#1648d8' : '#2588ff', ray % 3 ? 3 * scale : 5 * scale, alpha * Math.sin(pulse * Math.PI));
+        }
+        pixelDisc(ctx, target.x, target.y, (5 + (frame % 4)) * scale, '#ffffff', alpha);
+      }
+      for (let index = 0; index < 3; index += 1) {
+        const life = segment(frame, 48 + delay + index * 4, 70 + delay + index * 2);
+        if (life <= 0 || life >= 1) continue;
+        drawWhitePixelStar(ctx, target.x + (index - 1) * 18 * scale, target.y + (index % 2 ? 18 : -18) * scale, 7 * scale, '#18a848', alpha * Math.sin(life * Math.PI), '#8cff82');
+      }
     }
-  }
+    if (frame >= impactAt && frame < impactAt + 9) {
+      drawWhitePixelStar(ctx, target.x, target.y, (7 + tier * 2) * scale, tier === 3 ? '#35bd64' : '#e8ff9b', alpha, '#ffffff');
+      if (tier === 3) {
+        for (let quadrant = 0; quadrant < 4; quadrant += 1) {
+          const angle = quadrant * Math.PI / 2 + Math.PI / 4;
+          drawWhitePixelStar(ctx, target.x + Math.cos(angle) * 22 * scale, target.y + Math.sin(angle) * 22 * scale, 3 * scale, '#2cab55', alpha * .82, '#c8ff9a');
+        }
+      }
+    }
+  });
 }
 
-function drawRaise(ctx, frame) {
-  const alpha = fade(frame, 8, 82, 96);
-  const seal = easeOut(segment(frame, 0, 25));
-  ring(ctx, 96, 126, 10 + seal * 46, '#ffd978', 3, alpha);
-  for (let i = 0; i < 4; i += 1) {
-    const y = 154 - segment(frame, 15 + i * 5, 58 + i * 4) * 96;
-    diamond(ctx, 69 + i * 18, y, 4 + i % 2, i % 2 ? '#fff8c8' : '#ffae72', alpha);
-  }
-  const soul = easeInOut(segment(frame, 24, 66));
-  poly(ctx, [[96, 148 - soul * 69], [82, 128 - soul * 51], [87, 104 - soul * 30], [96, 94 - soul * 22], [105, 104 - soul * 30], [110, 128 - soul * 51]], '#fffce8', alpha * soul, '#ffc96b', 2);
-  if (frame >= 66) {
-    const p = easeOut(segment(frame, 66, 82));
-    ring(ctx, 96, 88, 12 + p * 53, '#fff7bd', 4, alpha);
-    burst(ctx, 96, 104, 18 + p * 58, 12, '#ffdb7d', alpha, Math.PI / 12);
-  }
+function drawRaise(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  stageFill(ctx, width, height, '#000000', 0);
+  const scale = Math.max(.72, Math.min(1.2, height / STAGE_HEIGHT));
+  const caster = stageRolePoint(sceneContext, 'caster', { x: 24, y: 48 }, width, height);
+  const targets = whiteMagicTargets(sceneContext, width, height);
+  const alpha = Math.min(segment(frame, 0, 5), 1 - segment(frame, 95, 108));
+  drawWhiteCasterSparkles(ctx, frame, caster, scale);
+
+  targets.forEach((target) => {
+    const arrive = easeOut(segment(frame, 20, 56));
+    if (arrive > 0) {
+      const spiritX = target.x - (31 - arrive * 18) * scale;
+      const spiritY = target.y - (18 + arrive * 11) * scale;
+      ring(ctx, spiritX, spiritY - 16 * scale, 9 * scale, '#fff080', 3 * scale, alpha * arrive);
+      pixelDisc(ctx, spiritX, spiritY - 4 * scale, 5 * scale, '#fff6c8', alpha * arrive);
+      poly(ctx, [[spiritX - 5 * scale, spiritY], [spiritX - 25 * scale, spiritY - 10 * scale], [spiritX - 18 * scale, spiritY + 9 * scale], [spiritX - 4 * scale, spiritY + 14 * scale]], '#fff0a0', alpha * arrive, '#e8a840', 2 * scale);
+      poly(ctx, [[spiritX + 5 * scale, spiritY], [spiritX + 25 * scale, spiritY - 10 * scale], [spiritX + 18 * scale, spiritY + 9 * scale], [spiritX + 4 * scale, spiritY + 14 * scale]], '#fff0a0', alpha * arrive, '#e8a840', 2 * scale);
+      poly(ctx, [[spiritX, spiritY], [spiritX + 8 * scale, spiritY + 24 * scale], [spiritX - 8 * scale, spiritY + 24 * scale]], '#fff8d8', alpha * arrive, '#e8a840', 2 * scale);
+    }
+    if (frame >= 64) {
+      const life = segment(frame, 64, 92);
+      drawWhitePixelStar(ctx, target.x, target.y - 5 * scale, (7 + Math.sin(life * Math.PI) * 9) * scale, '#ffe049', alpha * Math.sin(life * Math.PI), '#ffffff');
+    }
+    if (frame >= 82 && frame < 96) burst(ctx, target.x, target.y, (12 + (frame - 82) * 2.2) * scale, 8, '#fff08a', alpha, Math.PI / 8);
+  });
 }
 
-function drawProtect(ctx, frame) {
-  const alpha = fade(frame, 7, 70, 84);
-  const form = easeOut(segment(frame, 0, 48));
-  const points = [[96, 35], [143, 62], [143, 121], [96, 153], [49, 121], [49, 62]];
-  for (let i = 0; i < points.length; i += 1) {
-    const a = points[i]; const b = points[(i + 1) % points.length];
-    line(ctx, a[0], a[1], a[0] + (b[0] - a[0]) * form, a[1] + (b[1] - a[1]) * form, i % 2 ? '#a9d9ff' : '#f2fbff', 4, alpha);
-  }
-  if (frame > 24) {
-    const lattice = easeOut(segment(frame, 24, 58));
-    line(ctx, 96, 35, 96, 153, '#6ab7ff', 2, alpha * lattice);
-    line(ctx, 49, 62, 143, 121, '#6ab7ff', 2, alpha * lattice);
-    line(ctx, 143, 62, 49, 121, '#6ab7ff', 2, alpha * lattice);
-    diamond(ctx, 96, 94, 15 + lattice * 8, 'rgba(126,194,255,.7)', alpha, '#ffffff');
-  }
-  if (frame >= 58) {
-    const p = easeOut(segment(frame, 58, 70));
-    ring(ctx, 96, 96, 22 + p * 55, '#dff4ff', 4, alpha);
-  }
+function drawProtect(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  stageFill(ctx, width, height, '#000000', 0);
+  const scale = Math.max(.72, Math.min(1.2, height / STAGE_HEIGHT));
+  const caster = stageRolePoint(sceneContext, 'caster', { x: 24, y: 48 }, width, height);
+  const targets = whiteMagicTargets(sceneContext, width, height);
+  const alpha = Math.min(segment(frame, 0, 5), 1 - segment(frame, 66, 78));
+  drawWhiteCasterSparkles(ctx, frame, caster, scale);
+
+  targets.forEach((target) => {
+    const form = easeOut(segment(frame, 18, 46));
+    if (form <= 0) return;
+    const pulse = frame >= 46 ? 1 + (frame % 6 < 3 ? 3 : 0) : 1;
+    const colors = ['#ffe34c', '#d0bc20', '#68a83c'];
+    for (let band = 0; band < 4; band += 1) {
+      const y = target.y + (-27 + band * 18) * scale;
+      const reach = (13 + band % 2 * 5) * form * scale;
+      const gap = (15 + band % 2 * 3 + pulse) * scale;
+      const color = colors[band % colors.length];
+      line(ctx, target.x - gap - reach, y, target.x - gap, y, color, 4 * scale, alpha);
+      line(ctx, target.x - gap - reach, y, target.x - gap - reach, y + 7 * scale, color, 3 * scale, alpha);
+      line(ctx, target.x + gap, y, target.x + gap + reach, y, color, 4 * scale, alpha);
+      line(ctx, target.x + gap + reach, y, target.x + gap + reach, y + 7 * scale, color, 3 * scale, alpha);
+    }
+    line(ctx, target.x - 10 * scale, target.y - 38 * scale, target.x + 10 * scale, target.y - 38 * scale, '#b8c84c', 4 * scale, alpha);
+    if (frame >= 55 && frame < 66) {
+      const latch = 1 - segment(frame, 55, 66);
+      drawWhitePixelStar(ctx, target.x, target.y - 38 * scale, 4 * scale, '#fff078', alpha * latch, '#ffffff');
+    }
+  });
 }
 
 function drawShell(ctx, frame) {
@@ -7408,26 +7549,60 @@ function drawReflect(ctx, frame) {
   }
 }
 
-function drawHoly(ctx, frame) {
-  const alpha = fade(frame, 8, 99, 118);
-  const stars = easeOut(segment(frame, 0, 30));
-  for (let i = 0; i < 7; i += 1) {
-    const x = 38 + i * 19; const y = 28 + ((i * 23) % 38);
-    diamond(ctx, x, y, 4 + (i % 3), i % 2 ? '#fff8a8' : '#ffffff', alpha * stars);
-  }
-  if (frame > 26) {
-    const descend = easeInOut(segment(frame, 26, 78));
-    for (let i = 0; i < 5; i += 1) {
-      const x = 62 + i * 17;
-      line(ctx, x, 24, x + (i - 2) * 4, 61 + descend * 92, i % 2 ? '#fff5a5' : '#ffffff', i === 2 ? 7 : 4, alpha * descend);
+function drawHoly(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  stageFill(ctx, width, height, '#000000', 0);
+  const scale = Math.max(.72, Math.min(1.2, height / STAGE_HEIGHT));
+  const caster = stageRolePoint(sceneContext, 'caster', { x: 24, y: 48 }, width, height);
+  const targets = whiteMagicTargets(sceneContext, width, height);
+  const alpha = Math.min(segment(frame, 0, 5), 1 - segment(frame, 127, 140));
+  drawWhiteCasterSparkles(ctx, frame, caster, scale);
+
+  if (frame >= 18 && frame < 48) {
+    const descent = segment(frame, 18, 48);
+    for (let index = 0; index < 14; index += 1) {
+      const x = ((index * 43 + 21) % 97) / 100 * width;
+      const y = (-10 + ((index * 17 + frame * 4) % 70)) / 100 * height;
+      const size = (index % 3 ? 7 : 10) * scale;
+      ctx.save(); ctx.globalAlpha = alpha * descent * .8; ctx.fillStyle = index % 2 ? '#ffffff' : '#d8e8ff'; ctx.fillRect(Math.round(x), Math.round(y), Math.round(size), Math.round(size)); ctx.restore();
     }
-    ring(ctx, 96, 133, 8 + descend * 45, '#ffd95d', 3, alpha);
   }
-  if (frame >= 78) {
-    const p = easeOut(segment(frame, 78, 98));
-    ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#fffde6';
-    ctx.fillRect(90, 42 - p * 7, 12, 114 + p * 12); ctx.fillRect(55 - p * 8, 81, 82 + p * 16, 12); ctx.restore();
-    burst(ctx, 96, 118, 28 + p * 68, 16, '#ffe676', alpha, Math.PI / 16);
+
+  if (frame >= 46 && frame < 105) {
+    const darkness = Math.min(segment(frame, 46, 58), 1 - segment(frame, 96, 105));
+    stageFill(ctx, width, height, '#060c70', .78 * darkness);
+    targets.forEach((target, targetIndex) => {
+      const orbit = easeOut(segment(frame, 48 + targetIndex * 2, 74 + targetIndex * 2));
+      const compress = 1 - .38 * easeInOut(segment(frame, 74, 103));
+      for (let mote = 0; mote < 12; mote += 1) {
+        const angle = mote * Math.PI / 6 + frame * .035 * (mote % 2 ? 1 : -1);
+        const radiusX = (38 + (mote % 3) * 4) * scale * compress;
+        const radiusY = (27 + (mote % 2) * 5) * scale * compress;
+        pixelDisc(ctx, target.x + Math.cos(angle) * radiusX * orbit, target.y + Math.sin(angle) * radiusY * orbit, (5 + mote % 2) * scale, '#ffffff', alpha * darkness);
+      }
+    });
+  }
+
+  if (frame >= 104) {
+    const strike = Math.min(1, segment(frame, 104, 116));
+    const decay = 1 - segment(frame, 126, 140);
+    targets.forEach((target) => {
+      const beamAlpha = alpha * strike * decay;
+      ctx.save();
+      ctx.globalAlpha = beamAlpha;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(Math.round(target.x - 13 * scale), 0, Math.round(7 * scale), Math.round(target.y + 36 * scale));
+      ctx.fillRect(Math.round(target.x + 7 * scale), 0, Math.round(5 * scale), Math.round(target.y + 36 * scale));
+      ctx.fillStyle = '#d8f8ff';
+      ctx.fillRect(Math.round(target.x - 3 * scale), 0, Math.round(6 * scale), Math.round(target.y + 44 * scale));
+      ctx.restore();
+      if (frame >= 112) {
+        pixelDisc(ctx, target.x, target.y, (18 + (frame - 112) * 2.4) * scale, '#f0e8ff', beamAlpha * .78);
+        poly(ctx, [[target.x, target.y - 31 * scale], [target.x + 20 * scale, target.y], [target.x, target.y + 31 * scale], [target.x - 20 * scale, target.y]], '#8438a8', beamAlpha * .48, '#ffffff', 3 * scale);
+      }
+    });
+    if (frame >= 116 && frame < 121) stageFill(ctx, width, height, '#ffffff', .32 * alpha);
   }
 }
 
@@ -9654,12 +9829,12 @@ function renderScene(ctx, sceneId, frame, sceneContext = {}) {
   if (sceneId === 'thunder') return drawThunder(ctx, frame, 1, sceneContext);
   if (sceneId === 'thundara') return drawThunder(ctx, frame, 2, sceneContext);
   if (sceneId === 'thundaga') return drawThunder(ctx, frame, 3, sceneContext);
-  if (sceneId === 'cure') return drawCure(ctx, frame, 1);
-  if (sceneId === 'cura') return drawCure(ctx, frame, 2);
-  if (sceneId === 'curaga') return drawCure(ctx, frame, 3);
-  if (sceneId === 'raise') return drawRaise(ctx, frame);
-  if (sceneId === 'protect') return drawProtect(ctx, frame);
-  if (sceneId === 'holy') return drawHoly(ctx, frame);
+  if (sceneId === 'cure') return drawCure(ctx, frame, 1, sceneContext);
+  if (sceneId === 'cura') return drawCure(ctx, frame, 2, sceneContext);
+  if (sceneId === 'curaga') return drawCure(ctx, frame, 3, sceneContext);
+  if (sceneId === 'raise') return drawRaise(ctx, frame, sceneContext);
+  if (sceneId === 'protect') return drawProtect(ctx, frame, sceneContext);
+  if (sceneId === 'holy') return drawHoly(ctx, frame, sceneContext);
   if (sceneId === 'shell') return drawShell(ctx, frame);
   if (sceneId === 'reflect') return drawReflect(ctx, frame);
   if (['haste', 'slow', 'stop'].includes(sceneId)) return drawTime(ctx, frame, sceneId);
@@ -9952,12 +10127,12 @@ const SPELL_CHOREOGRAPHIES = Object.freeze({
   magic_thundara: scene('thundara', [beat('green-caster-aura', 2), beat('script-07-gold-bolt', 5), beat('palette-cycle-impact', 3)], 1.02),
   magic_thundaga: scene('thundaga', [beat('green-caster-aura', 2), beat('script-07-violet-strobe', 5), beat('palette-cycle-impact', 3)], 1.02),
 
-  magic_cure: scene('cure', [beat('life-seed', 3), beat('heal-drop', 4), beat('soft-cross', 1)], .88),
-  magic_cura: scene('cura', [beat('double-halo', 2), beat('life-petal', 6), beat('heal-cross', 1)], 1.04),
-  magic_curaga: scene('curaga', [beat('sanctuary-ring', 3), beat('life-column', 6), beat('radiant-cross', 1)], 1.18),
-  magic_raise: scene('raise', [beat('soul-mark', 4), beat('return-soul', 1), beat('revive-halo', 2)], 1.08),
-  magic_protect: scene('protect', [beat('shield-trace', 6), beat('ward-lattice', 3), beat('ward-lock', 2)], 1.02),
-  magic_holy: scene('holy', [beat('holy-stars', 7), beat('judgment-column', 5), beat('radiant-cross', 1)], 1.28),
+  magic_cure: scene('cure', [beat('white-caster-sparkle', 4), beat('script-08-yellow-stars', 4), beat('script-08-green-cross', 1)], .96),
+  magic_cura: scene('cura', [beat('white-caster-sparkle', 4), beat('script-09-yellow-star-chain', 7), beat('script-09-green-cross', 2)], 1.04),
+  magic_curaga: scene('curaga', [beat('white-caster-sparkle', 4), beat('script-0a-blue-starbursts', 8), beat('script-0a-green-cross', 3)], 1.12),
+  magic_raise: scene('raise', [beat('white-caster-sparkle', 4), beat('script-0d-winged-halo', 2), beat('script-0d-life-star', 1)], 1.08),
+  magic_protect: scene('protect', [beat('white-caster-sparkle', 4), beat('script-0e-gold-brackets', 6), beat('script-0e-ward-pulse', 2)], 1.02),
+  magic_holy: scene('holy', [beat('white-caster-sparkle', 4), beat('script-7f-square-descent', 14), beat('script-7f-blue-blackout-orbit', 12), beat('script-7f-light-columns', 3)], 1.28),
   magic_shell: scene('shell', [beat('prism-facet', 5), beat('shell-weave', 5), beat('prism-lock', 2)], 1.06),
   magic_reflect: scene('reflect', [beat('mirror-shard', 6), beat('mirror-form', 1), beat('reflection-line', 2)], 1.12),
 
