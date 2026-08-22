@@ -97,6 +97,7 @@ for (const [sceneId, spec] of Object.entries(SPELL_PIXEL_SEQUENCES)) {
 const priorityScenes = [
   'raise', 'protect', 'holy', 'steal', 'jump', 'rapid-fire', 'zeninage', 'mix',
   'atomic-ray', 'wave-cannon', 'blaster', 'maelstrom', 'delta-attack',
+  'almagest', 'grand-cross',
   'shell', 'reflect', 'gravity', 'graviga', 'return',
   '1000-needles', 'white-wind', 'aqua-breath', 'mighty-guard',
   'goblin-punch', 'magic-hammer', 'aero', 'aera', 'aeroga',
@@ -139,6 +140,26 @@ for (const sceneId of ['white-wind', 'mighty-guard']) {
   });
   assert.equal(canvas.context.drawCalls.length, 1, `${sceneId}: party-wide field must render once, not once per unit`);
 }
+
+const neoExdeathContext = {
+  casterX: 24,
+  casterY: 48,
+  targetX: 78,
+  targetY: 52,
+  targets: [{ x: 78, y: 28 }, { x: 78, y: 44 }, { x: 78, y: 60 }, { x: 78, y: 76 }],
+  alliedTargets: [{ x: 78, y: 28 }, { x: 78, y: 44 }, { x: 78, y: 60 }, { x: 78, y: 76 }],
+  hostileTargets: [{ x: 24, y: 48 }],
+  targetMode: 'multi',
+  actorIsEnemy: true,
+};
+const almagestCanvas = createSpellCanvas('almagest');
+renderSpellCanvasFrame(almagestCanvas, 'almagest', SPELL_PIXEL_SEQUENCES.almagest.impactFrames[0], neoExdeathContext);
+assert.equal(almagestCanvas.context.drawCalls.length, 0, 'Almagest must paint directly across the full stage');
+assert.ok(almagestCanvas.context.arcs.length >= 4, 'Almagest must mark all four party coordinates at the damage cue');
+const grandCrossCanvas = createSpellCanvas('grand-cross');
+renderSpellCanvasFrame(grandCrossCanvas, 'grand-cross', 300, neoExdeathContext);
+assert.equal(grandCrossCanvas.context.drawCalls.length, 0, 'Grand Cross must paint directly across the full stage');
+assert.ok(grandCrossCanvas.context.arcs.length >= 24, 'Grand Cross lost its layered radiation-orb field');
 
 const crossSideContext = {
   casterX: 78,

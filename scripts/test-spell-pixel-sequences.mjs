@@ -4,7 +4,7 @@ import { SPELL_CHOREOGRAPHIES, spellChoreographyForAction } from '../src/ui/Spel
 import { ff5Magic } from '../src/database/ff5Database.js';
 
 const sequences = Object.entries(SPELL_PIXEL_SEQUENCES);
-assert.ok(sequences.length >= 109, 'the complete magic pixel VFX production set regressed');
+assert.ok(sequences.length >= 111, 'the complete magic pixel VFX production set regressed');
 
 for (const [sceneId, spec] of sequences) {
   assert.equal(spec.referenceVersion, 'SFC-JP-1992', `${sceneId}: wrong reference target`);
@@ -31,6 +31,21 @@ for (const [sceneId, spec] of sequences) {
 
 assert.equal(SPELL_PIXEL_SEQUENCES.meteor.resultPolicy, 'split-amount', 'Meteor must stage its four mechanical impacts');
 assert.equal(SPELL_PIXEL_SEQUENCES.firaga.resultPolicy, 'final-impact', 'decorative Firaga flashes must not invent hits');
+for (const sceneId of ['almagest', 'grand-cross']) {
+  const spec = SPELL_PIXEL_SEQUENCES[sceneId];
+  assert.equal(spec.verification, 'reference-locked', `${sceneId}: Neo Exdeath VFX lost its reference lock`);
+  assert.equal(spec.renderMode, 'stage-direct', `${sceneId}: full-stage original composition regressed`);
+  assert.equal(spec.reference.sourceFps, 30, `${sceneId}: observed source frame rate changed`);
+  assert.equal(spec.reference.evidenceFrames.length, 4, `${sceneId}: four observed source frames required`);
+  assert.equal(spec.reference.goldenFrames.length, 4, `${sceneId}: four golden anchors required`);
+  assert.equal(spec.portraitAdaptation.sourceAspectVerified, true, `${sceneId}: portrait transformation is unverified`);
+}
+assert.deepEqual(
+  SPELL_PIXEL_SEQUENCES.almagest.phases.slice(1, 6).map((entry) => entry.type),
+  ['white-flash-one', 'white-flash-two', 'white-blue-flash', 'blue-flash-one', 'blue-flash-two'],
+  'Almagest must preserve the observed white/white/white-blue/blue/blue sequence',
+);
+assert.ok(SPELL_PIXEL_SEQUENCES['grand-cross'].frameCount >= 510, 'Grand Cross lost its original long-form field duration');
 const expectedOriginalHeaders = {
   libra: '0F 1B 14 00 14',
   poisona: '23 11 0B 00 0F',
@@ -80,6 +95,7 @@ for (const required of [
   'raise', 'protect', 'holy',
   'steal', 'jump', 'rapid-fire', 'zeninage', 'mix',
   'atomic-ray', 'wave-cannon', 'blaster', 'maelstrom', 'delta-attack',
+  'almagest', 'grand-cross',
   'shell', 'reflect', 'gravity', 'graviga', 'return',
   '1000-needles', 'white-wind', 'aqua-breath', 'mighty-guard',
   'goblin-punch', 'magic-hammer', 'aero', 'aera', 'aeroga',
@@ -108,6 +124,8 @@ const reachabilityCases = [
   [{ id: 'atomic-ray' }, 'atomic-ray'],
   [{ id: 'wave-cannon' }, 'wave-cannon'],
   [{ id: 'delta-attack' }, 'delta-attack'],
+  [{ id: 'almagest' }, 'almagest'],
+  [{ id: 'grand-cross' }, 'grand-cross'],
   [{ sourceId: 'magic_shell' }, 'shell'],
   [{ sourceId: 'magic_reflect' }, 'reflect'],
   [{ sourceId: 'magic_gravity' }, 'gravity'],
@@ -203,5 +221,5 @@ console.log(JSON.stringify({
   provisional: sequences.filter(([, spec]) => !spec.referenceCaptureId).length,
   dedicatedBlueMagic: blueMagic.length,
   schemaStatus: 'ok',
-  originalVerification: 'not-run-no-reference-captures',
+  originalVerification: 'reference-locks-present-golden-diff-pending',
 }, null, 2));

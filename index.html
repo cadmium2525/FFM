@@ -6838,29 +6838,35 @@ const STAGE_HEIGHT = 400;
 const scratchByCanvas = new WeakMap();
 
 const phase = (type, from, to) => Object.freeze({ type, from, to });
+const referenceRecord = (reference = null) => Object.freeze({
+  sourceCitation: reference?.sourceCitation ?? null,
+  sourceMediaHash: reference?.sourceMediaHash ?? null,
+  captureId: reference?.captureId ?? null,
+  region: reference?.region ?? 'JP',
+  revision: reference?.revision ?? 'SFC-1992-target-unverified',
+  emulatorCore: reference?.emulatorCore ?? null,
+  sourceFps: reference?.sourceFps ?? null,
+  captureResolution: reference?.captureResolution ?? null,
+  crop: reference?.crop ?? null,
+  evidenceFrames: Object.freeze([...(reference?.evidenceFrames ?? [])]),
+  goldenFrames: Object.freeze([...(reference?.goldenFrames ?? [])]),
+  reviewer: reference?.reviewer ?? null,
+  reviewedAt: reference?.reviewedAt ?? null,
+});
 const sequence = (frameCount, impactFrames, phases, options = {}) => Object.freeze({
   referenceVersion: TARGET_VERSION,
-  verification: 'provisional-needs-reference-capture',
-  referenceCaptureId: null,
-  reference: Object.freeze({
-    sourceCitation: null,
-    sourceMediaHash: null,
-    captureId: null,
-    region: 'JP',
-    revision: 'SFC-1992-target-unverified',
-    emulatorCore: null,
-    sourceFps: null,
-    captureResolution: null,
-    crop: null,
-    evidenceFrames: Object.freeze([]),
-    goldenFrames: Object.freeze([]),
-    reviewer: null,
-    reviewedAt: null,
+  verification: options.verification ?? 'provisional-needs-reference-capture',
+  referenceCaptureId: options.referenceCaptureId ?? options.reference?.captureId ?? null,
+  reference: referenceRecord(options.reference),
+  portraitAdaptation: Object.freeze({
+    mode: 'target-anchored-portrait-stage',
+    sourceAspectVerified: false,
+    ...(options.portraitAdaptation ?? {}),
   }),
-  portraitAdaptation: Object.freeze({ mode: 'target-anchored-portrait-stage', sourceAspectVerified: false }),
   resultPolicy: options.resultPolicy ?? 'final-impact',
   placement: options.placement ?? 'each-target',
   sceneSpace: options.sceneSpace ?? 'target-local',
+  renderMode: options.renderMode ?? 'scratch',
   originalEffectHeader: options.originalEffectHeader ?? null,
   sharedOriginalFamily: options.sharedOriginalFamily ?? null,
   originalVariantHeaders: options.originalVariantHeaders ? Object.freeze({ ...options.originalVariantHeaders }) : null,
@@ -6914,6 +6920,88 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
   blaster: sequence(88, [59], [phase('target-split', 0, 22), phase('binary-lock', 23, 58), phase('blaster-impact', 59, 73), phase('decay', 74, 87)]),
   maelstrom: sequence(108, [72], [phase('wind-ring', 0, 24), phase('vortex', 25, 71), phase('critical-collapse', 72, 90), phase('decay', 91, 107)], { placement: 'centroid', sceneSpace: 'stage' }),
   'delta-attack': sequence(100, [68], [phase('three-points', 0, 22), phase('delta-bind', 23, 67), phase('petrify-impact', 68, 83), phase('decay', 84, 99)]),
+  almagest: sequence(96, [74], [
+    phase('part-tremor', 0, 11),
+    phase('white-flash-one', 12, 23),
+    phase('white-flash-two', 24, 35),
+    phase('white-blue-flash', 36, 49),
+    phase('blue-flash-one', 50, 61),
+    phase('blue-flash-two', 62, 73),
+    phase('damage-latch', 74, 83),
+    phase('decay', 84, 95),
+  ], {
+    placement: 'centroid',
+    sceneSpace: 'stage',
+    renderMode: 'stage-direct',
+    verification: 'reference-locked',
+    referenceCaptureId: 'yt-XPuj38ABwMQ-almagest-373.074-375.074',
+    reference: {
+      sourceCitation: 'https://www.youtube.com/watch?v=XPuj38ABwMQ&t=372s | https://yarikomiff.sakura.ne.jp/playdiary.cgi/playdiary.cgi?read=ff5_lowlvgba_29',
+      sourceMediaHash: 'sha256:evidence-frame-set:cf53bdb08635768073fe06f4e80c49550c42e79f40b0ad0c19d46a7bec5827d2',
+      captureId: 'yt-XPuj38ABwMQ-almagest-373.074-375.074',
+      region: 'JP',
+      revision: 'SFC-JP-1992; public gameplay upload',
+      emulatorCore: 'source-upload-provenance-not-disclosed',
+      sourceFps: 30,
+      captureResolution: '640x480',
+      crop: 'full 4:3 gameplay frame',
+      evidenceFrames: [
+        { role: 'telegraph', seconds: 373.073985, sha256: 'e21ea9c54b3dba150dcdec64f205ea5850c44d15bcab1db0392d70b0d98fda04' },
+        { role: 'white-flash', seconds: 373.740645, sha256: '18d4b6806744b03c2143cd4fc836e96ca69b9e61ecfb6f0f6830c964dbe052bb' },
+        { role: 'white-blue-flash', seconds: 374.40731, sha256: 'ad2392642df55d3c9aa5ddf51c63f4f095f9b36784c19d678d6f9f78bbedbfd6' },
+        { role: 'damage-latch', seconds: 375.073976, sha256: '712968b21150ee25e1dfb25eeb4fdeb49968a0cfccd82c1fcf1475ac434d7603' },
+      ],
+      goldenFrames: [
+        { role: 'telegraph', seconds: 373.073985, sha256: 'e21ea9c54b3dba150dcdec64f205ea5850c44d15bcab1db0392d70b0d98fda04' },
+        { role: 'white-flash', seconds: 373.740645, sha256: '18d4b6806744b03c2143cd4fc836e96ca69b9e61ecfb6f0f6830c964dbe052bb' },
+        { role: 'white-blue-flash', seconds: 374.40731, sha256: 'ad2392642df55d3c9aa5ddf51c63f4f095f9b36784c19d678d6f9f78bbedbfd6' },
+        { role: 'damage-latch', seconds: 375.073976, sha256: '712968b21150ee25e1dfb25eeb4fdeb49968a0cfccd82c1fcf1475ac434d7603' },
+      ],
+      reviewer: 'Codex browser frame audit',
+      reviewedAt: '2026-08-22',
+    },
+    portraitAdaptation: { mode: 'full-stage-4x3-to-portrait', sourceAspectVerified: true },
+  }),
+  'grand-cross': sequence(516, [455], [
+    phase('part-color-telegraph', 0, 38),
+    phase('red-blue-fracture', 39, 82),
+    phase('white-silhouette-flash', 83, 119),
+    phase('orb-depth-field', 120, 443),
+    phase('status-latch', 444, 467),
+    phase('decay', 468, 515),
+  ], {
+    placement: 'centroid',
+    sceneSpace: 'stage',
+    renderMode: 'stage-direct',
+    verification: 'reference-locked',
+    referenceCaptureId: 'yt-XPuj38ABwMQ-grand-cross-477.074-485.074',
+    reference: {
+      sourceCitation: 'https://www.youtube.com/watch?v=XPuj38ABwMQ&t=476s | https://yarikomiff.sakura.ne.jp/playdiary.cgi/playdiary.cgi?read=ff5_lowlvgba_29',
+      sourceMediaHash: 'sha256:evidence-frame-set:d8d73f681a4a68a0b33d8c59c1778b6d16156e6d60df4cc2eabc066ff81766dd',
+      captureId: 'yt-XPuj38ABwMQ-grand-cross-477.074-485.074',
+      region: 'JP',
+      revision: 'SFC-JP-1992; public gameplay upload',
+      emulatorCore: 'source-upload-provenance-not-disclosed',
+      sourceFps: 30,
+      captureResolution: '640x480',
+      crop: 'full 4:3 gameplay frame',
+      evidenceFrames: [
+        { role: 'cast', seconds: 477.073973, sha256: '478cc8d6909d081729a60255c57f0141ba50ab17558eb210a7150b3daeb85de0' },
+        { role: 'fracture', seconds: 479.073965, sha256: '7834931c4467ca28ae94d96334fa0388a2d2b23ded8841e991861df89fed1f77' },
+        { role: 'orb-depth-field', seconds: 482.407281, sha256: '9ab209385be621e77282a8d090922c96edfce32ded4a02fbe7a47c551d162b9c' },
+        { role: 'status-latch', seconds: 485.073941, sha256: '515e0b37c4197fa2fad72f65f0d317aa22583a403ca3fcb5f37d14dee0e7bdfe' },
+      ],
+      goldenFrames: [
+        { role: 'cast', seconds: 477.073973, sha256: '478cc8d6909d081729a60255c57f0141ba50ab17558eb210a7150b3daeb85de0' },
+        { role: 'fracture', seconds: 479.073965, sha256: '7834931c4467ca28ae94d96334fa0388a2d2b23ded8841e991861df89fed1f77' },
+        { role: 'orb-depth-field', seconds: 482.407281, sha256: '9ab209385be621e77282a8d090922c96edfce32ded4a02fbe7a47c551d162b9c' },
+        { role: 'status-latch', seconds: 485.073941, sha256: '515e0b37c4197fa2fad72f65f0d317aa22583a403ca3fcb5f37d14dee0e7bdfe' },
+      ],
+      reviewer: 'Codex browser frame audit',
+      reviewedAt: '2026-08-22',
+    },
+    portraitAdaptation: { mode: 'full-stage-4x3-to-portrait', sourceAspectVerified: true },
+  }),
 
   '1000-needles': sequence(96, [66], [phase('needle-count', 0, 22), phase('needle-fan', 23, 65), phase('thousand-impact', 66, 80), phase('decay', 81, 95)]),
   'white-wind': sequence(104, [72], [phase('feather-seed', 0, 24), phase('party-wind', 25, 71), phase('white-heal', 72, 87), phase('decay', 88, 103)], { placement: 'centroid', sceneSpace: 'party-field' }),
@@ -9266,6 +9354,165 @@ function drawSummon(ctx, frame, kind) {
   }
 }
 
+function stageFill(ctx, width, height, color, alpha) {
+  ctx.save();
+  ctx.globalAlpha = clamp(alpha);
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, width, height);
+  ctx.restore();
+}
+
+function stageTargets(sceneContext, fallback = [{ x: 78, y: 28 }, { x: 78, y: 44 }, { x: 78, y: 60 }, { x: 78, y: 76 }]) {
+  if (Array.isArray(sceneContext?.alliedTargets) && sceneContext.alliedTargets.length) return sceneContext.alliedTargets;
+  if (Array.isArray(sceneContext?.targets) && sceneContext.targets.length) return sceneContext.targets;
+  return fallback;
+}
+
+function drawAlmagest(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const pulse = (from, to) => Math.sin(segment(frame, from, to) * Math.PI);
+  const telegraph = pulse(0, 12);
+  stageFill(ctx, width, height, '#90c8d8', .09 + telegraph * .16);
+
+  const flashes = [
+    [12, 23, '#ffffff', .94],
+    [24, 35, '#ffffff', .98],
+    [36, 49, '#d8f8ff', .94],
+    [50, 61, '#72b8e8', .78],
+    [62, 73, '#3480c8', .72],
+  ];
+  flashes.forEach(([from, to, color, strength]) => {
+    if (frame < from || frame > to) return;
+    stageFill(ctx, width, height, color, .18 + pulse(from, to) * strength);
+  });
+
+  const bandAlpha = frame < 12 ? telegraph * .22 : frame < 84 ? .24 : .24 * (1 - segment(frame, 84, 96));
+  for (let index = 0; index < 14; index += 1) {
+    const y = ((index * 37 + frame * 9) % (height + 48)) - 24;
+    const length = width * (.18 + (index % 5) * .07);
+    const x = (index * 83 + frame * 7) % (width + length) - length;
+    line(ctx, x, y, x + length, y, index % 3 ? '#d8f8ff' : '#ffffff', index % 4 ? 2 : 4, bandAlpha);
+  }
+
+  if (frame >= 62 && frame <= 88) {
+    const impact = Math.sin(segment(frame, 62, 88) * Math.PI);
+    stageTargets(sceneContext).forEach((target, index) => {
+      const x = clamp(Number(target.x ?? 78), 0, 100) / 100 * width;
+      const y = clamp(Number(target.y ?? (28 + index * 16)), 0, 100) / 100 * height;
+      const radius = 5 + impact * (12 + index % 2 * 3);
+      ring(ctx, x, y, radius, index % 2 ? '#ffffff' : '#a8e8ff', 3, impact);
+      line(ctx, x - radius, y, x + radius, y, '#ffffff', 2, impact);
+      line(ctx, x, y - radius, x, y + radius, '#d8f8ff', 2, impact);
+    });
+  }
+}
+
+function bounce01(value) {
+  const wrapped = ((value % 2) + 2) % 2;
+  return 1 - Math.abs(wrapped - 1);
+}
+
+const GRAND_CROSS_ORBS = Object.freeze([
+  [0.03, 0.18, 1.18, .71, .36, 0], [0.72, 0.06, .82, 1.27, .42, 0],
+  [0.14, 0.78, 1.34, .88, .48, 1], [0.83, 0.63, 1.09, 1.41, .54, 0],
+  [0.42, 0.23, .77, 1.52, .61, 0], [0.63, 0.88, 1.46, .69, .67, 1],
+  [0.26, 0.47, 1.61, 1.17, .75, 0], [0.91, 0.29, 1.28, .93, .82, 0],
+  [0.51, 0.57, .94, 1.68, .91, 1], [0.06, 0.92, 1.73, .79, 1.02, 0],
+  [0.78, 0.42, 1.37, 1.31, 1.12, 0], [0.35, 0.05, 1.06, 1.57, 1.24, 1],
+]);
+
+function drawGrandCrossOrb(ctx, x, y, radius, warm, alpha, phase) {
+  const edge = warm ? '#ffe070' : '#a8f8ff';
+  const body = warm ? '#7c170d' : '#075090';
+  const core = warm ? '#32100b' : '#041d50';
+  ring(ctx, x, y, radius + 2, edge, Math.max(2, radius * .18), alpha);
+  ring(ctx, x, y, radius - 1, body, Math.max(4, radius * .58), alpha);
+  ring(ctx, x, y, Math.max(2, radius * .24), core, Math.max(2, radius * .32), alpha);
+  for (let petal = 0; petal < 3; petal += 1) {
+    const angle = phase + petal * Math.PI * 2 / 3;
+    const px = x + Math.cos(angle) * radius * .43;
+    const py = y + Math.sin(angle) * radius * .43;
+    ring(ctx, px, py, Math.max(2, radius * .29), core, Math.max(2, radius * .24), alpha, angle - .4, angle + Math.PI * 1.25);
+    line(ctx, x, y, px, py, edge, Math.max(1, radius * .1), alpha * .9);
+  }
+}
+
+function drawGrandCross(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const fieldIn = easeOut(segment(frame, 0, 120));
+  const fieldOut = 1 - segment(frame, 444, 516);
+  stageFill(ctx, width, height, '#b8c8c8', .08 + fieldIn * fieldOut * .18);
+
+  if (frame >= 39 && frame <= 119) {
+    const crack = easeOut(segment(frame, 39, 82));
+    const flash = Math.sin(segment(frame, 74, 119) * Math.PI);
+    if (frame >= 74) stageFill(ctx, width, height, '#ffffff', flash * .9);
+    const routes = [
+      [-.08, .08, 1.08, .69], [1.08, .04, -.08, .63],
+      [-.08, .86, 1.08, .26], [1.08, .95, -.08, .34],
+      [-.08, .38, 1.08, .91], [1.08, .55, -.08, .12],
+    ];
+    for (let pathIndex = 0; pathIndex < 6; pathIndex += 1) {
+      const [fromX, fromY, toX, toY] = routes[pathIndex];
+      let x = fromX * width;
+      let y = fromY * height;
+      for (let step = 1; step <= 8; step += 1) {
+        const t = step / 8 * crack;
+        const baseX = (fromX + (toX - fromX) * t) * width;
+        const baseY = (fromY + (toY - fromY) * t) * height;
+        const offset = (step % 2 ? -1 : 1) * (8 + pathIndex * 1.5);
+        const nextX = baseX + offset * (toY - fromY);
+        const nextY = baseY - offset * (toX - fromX);
+        line(ctx, x, y, nextX, nextY, pathIndex % 2 ? '#ff48d8' : '#42a8ff', pathIndex % 3 ? 3 : 5, crack * (1 - flash * .35));
+        x = nextX; y = nextY;
+      }
+    }
+  }
+
+  if (frame >= 100 && frame <= 485) {
+    const progress = segment(frame, 100, 485);
+    const orbAlpha = Math.min(segment(frame, 100, 132), 1 - segment(frame, 444, 485));
+    stageFill(ctx, width, height, '#eef4f0', .6 * orbAlpha);
+    for (let streak = 0; streak < 24; streak += 1) {
+      const y = (streak * 41 + frame * (streak % 3 + 2)) % height;
+      const x = (streak * 73 + frame * 5) % width;
+      line(ctx, x - 46, y, x + 52 + (streak % 4) * 19, y, streak % 3 ? '#ffffff' : '#a8b8c0', streak % 4 ? 2 : 4, .34 * orbAlpha);
+    }
+
+    const drawOrbLayer = (near) => GRAND_CROSS_ORBS.forEach((orb, index) => {
+      const [seedX, seedY, speedX, speedY, depth, warm] = orb;
+      if ((depth >= .72) !== near) return;
+      const x = 12 + bounce01(seedX + progress * speedX * 2.7) * (width - 24);
+      const y = 12 + bounce01(seedY + progress * speedY * 2.3) * (height - 24);
+      const breathing = 1 + Math.sin(frame * .085 + index * 1.7) * .24;
+      const radius = Math.max(4, (7 + depth * 18) * breathing);
+      drawGrandCrossOrb(ctx, x, y, radius, Boolean(warm), orbAlpha * (.48 + depth * .48), frame * .028 + index);
+    });
+    drawOrbLayer(false);
+    for (let mist = 0; mist < 7; mist += 1) {
+      const y = (mist * 67 + frame * 1.4) % (height + 70) - 35;
+      stageFill(ctx, width, 0, '#ffffff', 0);
+      ctx.save(); ctx.globalAlpha = .12 * orbAlpha; ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, Math.round(y), width, 8 + (mist % 3) * 5); ctx.restore();
+    }
+    drawOrbLayer(true);
+  }
+
+  if (frame >= 444) {
+    const latch = Math.min(segment(frame, 444, 455), 1 - segment(frame, 468, 516));
+    stageFill(ctx, width, height, '#a8a848', .18 * latch);
+    stageTargets(sceneContext).forEach((target, index) => {
+      const x = clamp(Number(target.x ?? 78), 0, 100) / 100 * width;
+      const y = clamp(Number(target.y ?? (28 + index * 16)), 0, 100) / 100 * height;
+      const color = index % 2 ? '#ff70b8' : '#68d8ff';
+      diamond(ctx, x, y, 5 + latch * 5, '#ffffff', latch, color);
+      ring(ctx, x, y, 9 + latch * 13, color, 3, latch);
+    });
+  }
+}
+
 function renderScene(ctx, sceneId, frame, sceneContext = {}) {
   if (sceneId === 'fire') return drawFire(ctx, frame, 1);
   if (sceneId === 'fira') return drawFire(ctx, frame, 2);
@@ -9304,6 +9551,8 @@ function renderScene(ctx, sceneId, frame, sceneContext = {}) {
   if (sceneId === 'blaster') return drawBlaster(ctx, frame);
   if (sceneId === 'maelstrom') return drawMaelstrom(ctx, frame);
   if (sceneId === 'delta-attack') return drawDeltaAttack(ctx, frame);
+  if (sceneId === 'almagest') return drawAlmagest(ctx, frame, sceneContext);
+  if (sceneId === 'grand-cross') return drawGrandCross(ctx, frame, sceneContext);
   if (sceneId === '1000-needles') return draw1000Needles(ctx, frame);
   if (sceneId === 'white-wind') return drawWhiteWind(ctx, frame);
   if (sceneId === 'aqua-breath') return drawAquaBreath(ctx, frame);
@@ -9416,9 +9665,27 @@ function quantizePixelFrame(ctx) {
 function renderSpellCanvasFrame(canvas, sceneId, frame, sceneContext = {}) {
   const spec = SPELL_PIXEL_SEQUENCES[sceneId];
   const ctx = canvas?.getContext?.('2d', { alpha: true, desynchronized: true });
+  if (!ctx || !spec) return false;
+  if (spec.renderMode === 'stage-direct') {
+    setup(ctx, canvas.width, canvas.height);
+    renderScene(ctx, sceneId, Math.max(0, Math.min(spec.frameCount - 1, Math.floor(frame))), {
+      ...sceneContext,
+      stageWidth: canvas.width,
+      stageHeight: canvas.height,
+      stageMapping: {
+        width: canvas.width,
+        height: canvas.height,
+        drawX: 0,
+        drawY: 0,
+        drawWidth: canvas.width,
+        drawHeight: canvas.height,
+      },
+    });
+    return true;
+  }
   const scratch = scratchFor(canvas);
   const scratchCtx = scratch?.getContext?.('2d', { alpha: true, desynchronized: true, willReadFrequently: true });
-  if (!ctx || !scratchCtx || !spec) return false;
+  if (!scratchCtx) return false;
   setup(scratchCtx);
   const stageDrawWidth = Math.min(LOGICAL_SIZE, canvas.width);
   const stageDrawHeight = Math.min(LOGICAL_SIZE, canvas.height);
@@ -9591,6 +9858,8 @@ const SPELL_CHOREOGRAPHIES = Object.freeze({
   blaster: scene('blaster', [beat('binary-reticle', 2), beat('cross-lock', 2), beat('blaster-burst', 8)], 1.08),
   maelstrom: scene('maelstrom', [beat('vortex-ring', 6), beat('critical-pull', 19), beat('critical-line', 2)], 1.22),
   'delta-attack': scene('delta-attack', [beat('delta-node', 3), beat('triangle-bind', 3), beat('stone-prison', 6)], 1.14),
+  almagest: scene('almagest', [beat('white-flash', 2), beat('white-blue-flash', 1), beat('blue-flash', 2)], 1),
+  'grand-cross': scene('grand-cross', [beat('red-blue-fracture', 6), beat('radiation-orb', 12), beat('depth-mist', 7)], 1),
 
   magic_1000_needles: scene('1000-needles', [beat('thousand-count', 4), beat('needle-fan', 20), beat('fixed-impact', 1)], 1.12),
   magic_white_wind: scene('white-wind', [beat('white-feather', 13), beat('party-sweep', 4), beat('white-heal', 12)], 1.18),

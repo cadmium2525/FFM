@@ -27,8 +27,8 @@
   <header><h1>原作比較用・着弾フレーム一覧</h1><p><span class="warning">暫定作画</span> — SFC原作キャプチャとのgolden比較前。名称を隠して輪郭だけでも識別できるかを確認する。</p><output id="perf">描画負荷を測定中…</output><label class="review-controls"><input id="blind" type="checkbox" checked>技名を隠すブラインド判定</label></header>
   <section class="inspector">
     <div class="inspection-stage"><canvas id="scrub-canvas" width="320" height="400"></canvas></div>
-    <div class="reference-missing">原作キャプチャ未登録<br>referenceCaptureId = null</div>
-    <div class="reference-missing">Golden差分は参照登録後に表示</div>
+    <div class="reference-missing" id="reference-state">原作キャプチャ未登録<br>referenceCaptureId = null</div>
+    <div class="reference-missing" id="golden-state">Golden差分は参照登録後に表示</div>
     <label class="scrubber"><b id="selected-name">ファイア</b><input id="frame" type="range" min="0" value="0"><span id="frame-label">0f</span></label>
   </section>
   <main id="grid"></main>
@@ -36,16 +36,16 @@
     const reviewParams=new URLSearchParams(location.search);
     const cacheKey=reviewParams.get('v')||'dev';
     const { SPELL_PIXEL_SEQUENCES, renderSpellCanvasFrame }=await import(`../src/ui/SpellCanvasRenderer.js?v=${encodeURIComponent(cacheKey)}`);
-    const labels = {fire:'ファイア',fira:'ファイラ',firaga:'ファイガ',blizzard:'ブリザド',blizzara:'ブリザラ',blizzaga:'ブリザガ',thunder:'サンダー',thundara:'サンダラ',thundaga:'サンダガ',cure:'ケアル',cura:'ケアルラ',curaga:'ケアルガ',raise:'レイズ',protect:'プロテス',holy:'ホーリー',shell:'シェル',reflect:'リフレク',haste:'ヘイスト',slow:'スロウ',stop:'ストップ',comet:'コメット',meteor:'メテオ',gravity:'グラビデ',graviga:'グラビガ',return:'リターン',missile:'ミサイル',flare:'フレア','level-5-death':'レベル5デス',shiva:'シヴァ',ifrit:'イフリート',bahamut:'バハムート',steal:'ぬすむ',jump:'ジャンプ','rapid-fire':'みだれうち',zeninage:'ぜになげ',mix:'ちょうごう','atomic-ray':'アトミックレイ','wave-cannon':'はどうほう',blaster:'ブラスター',maelstrom:'ミールストーム','delta-attack':'デルタアタック','1000-needles':'はりせんぼん','white-wind':'ホワイトウインド','aqua-breath':'アクアブレス','mighty-guard':'マイティガード','goblin-punch':'ゴブリンパンチ','magic-hammer':'マジックハンマー',aero:'エアロ',aera:'エアロラ',aeroga:'エアロガ','flame-thrower':'かえんほうしゃ','time-slip':'タイムスリップ','death-claw':'デスクロー','mind-blast':'マインドブラスト',flash:'フラッシュ',roulette:'死のルーレット','self-destruct':'じばく',vampire:'きゅうけつ','question-marks':'？？？？','moon-flute':'つきのふえ','lilliputian-lyric':'ちいさなメロディ','ponds-chorus':'かえるのうた','level-4-graviga':'レベル4グラビガ',doom:'しのせんこく','level-2-old':'レベル2オールド',transfusion:'ゆうごう','level-3-flare':'レベル3フレア','off-guard':'ガードオファ','dark-spark':'くろのしょうげき',phoenix:'フェニックス',sylph:'シルフ',odin:'オーディン',golem:'ゴーレム',carbuncle:'カーバンクル',quick:'クイック',mute:'ミュート',banish:'デジョン',drain:'ドレイン',osmose:'アスピル'};
+    const labels = {fire:'ファイア',fira:'ファイラ',firaga:'ファイガ',blizzard:'ブリザド',blizzara:'ブリザラ',blizzaga:'ブリザガ',thunder:'サンダー',thundara:'サンダラ',thundaga:'サンダガ',cure:'ケアル',cura:'ケアルラ',curaga:'ケアルガ',raise:'レイズ',protect:'プロテス',holy:'ホーリー',shell:'シェル',reflect:'リフレク',haste:'ヘイスト',slow:'スロウ',stop:'ストップ',comet:'コメット',meteor:'メテオ',gravity:'グラビデ',graviga:'グラビガ',return:'リターン',missile:'ミサイル',flare:'フレア','level-5-death':'レベル5デス',shiva:'シヴァ',ifrit:'イフリート',bahamut:'バハムート',steal:'ぬすむ',jump:'ジャンプ','rapid-fire':'みだれうち',zeninage:'ぜになげ',mix:'ちょうごう','atomic-ray':'アトミックレイ','wave-cannon':'はどうほう',blaster:'ブラスター',maelstrom:'ミールストーム','delta-attack':'デルタアタック',almagest:'アルマゲスト','grand-cross':'グランドクロス','1000-needles':'はりせんぼん','white-wind':'ホワイトウインド','aqua-breath':'アクアブレス','mighty-guard':'マイティガード','goblin-punch':'ゴブリンパンチ','magic-hammer':'マジックハンマー',aero:'エアロ',aera:'エアロラ',aeroga:'エアロガ','flame-thrower':'かえんほうしゃ','time-slip':'タイムスリップ','death-claw':'デスクロー','mind-blast':'マインドブラスト',flash:'フラッシュ',roulette:'死のルーレット','self-destruct':'じばく',vampire:'きゅうけつ','question-marks':'？？？？','moon-flute':'つきのふえ','lilliputian-lyric':'ちいさなメロディ','ponds-chorus':'かえるのうた','level-4-graviga':'レベル4グラビガ',doom:'しのせんこく','level-2-old':'レベル2オールド',transfusion:'ゆうごう','level-3-flare':'レベル3フレア','off-guard':'ガードオファ','dark-spark':'くろのしょうげき',phoenix:'フェニックス',sylph:'シルフ',odin:'オーディン',golem:'ゴーレム',carbuncle:'カーバンクル',quick:'クイック',mute:'ミュート',banish:'デジョン',drain:'ドレイン',osmose:'アスピル'};
     Object.assign(labels,{mini:'ミニマム',toad:'トード',break:'ブレイク',death:'デス',arise:'アレイズ',blink:'ブリンク',berserk:'バーサク',dispel:'ディスペル',esuna:'エスナ',confuse:'コンフュ',libra:'ライブラ',poisona:'ポイゾナ',silence:'サイレス',poison:'ポイズン',sleep:'スリプル',bio:'バイオ',speed:'スピード',regen:'リジェネ',float:'レビテト',old:'オールド',slowga:'スロウガ',hastega:'ヘイスガ',remora:'レモラ',catoblepas:'カトブレパス',chocobo:'チョコボ',ramuh:'ラムウ',titan:'タイタン',syldra:'シルドラ',leviathan:'リバイアサン',teleport:'テレポ'});
     const grid = document.querySelector('#grid');
-    const scrubCanvas=document.querySelector('#scrub-canvas');const frameInput=document.querySelector('#frame');const frameLabel=document.querySelector('#frame-label');const selectedName=document.querySelector('#selected-name');
+    const scrubCanvas=document.querySelector('#scrub-canvas');const frameInput=document.querySelector('#frame');const frameLabel=document.querySelector('#frame-label');const selectedName=document.querySelector('#selected-name');const referenceState=document.querySelector('#reference-state');const goldenState=document.querySelector('#golden-state');
     let selectedId=reviewParams.get('scene')||'fire';
     if(!SPELL_PIXEL_SEQUENCES[selectedId])selectedId='fire';
     const reviewOutcome=reviewParams.get('outcome');
     const reviewFrame=Number(reviewParams.get('frame'));
-    const reviewSceneContext={casterX:78,casterY:44,targetX:24,targetY:48,targets:[{x:24,y:48}],hostileTargets:[{x:24,y:48}],alliedTargets:[{x:78,y:44}],targetMode:'mixed',odinOutcome:reviewOutcome,banishOutcome:reviewOutcome,chocoboOutcome:reviewOutcome};
-    const showFrame=()=>{const spec=SPELL_PIXEL_SEQUENCES[selectedId];const frame=Number(frameInput.value);renderSpellCanvasFrame(scrubCanvas,selectedId,frame,reviewSceneContext);frameLabel.textContent=`${frame}f / ${spec.frameCount-1}f`;selectedName.textContent=labels[selectedId]??selectedId;};
+    const reviewSceneContext={casterX:78,casterY:44,targetX:24,targetY:48,targets:[{x:24,y:48}],hostileTargets:[{x:24,y:48}],alliedTargets:[{x:78,y:28},{x:78,y:44},{x:78,y:60},{x:78,y:76}],targetMode:'mixed',odinOutcome:reviewOutcome,banishOutcome:reviewOutcome,chocoboOutcome:reviewOutcome};
+    const showFrame=()=>{const spec=SPELL_PIXEL_SEQUENCES[selectedId];const frame=Number(frameInput.value);renderSpellCanvasFrame(scrubCanvas,selectedId,frame,reviewSceneContext);frameLabel.textContent=`${frame}f / ${spec.frameCount-1}f`;selectedName.textContent=labels[selectedId]??selectedId;referenceState.innerHTML=spec.referenceCaptureId?`原作参照固定済み<br>${spec.referenceCaptureId}`:'原作キャプチャ未登録<br>referenceCaptureId = null';goldenState.innerHTML=spec.reference?.goldenFrames?.length?`比較基準 ${spec.reference.goldenFrames.length}フレーム登録済み<br>${spec.verification}`:'Golden差分は参照登録後に表示';};
     const selectScene=(id)=>{selectedId=id;const spec=SPELL_PIXEL_SEQUENCES[id];frameInput.max=String(spec.frameCount-1);frameInput.value=String(Number.isFinite(reviewFrame)?Math.max(0,Math.min(spec.frameCount-1,Math.floor(reviewFrame))):spec.impactFrames[0]);showFrame();};
     frameInput.addEventListener('input',showFrame);document.querySelector('#blind').addEventListener('change',(event)=>document.body.classList.toggle('blind',event.target.checked));document.body.classList.add('blind');
     window.__vfxReviewApi = { SPELL_PIXEL_SEQUENCES, renderSpellCanvasFrame };
@@ -58,9 +58,9 @@
     requestAnimationFrame(()=>{
       const scratch=document.createElement('canvas');scratch.width=320;scratch.height=400;
       let frames=0;const started=performance.now();
-      Object.entries(SPELL_PIXEL_SEQUENCES).forEach(([id,spec])=>{for(let frame=0;frame<spec.frameCount;frame+=1){renderSpellCanvasFrame(scratch,id,frame);frames+=1;}});
+      Object.entries(SPELL_PIXEL_SEQUENCES).forEach(([id,spec])=>{[0,...spec.impactFrames,spec.frameCount-1].forEach(frame=>{renderSpellCanvasFrame(scratch,id,frame);frames+=1;});});
       const elapsed=performance.now()-started;
-      document.querySelector('#perf').textContent=`この端末: ${frames} frames / ${elapsed.toFixed(1)}ms / 平均 ${(elapsed/frames).toFixed(3)}ms per draw`;
+      document.querySelector('#perf').textContent=`この端末の代表フレーム: ${frames} draws / ${elapsed.toFixed(1)}ms / 平均 ${(elapsed/frames).toFixed(3)}ms`;
     });
   </script>
 </body>

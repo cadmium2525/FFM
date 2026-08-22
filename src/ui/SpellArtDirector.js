@@ -67,6 +67,8 @@ export const SPELL_CHOREOGRAPHIES = Object.freeze({
   blaster: scene('blaster', [beat('binary-reticle', 2), beat('cross-lock', 2), beat('blaster-burst', 8)], 1.08),
   maelstrom: scene('maelstrom', [beat('vortex-ring', 6), beat('critical-pull', 19), beat('critical-line', 2)], 1.22),
   'delta-attack': scene('delta-attack', [beat('delta-node', 3), beat('triangle-bind', 3), beat('stone-prison', 6)], 1.14),
+  almagest: scene('almagest', [beat('white-flash', 2), beat('white-blue-flash', 1), beat('blue-flash', 2)], 1),
+  'grand-cross': scene('grand-cross', [beat('red-blue-fracture', 6), beat('radiation-orb', 12), beat('depth-mist', 7)], 1),
 
   magic_1000_needles: scene('1000-needles', [beat('thousand-count', 4), beat('needle-fan', 20), beat('fixed-impact', 1)], 1.12),
   magic_white_wind: scene('white-wind', [beat('white-feather', 13), beat('party-sweep', 4), beat('white-heal', 12)], 1.18),
