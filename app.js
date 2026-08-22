@@ -7099,10 +7099,106 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
     portraitAdaptation: { mode: 'full-stage-4x3-to-portrait', sourceAspectVerified: true },
   }),
 
-  '1000-needles': sequence(96, [66], [phase('needle-count', 0, 22), phase('needle-fan', 23, 65), phase('thousand-impact', 66, 80), phase('decay', 81, 95)]),
-  'white-wind': sequence(104, [72], [phase('feather-seed', 0, 24), phase('party-wind', 25, 71), phase('white-heal', 72, 87), phase('decay', 88, 103)], { placement: 'centroid', sceneSpace: 'party-field' }),
-  'aqua-breath': sequence(116, [78], [phase('water-orb', 0, 25), phase('breath-surge', 26, 77), phase('tidal-impact', 78, 96), phase('decay', 97, 115)], { placement: 'centroid', sceneSpace: 'stage' }),
-  'mighty-guard': sequence(118, [80], [phase('triple-seal', 0, 27), phase('field-assemble', 28, 79), phase('mighty-lock', 80, 98), phase('decay', 99, 117)], { placement: 'centroid', sceneSpace: 'party-field' }),
+  '1000-needles': sequence(84, [58], [
+    phase('whole-field-shudder', 0, 17),
+    phase('thin-needle-streaks', 18, 47),
+    phase('target-pin-flash', 48, 57),
+    phase('fixed-damage-latch', 58, 68),
+    phase('decay', 69, 83),
+  ], {
+    ...referenceLockedOptions({
+      captureId: 'yt-iUX3m6IbRyc-1000-needles-160-163',
+      sourceCitation: 'https://www.youtube.com/watch?v=iUX3m6IbRyc&t=160s',
+      mediaHash: '85f88e82a7f9dc9ec31427ee85a9621683ec1ea5c894c701364d6ccc8089c662',
+      mode: 'single-target-sfc-4x3-to-portrait',
+      placement: 'each-target',
+      sceneSpace: 'stage',
+      renderMode: 'stage-direct',
+      frames: [
+        { role: 'cast', seconds: 162, sha256: '0284fdc2fdbe65f4a1a614a9346d5a598f5cc7a03bd0ac2f60ccfac2ac37983f' },
+        { role: 'development', seconds: 162.24, sha256: '82f227d5a5efc67576f22ad1438027b71c376dca6e60ae410b18a554a1dd4c20' },
+        { role: 'impact', seconds: 162.48, sha256: 'bc180d02dec6ee7490dd9ff1cb01e082837e967779d20b21124f197bcb445ce8' },
+        { role: 'decay', seconds: 162.72, sha256: '349a09c09a851ff6faba605fe8c34df550984c306cf6806bfb2d7a51d32fbff2' },
+      ],
+    }),
+    originalEffectHeader: '53 40 AC 00 24',
+    sharedOriginalFamily: 'blue-magic-script-ac',
+  }),
+  'white-wind': sequence(72, [50], [
+    phase('party-white-pulse', 0, 15),
+    phase('short-horizontal-wind', 16, 39),
+    phase('ally-white-lift', 40, 49),
+    phase('caster-hp-heal-latch', 50, 59),
+    phase('decay', 60, 71),
+  ], {
+    ...referenceLockedOptions({
+      captureId: 'yt-O5ifxsMgCJM-white-wind-13-16',
+      sourceCitation: 'https://www.youtube.com/watch?v=O5ifxsMgCJM&t=13s | https://www.youtube.com/watch?v=iUX3m6IbRyc&t=170s',
+      mediaHash: '18ddd5c5b1b86570f082d3da5006d86406d86fa05bb91a86fa6bd22086ded08e',
+      mode: 'party-field-sfc-4x3-to-portrait',
+      placement: 'centroid',
+      sceneSpace: 'stage',
+      renderMode: 'stage-direct',
+      frames: [
+        { role: 'cast', seconds: 15, sha256: '581bfc32e4e511587f1553253f6b8b3bfc0eaab013326e02d939d9e2cbdbed40' },
+        { role: 'development', seconds: 15.26, sha256: '1d89631d56757c8b56149588a47e335727c040ad73abae59751d885cee297935' },
+        { role: 'impact', seconds: 15.52, sha256: '0c2c60c67a0e8db518ead76ec701423c986c9c897ff1c5758a3c4e4cdc931eb2' },
+        { role: 'decay', seconds: 15.78, sha256: '61ed16cf08c5354bfcfc7673fd4baa65b5cc0ebd2cf17978ed87301b4d838724' },
+      ],
+    }),
+    originalEffectHeader: '1A 10 B0 00 56',
+    sharedOriginalFamily: 'blue-magic-script-b0',
+  }),
+  'aqua-breath': sequence(76, [56], [
+    phase('target-water-refraction', 0, 19),
+    phase('horizontal-aqua-raster', 20, 43),
+    phase('target-pale-afterimage', 44, 55),
+    phase('non-elemental-damage-latch', 56, 65),
+    phase('decay', 66, 75),
+  ], {
+    ...referenceLockedOptions({
+      captureId: 'yt-iUX3m6IbRyc-aqua-breath-18-22',
+      sourceCitation: 'https://www.youtube.com/watch?v=iUX3m6IbRyc&t=18s | https://www.youtube.com/watch?v=U85_CpJ1e6w',
+      mediaHash: '282fd52e82a35ef2071cbfcb276dccda937ed660bcb0bfeffd577cf17b94c225',
+      mode: 'enemy-field-sfc-4x3-to-portrait',
+      placement: 'centroid',
+      sceneSpace: 'stage',
+      renderMode: 'stage-direct',
+      frames: [
+        { role: 'cast-context', seconds: 18, sha256: '327ac898783018daadca3774481ba7dca834fcd1e77b282509c8fd98927a59f5' },
+        { role: 'development-context', seconds: 21, sha256: '27dcf69a69bbcd3b4abe7e6e95514cbb9abab4e81537888fcebcd9fac8e841a1' },
+        { role: 'impact', seconds: 21.2, sha256: '7af8339944bf8b48eb6e1debf9aa15e5144661dce6d3edc5f84b24fd24c0cdcb' },
+        { role: 'source-context', seconds: 0, sha256: '7fc3d368d8cfd9d55b619b1bee79ad2fe4eb7a0c5e5900b044f907ac34fff6d3' },
+      ],
+    }),
+    originalEffectHeader: '40 18 A6 80 35',
+    sharedOriginalFamily: 'blue-magic-script-a6',
+  }),
+  'mighty-guard': sequence(96, [70], [
+    phase('blue-diamond-manifest', 0, 23),
+    phase('eight-diamond-party-orbit', 24, 55),
+    phase('diamond-ward-lock', 56, 69),
+    phase('protect-shell-float-latch', 70, 82),
+    phase('decay', 83, 95),
+  ], {
+    ...referenceLockedOptions({
+      captureId: 'yt-iUX3m6IbRyc-mighty-guard-145-148',
+      sourceCitation: 'https://www.youtube.com/watch?v=iUX3m6IbRyc&t=145s',
+      mediaHash: '7b7dce416b917b11318db8623c01ed6ce90c9f9e728929d96099ccaafe668feb',
+      mode: 'party-field-sfc-4x3-to-portrait',
+      placement: 'centroid',
+      sceneSpace: 'stage',
+      renderMode: 'stage-direct',
+      frames: [
+        { role: 'cast', seconds: 147, sha256: 'b2e50ff3d309368fba012aed401267b8713713d3c4cc142da2ae36984827aa85' },
+        { role: 'development', seconds: 147.22, sha256: 'be0454a4b83f858173c467c24e987f0fa4610386c3615a9f2732885ad0a12d2e' },
+        { role: 'impact', seconds: 147.44, sha256: '2bc7401bea95667d763c8153629bebf225a85e5d0dbec5b2737269c1554f7408' },
+        { role: 'decay', seconds: 147.66, sha256: 'd6735044bae3fc0d8f360b0d62277e7b0fd19323a250bbb72d454357185d49c6' },
+      ],
+    }),
+    originalEffectHeader: '25 10 11 00 57',
+    sharedOriginalFamily: 'blue-magic-script-11',
+  }),
   'goblin-punch': sequence(78, [52], [phase('knuckle-mark', 0, 17), phase('fist-rush', 18, 51), phase('level-impact', 52, 65), phase('decay', 66, 77)]),
   'magic-hammer': sequence(94, [64], [phase('mana-nails', 0, 22), phase('hammer-swing', 23, 63), phase('mp-shatter', 64, 79), phase('decay', 80, 93)]),
   aero: sequence(72, [48], [phase('wind-seed', 0, 15), phase('crescent-flight', 16, 47), phase('air-cut', 48, 60), phase('decay', 61, 71)]),
@@ -7843,86 +7939,147 @@ function drawDeltaAttack(ctx, frame) {
   }
 }
 
-function draw1000Needles(ctx, frame) {
-  const alpha = fade(frame, 6, 81, 96);
-  const count = easeOut(segment(frame, 0, 30));
-  for (let digit = 0; digit < 4; digit += 1) {
-    const x = 61 + digit * 23;
-    if (digit === 0) line(ctx, x, 53, x, 75, '#fff2a0', 4, alpha * count);
-    else ring(ctx, x, 64, 7, '#fff2a0', 3, alpha * count);
+function draw1000Needles(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const targets = stagePointList(sceneContext, 'hostileTargets', [
+    { x: sceneContext.targetX ?? 24, y: sceneContext.targetY ?? 50 },
+  ], width, height);
+  const alpha = fade(frame, 3, 69, 84);
+  const shudder = Math.min(segment(frame, 0, 8), 1 - segment(frame, 14, 18));
+
+  // The observed SFC effect is a whole-field shudder followed by fine, pale
+  // streaks that pin the actual target. It never prints a literal "1000".
+  if (shudder > 0) for (let row = 0; row < 9; row += 1) {
+    const y = Math.round((row + .7) / 10 * height);
+    const offset = ((frame + row) % 3 - 1) * 3;
+    line(ctx, Math.max(0, offset), y, Math.min(width - 1, width - 1 + offset), y, row % 2 ? '#b8d0d0' : '#eef8e8', 1, alpha * shudder * .58);
   }
-  if (frame > 22) {
-    const fan = easeInOut(segment(frame, 22, 66));
-    for (let i = 0; i < 20; i += 1) {
-      const row = Math.floor(i / 5); const column = i % 5;
-      const endX = 47 + column * 25 + (row % 2) * 6;
-      const endY = 86 + row * 18;
-      line(ctx, 96 + (column - 2) * 3, 96 + row * 2, 96 + (endX - 96) * fan, 96 + (endY - 96) * fan, i % 3 ? '#d8ffff' : '#ffe37e', 2, alpha * fan);
+
+  const flight = easeInOut(segment(frame, 18, 48));
+  targets.forEach((target, targetIndex) => {
+    for (let needleIndex = 0; needleIndex < 18; needleIndex += 1) {
+      const lane = needleIndex - 8.5;
+      const fromRight = needleIndex % 2 === 0;
+      const startX = fromRight ? width + 14 + (needleIndex % 4) * 7 : -14 - (needleIndex % 4) * 7;
+      const startY = target.y + lane * 6 + ((needleIndex * 11 + targetIndex * 7) % 9) - 4;
+      const endX = target.x + ((needleIndex * 7) % 17) - 8;
+      const endY = target.y + lane * 2.1;
+      const tipX = startX + (endX - startX) * flight;
+      const tipY = startY + (endY - startY) * flight;
+      const tailX = startX + (endX - startX) * Math.max(0, flight - .075);
+      const tailY = startY + (endY - startY) * Math.max(0, flight - .075);
+      line(ctx, tailX, tailY, tipX, tipY, needleIndex % 3 ? '#d8e8df' : '#fff8d0', needleIndex % 5 ? 1 : 2, alpha);
     }
-  }
-  if (frame >= 66) {
-    const p = easeOut(segment(frame, 66, 81));
-    burst(ctx, 96, 112, 24 + p * 60, 20, '#efffff', alpha);
-    ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#ffdf61'; ctx.fillRect(67, 104, 58, 8); ctx.restore();
-  }
-}
-
-function drawWhiteWind(ctx, frame) {
-  const alpha = fade(frame, 7, 88, 104);
-  const sweep = easeInOut(segment(frame, 0, 72));
-  for (let i = 0; i < 13; i += 1) {
-    const phaseOffset = (i * 17) % 61;
-    const x = 25 + ((frame * 2 + phaseOffset * 3) % 143);
-    const y = 153 - ((frame + phaseOffset) % 83);
-    poly(ctx, [[x, y - 7], [x + 9, y], [x, y + 4], [x - 5, y]], i % 2 ? '#ffffff' : '#b8ffe6', alpha * sweep, '#dffff5', 1);
-  }
-  for (let i = 0; i < 4; i += 1) ring(ctx, 96, 103, 18 + i * 15 + sweep * 13, i % 2 ? '#dffff6' : '#85eac7', 2, alpha, Math.PI * .1, Math.PI * 1.55);
-  if (frame >= 72) {
-    const p = easeOut(segment(frame, 72, 88));
-    ring(ctx, 96, 105, 17 + p * 58, '#ffffff', 4, alpha);
-    burst(ctx, 96, 109, 19 + p * 46, 12, '#a2ffd8', alpha);
-  }
-}
-
-function drawAquaBreath(ctx, frame) {
-  const alpha = fade(frame, 7, 97, 116);
-  const orb = easeOut(segment(frame, 0, 28));
-  ring(ctx, 48, 91, 8 + orb * 24, '#a4f2ff', 4, alpha);
-  for (let i = 0; i < 6; i += 1) diamond(ctx, 48 + Math.cos(i * Math.PI / 3) * (14 + orb * 21), 91 + Math.sin(i * Math.PI / 3) * (12 + orb * 17), 4, '#dfffff', alpha * orb);
-  if (frame > 25) {
-    const surge = easeInOut(segment(frame, 25, 78));
-    for (let band = 0; band < 7; band += 1) {
-      const y = 55 + band * 15;
-      const endX = 58 + surge * (111 - band * 2);
-      line(ctx, 48, y + Math.sin(frame * .08 + band) * 8, endX, y + Math.sin(frame * .08 + band + 1) * 13, band % 2 ? '#4fd0ef' : '#d7ffff', 5, alpha * surge);
+    if (frame >= 48) {
+      const pin = Math.sin(segment(frame, 48, 61) * Math.PI);
+      line(ctx, target.x - 18, target.y, target.x + 18, target.y, '#ffffff', 2, alpha * pin);
+      line(ctx, target.x, target.y - 22, target.x, target.y + 22, '#ffffff', 2, alpha * pin);
+      pixelDisc(ctx, target.x, target.y, 4 + pin * 5, '#ffffe0', alpha * pin);
     }
-  }
-  if (frame >= 78) {
-    const p = easeOut(segment(frame, 78, 97));
-    ring(ctx, 130, 101, 15 + p * 51, '#efffff', 5, alpha);
-    burst(ctx, 130, 101, 19 + p * 48, 14, '#59dbf2', alpha, Math.PI / 14);
-  }
+  });
 }
 
-function drawMightyGuard(ctx, frame) {
-  const alpha = fade(frame, 8, 99, 118);
-  const build = easeOut(segment(frame, 0, 80));
-  const colors = ['#75c8ff', '#93f4d1', '#ffe681'];
-  for (let layer = 0; layer < 3; layer += 1) {
-    const radius = 25 + layer * 20;
-    poly(ctx, [[96, 96 - radius], [96 + radius * .87, 96 - radius * .5], [96 + radius * .87, 96 + radius * .5], [96, 96 + radius], [96 - radius * .87, 96 + radius * .5], [96 - radius * .87, 96 - radius * .5]], `rgba(${layer === 0 ? '80,130,255' : layer === 1 ? '75,220,180' : '255,215,90'},.16)`, alpha * build, colors[layer], 3);
+function drawWhiteWind(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const allies = stagePointList(sceneContext, 'alliedTargets', [
+    { x: sceneContext.targetX ?? 76, y: sceneContext.targetY ?? 50 },
+  ], width, height);
+  const alpha = fade(frame, 3, 60, 72);
+  const sweep = easeInOut(segment(frame, 8, 40));
+
+  // White Wind is deliberately brief in the observed SFC footage: a compact
+  // white/cyan party pulse, not the previous feather storm and expanding rings.
+  const minY = Math.min(...allies.map((point) => point.y)) - 22;
+  const maxY = Math.max(...allies.map((point) => point.y)) + 22;
+  const minX = Math.max(0, Math.min(...allies.map((point) => point.x)) - width * .14);
+  const maxX = Math.min(width, Math.max(...allies.map((point) => point.x)) + width * .14);
+  for (let band = 0; band < 7; band += 1) {
+    const y = minY + (maxY - minY) * (band + .5) / 7;
+    const travel = (sweep + band * .11) % 1;
+    const x1 = minX + (maxX - minX) * Math.max(0, travel - .22);
+    const x2 = minX + (maxX - minX) * Math.min(1, travel + .22);
+    line(ctx, x1, y, x2, y + (band % 2 ? 2 : -2), band % 2 ? '#ffffff' : '#c8f8f0', band % 3 ? 2 : 3, alpha * .9);
   }
-  if (frame > 28) {
-    const seals = easeOut(segment(frame, 28, 80));
-    diamond(ctx, 96, 65, 8, '#8bcfff', alpha * seals, '#ffffff');
-    diamond(ctx, 69, 116, 8, '#8ff2c9', alpha * seals, '#ffffff');
-    diamond(ctx, 123, 116, 8, '#ffe486', alpha * seals, '#ffffff');
-    line(ctx, 96, 65, 69, 116, '#efffff', 2, alpha * seals); line(ctx, 69, 116, 123, 116, '#efffff', 2, alpha * seals); line(ctx, 123, 116, 96, 65, '#efffff', 2, alpha * seals);
+  allies.forEach((target, index) => {
+    const pulse = easeOut(segment(frame, 32 + index, 50 + index));
+    const lift = 10 + pulse * 20;
+    line(ctx, target.x, target.y + 12, target.x, target.y + 12 - lift, '#ffffff', 3, alpha * pulse);
+    pixelDisc(ctx, target.x, target.y, 2, '#e8ffff', alpha * pulse);
+    pixelDisc(ctx, target.x, target.y + 9 - lift, 3 + pulse * 3, index % 2 ? '#d8ffff' : '#ffffff', alpha * pulse);
+    line(ctx, target.x - 7, target.y - 4, target.x + 7, target.y - 4, '#e8ffff', 2, alpha * pulse);
+  });
+}
+
+function drawAquaBreath(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const targets = stagePointList(sceneContext, 'hostileTargets', [
+    { x: sceneContext.targetX ?? 24, y: sceneContext.targetY ?? 50 },
+  ], width, height);
+  const alpha = fade(frame, 4, 66, 76);
+  const refract = easeInOut(segment(frame, 0, 44));
+  const minY = Math.min(...targets.map((point) => point.y)) - 34;
+  const maxY = Math.max(...targets.map((point) => point.y)) + 34;
+
+  stageFill(ctx, width, height, '#287898', alpha * refract * .16);
+  for (let band = 0; band < 12; band += 1) {
+    const y = minY + (maxY - minY) * band / 11;
+    const phase = (frame * 4 + band * 17) % 46;
+    const left = Math.max(0, Math.min(...targets.map((point) => point.x)) - 50 - phase);
+    const right = Math.min(width, Math.max(...targets.map((point) => point.x)) + 50 + phase);
+    line(ctx, left, y, right, y + (band % 3 - 1) * 3, band % 3 === 0 ? '#e8ffff' : '#69c8d8', band % 4 === 0 ? 3 : 2, alpha * refract * .78);
   }
-  if (frame >= 80) {
-    const p = easeOut(segment(frame, 80, 99));
-    ring(ctx, 96, 97, 28 + p * 64, '#ffffff', 5, alpha);
-    burst(ctx, 96, 97, 22 + p * 57, 12, '#c9fff0', alpha);
+  targets.forEach((target, index) => {
+    const shimmer = .45 + .55 * Math.sin((frame + index * 5) * Math.PI / 8) ** 2;
+    ctx.save();
+    ctx.globalAlpha = clamp(alpha * refract * shimmer * .62);
+    ctx.fillStyle = index % 2 ? '#d8ffff' : '#b8e8e8';
+    ctx.fillRect(Math.round(target.x - 11), Math.round(target.y - 24), 22, 48);
+    ctx.restore();
+    if (frame >= 44) {
+      const latch = Math.sin(segment(frame, 44, 63) * Math.PI);
+      for (let slice = 0; slice < 5; slice += 1) {
+        line(ctx, target.x - 22 + slice * 3, target.y - 18 + slice * 9, target.x + 20 + slice * 2, target.y - 14 + slice * 9, '#efffff', 2, alpha * latch);
+      }
+    }
+  });
+}
+
+function drawMightyGuard(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const allies = stagePointList(sceneContext, 'alliedTargets', [
+    { x: sceneContext.targetX ?? 76, y: sceneContext.targetY ?? 50 },
+  ], width, height);
+  const alpha = fade(frame, 4, 83, 96);
+  const center = {
+    x: allies.reduce((sum, point) => sum + point.x, 0) / allies.length,
+    y: allies.reduce((sum, point) => sum + point.y, 0) / allies.length,
+  };
+  const radiusX = Math.max(30, Math.min(width * .18, 64));
+  const radiusY = Math.max(48, Math.min(height * .24, (Math.max(...allies.map((point) => point.y)) - Math.min(...allies.map((point) => point.y))) / 2 + 32));
+  const manifest = easeOut(segment(frame, 0, 24));
+  const orbit = easeInOut(segment(frame, 24, 56));
+
+  // The SFC footage shows exactly eight blue diamonds surrounding the party.
+  // Keep that count and silhouette instead of the previous three invented shields.
+  for (let index = 0; index < 8; index += 1) {
+    const finalAngle = -Math.PI / 2 + index * Math.PI / 4;
+    const startAngle = finalAngle - (1 - orbit) * Math.PI * .7;
+    const x = center.x + Math.cos(startAngle) * radiusX * manifest;
+    const y = center.y + Math.sin(startAngle) * radiusY * manifest;
+    diamond(ctx, x, y, 5 + manifest * 4, index % 2 ? '#4ca8e8' : '#78c8ff', alpha * manifest, '#e8ffff');
+    pixelDisc(ctx, x, y, 2, '#ffffff', alpha * manifest);
+  }
+  if (frame >= 56) {
+    const lock = Math.sin(segment(frame, 56, 76) * Math.PI);
+    allies.forEach((target, index) => {
+      line(ctx, target.x - 10, target.y, target.x + 10, target.y, '#a8e0ff', 2, alpha * lock);
+      line(ctx, target.x, target.y - 13, target.x, target.y + 13, '#a8e0ff', 2, alpha * lock);
+      pixelDisc(ctx, target.x, target.y, 3 + (index % 2), '#d8f8ff', alpha * lock);
+    });
   }
 }
 
@@ -10087,10 +10244,10 @@ function renderScene(ctx, sceneId, frame, sceneContext = {}) {
   if (sceneId === 'delta-attack') return drawDeltaAttack(ctx, frame);
   if (sceneId === 'almagest') return drawAlmagest(ctx, frame, sceneContext);
   if (sceneId === 'grand-cross') return drawGrandCross(ctx, frame, sceneContext);
-  if (sceneId === '1000-needles') return draw1000Needles(ctx, frame);
-  if (sceneId === 'white-wind') return drawWhiteWind(ctx, frame);
-  if (sceneId === 'aqua-breath') return drawAquaBreath(ctx, frame);
-  if (sceneId === 'mighty-guard') return drawMightyGuard(ctx, frame);
+  if (sceneId === '1000-needles') return draw1000Needles(ctx, frame, sceneContext);
+  if (sceneId === 'white-wind') return drawWhiteWind(ctx, frame, sceneContext);
+  if (sceneId === 'aqua-breath') return drawAquaBreath(ctx, frame, sceneContext);
+  if (sceneId === 'mighty-guard') return drawMightyGuard(ctx, frame, sceneContext);
   if (sceneId === 'goblin-punch') return drawGoblinPunch(ctx, frame);
   if (sceneId === 'magic-hammer') return drawMagicHammer(ctx, frame);
   if (sceneId === 'aero') return drawAero(ctx, frame, 1);
@@ -10395,10 +10552,10 @@ const SPELL_CHOREOGRAPHIES = Object.freeze({
   almagest: scene('almagest', [beat('white-flash', 2), beat('white-blue-flash', 1), beat('blue-flash', 2)], 1),
   'grand-cross': scene('grand-cross', [beat('red-blue-fracture', 6), beat('radiation-orb', 12), beat('depth-mist', 7)], 1),
 
-  magic_1000_needles: scene('1000-needles', [beat('thousand-count', 4), beat('needle-fan', 20), beat('fixed-impact', 1)], 1.12),
-  magic_white_wind: scene('white-wind', [beat('white-feather', 13), beat('party-sweep', 4), beat('white-heal', 12)], 1.18),
-  magic_aqua_breath: scene('aqua-breath', [beat('water-orb', 6), beat('breath-band', 7), beat('tidal-impact', 14)], 1.26),
-  magic_mighty_guard: scene('mighty-guard', [beat('triple-shield', 3), beat('field-assemble', 3), beat('mighty-lock', 12)], 1.26),
+  magic_1000_needles: scene('1000-needles', [beat('whole-field-shudder', 9), beat('thin-needle-streaks', 18), beat('fixed-damage-latch', 1)], 1.12),
+  magic_white_wind: scene('white-wind', [beat('party-white-pulse', 7), beat('short-horizontal-wind', 7), beat('caster-hp-heal-latch', 4)], 1.04),
+  magic_aqua_breath: scene('aqua-breath', [beat('target-water-refraction', 6), beat('horizontal-aqua-raster', 12), beat('non-elemental-damage-latch', 5)], 1.08),
+  magic_mighty_guard: scene('mighty-guard', [beat('blue-diamond-manifest', 8), beat('eight-diamond-party-orbit', 8), beat('protect-shell-float-latch', 4)], 1.22),
   magic_goblin_punch: scene('goblin-punch', [beat('knuckle-mark', 1), beat('goblin-fist', 1), beat('level-impact', 10)], 1.02),
   magic_magic_hammer: scene('magic-hammer', [beat('mana-nail', 6), beat('mana-hammer', 1), beat('mp-shatter', 8)], 1.12),
   magic_aero: scene('aero', [beat('wind-seed', 4), beat('single-crescent', 1), beat('air-cut', 8)], .96),
@@ -10564,11 +10721,11 @@ const SPELL_ART_BLUEPRINTS = Object.freeze({
   magic_death_claw: art('death-claw', 'rake', 7, 35, 88, 1.2, 'critical-grip', 92),
   magic_level_5_death: art('thorn-glyph', 'fivefold-judgment', 8, 180, 124, 1.42, 'serrated-ring-burst', 93),
   magic_aeroga: art('wind-ring', 'tornado', 8, -160, 104, 1.32, 'vacuum-cyclone', 94),
-  magic_1000_needles: art('needle-fan', 'barrage', 8, 15, 112, 1.24, 'thousand-hit', 95),
+  magic_1000_needles: art('needle-streaks', 'field-shudder', 8, 15, 84, 1.1, 'target-pin-flash', 95),
   magic_dark_spark: art('dark-lens', 'halve', 7, 80, 84, 1.14, 'level-break', 96),
-  magic_white_wind: art('white-feather', 'party-sweep', 8, -20, 126, 1.34, 'white-heal', 97),
-  magic_aqua_breath: art('water-wave', 'breath-surge', 8, 12, 132, 1.42, 'desert-tide', 98),
-  magic_mighty_guard: art('triple-shield', 'field-assemble', 8, 60, 138, 1.46, 'mighty-lock', 99),
+  magic_white_wind: art('white-pulse', 'short-party-wind', 7, -20, 72, 1.04, 'ally-white-lift', 97),
+  magic_aqua_breath: art('aqua-raster', 'target-refraction', 8, 12, 76, 1.08, 'pale-afterimage', 98),
+  magic_mighty_guard: art('blue-diamonds', 'eight-diamond-orbit', 8, 60, 96, 1.22, 'ward-lock', 99),
 });
 
 function spellArtForAction(action = {}) {

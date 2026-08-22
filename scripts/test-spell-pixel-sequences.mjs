@@ -97,6 +97,38 @@ for (const [sceneId, expected] of Object.entries(timeReferenceScenes)) {
   assert.deepEqual(spec.phases.map((entry) => entry.type), expected.phases, `${sceneId}: observed phase order regressed`);
 }
 assert.deepEqual(SPELL_PIXEL_SEQUENCES.meteor.impactFrames, [98, 126, 154, 182], 'Meteor must preserve four separately presented hit cues');
+const blueReferenceScenes = {
+  '1000-needles': {
+    header: '53 40 AC 00 24',
+    family: 'blue-magic-script-ac',
+    phases: ['whole-field-shudder', 'thin-needle-streaks', 'target-pin-flash', 'fixed-damage-latch', 'decay'],
+  },
+  'white-wind': {
+    header: '1A 10 B0 00 56',
+    family: 'blue-magic-script-b0',
+    phases: ['party-white-pulse', 'short-horizontal-wind', 'ally-white-lift', 'caster-hp-heal-latch', 'decay'],
+  },
+  'aqua-breath': {
+    header: '40 18 A6 80 35',
+    family: 'blue-magic-script-a6',
+    phases: ['target-water-refraction', 'horizontal-aqua-raster', 'target-pale-afterimage', 'non-elemental-damage-latch', 'decay'],
+  },
+  'mighty-guard': {
+    header: '25 10 11 00 57',
+    family: 'blue-magic-script-11',
+    phases: ['blue-diamond-manifest', 'eight-diamond-party-orbit', 'diamond-ward-lock', 'protect-shell-float-latch', 'decay'],
+  },
+};
+for (const [sceneId, expected] of Object.entries(blueReferenceScenes)) {
+  const spec = SPELL_PIXEL_SEQUENCES[sceneId];
+  assert.equal(spec.verification, 'reference-locked', `${sceneId}: SFC blue-magic reference lock regressed`);
+  assert.equal(spec.renderMode, 'stage-direct', `${sceneId}: observed stage choreography regressed`);
+  assert.equal(spec.reference.evidenceFrames.length, 4, `${sceneId}: four observed source frames required`);
+  assert.equal(spec.reference.goldenFrames.length, 4, `${sceneId}: four golden anchors required`);
+  assert.equal(spec.originalEffectHeader, expected.header, `${sceneId}: SFC effect header regressed`);
+  assert.equal(spec.sharedOriginalFamily, expected.family, `${sceneId}: original rendering family regressed`);
+  assert.deepEqual(spec.phases.map((entry) => entry.type), expected.phases, `${sceneId}: observed phase order regressed`);
+}
 assert.deepEqual(
   SPELL_PIXEL_SEQUENCES.missile.phases.map((entry) => entry.type),
   ['white-orb-launch', 'crescent-echo-flight', 'orange-blue-target-flicker', 'result-latch', 'decay'],
@@ -160,6 +192,10 @@ const expectedOriginalHeaders = {
   syldra: '07 12 9D 5B 78',
   leviathan: '35 2F 37 54 4A',
   teleport: '00 00 79 00 40',
+  '1000-needles': '53 40 AC 00 24',
+  'white-wind': '1A 10 B0 00 56',
+  'aqua-breath': '40 18 A6 80 35',
+  'mighty-guard': '25 10 11 00 57',
 };
 for (const [sceneId, header] of Object.entries(expectedOriginalHeaders)) {
   assert.equal(SPELL_PIXEL_SEQUENCES[sceneId].originalEffectHeader, header, `${sceneId}: SFC effect header regressed`);

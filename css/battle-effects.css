@@ -689,6 +689,14 @@
 .spell-motif-broken-shield::before { border: 4px dashed var(--fx-highlight); transform: skew(-14deg) rotate(var(--spell-rotation)); }
 .spell-motif-music-note > i { border-radius: 50%; width: 11px; height: 11px; box-shadow: 7px -14px 0 -2px var(--fx-primary); }
 .spell-motif-needle-fan > i { width: 3px; height: 32px; border: 0; }
+.spell-motif-needle-streaks::before { border: 0; background: repeating-linear-gradient(0deg, transparent 0 7px, var(--fx-highlight) 8px 9px, transparent 10px 15px); }
+.spell-motif-needle-streaks > i { width: 2px; height: 34px; border: 0; background: var(--fx-highlight); }
+.spell-motif-white-pulse::before { border: 0; background: repeating-linear-gradient(0deg, transparent 0 10px, var(--fx-highlight) 11px 13px, transparent 14px 20px); }
+.spell-motif-white-pulse > i { width: 4px; height: 28px; border: 0; background: var(--fx-highlight); }
+.spell-motif-aqua-raster::before { border: 0; background: repeating-linear-gradient(0deg, transparent 0 6px, var(--fx-primary) 7px 9px, transparent 10px 14px); }
+.spell-motif-aqua-raster > i { width: 36px; height: 5px; border: 0; background: var(--fx-highlight); }
+.spell-motif-blue-diamonds::before { border: 3px double var(--fx-highlight); transform: rotate(45deg); background: color-mix(in srgb, var(--fx-primary) 25%, transparent); }
+.spell-motif-blue-diamonds > i { clip-path: polygon(50% 0,100% 50%,50% 100%,0 50%); background: var(--fx-primary); }
 .spell-motif-spear-wheel::before { border-radius: 50%; border: 4px double var(--fx-highlight); background: repeating-conic-gradient(transparent 0 16deg, var(--fx-primary) 17deg 21deg, transparent 22deg 44deg); }
 .spell-motif-spear-wheel > i { width: 4px; height: 38px; border: 0; clip-path: polygon(50% 0,100% 28%,64% 100%,36% 100%,0 28%); }
 .spell-motif-summon-feather::before { border: 0; clip-path: polygon(50% 0,82% 28%,66% 100%,50% 77%,34% 100%,18% 28%); background: linear-gradient(90deg,var(--fx-secondary),var(--fx-highlight),var(--fx-primary)); }
@@ -739,7 +747,8 @@
 .spell-motion-barrage,
 .spell-motion-straight,
 .spell-motion-branch,
-.spell-motion-breath-surge { animation-name: spell-sweep; }
+.spell-motion-breath-surge,
+.spell-motion-field-shudder { animation-name: spell-sweep; }
 .spell-motion-rewind,
 .spell-motion-sleep-rewind,
 .spell-motion-return,
@@ -768,6 +777,8 @@
 .spell-motion-field-drag,
 .spell-motion-field-accelerate,
 .spell-motion-party-sweep,
+.spell-motion-short-party-wind,
+.spell-motion-target-refraction,
 .spell-motion-accelerate,
 .spell-motion-expand,
 .spell-motion-caster-to-ally,
@@ -778,6 +789,7 @@
 .spell-motion-bind,
 .spell-motion-freeze,
 .spell-motion-stutter { animation-name: spell-field; }
+.spell-motion-eight-diamond-orbit { animation-name: spell-orbit-scene; }
 
 @keyframes spell-art-enter {
   0% { opacity: 0; transform: translate(-50%,-50%) scale(.18) rotate(var(--spell-rotation-quarter-negative)); }

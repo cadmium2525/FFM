@@ -142,7 +142,7 @@ for (const sceneId of ['white-wind', 'mighty-guard']) {
     targets: [{ x: 78, y: 25 }, { x: 78, y: 42 }, { x: 78, y: 59 }, { x: 78, y: 76 }],
     targetMode: 'multi',
   });
-  assert.equal(canvas.context.drawCalls.length, 1, `${sceneId}: party-wide field must render once, not once per unit`);
+  assert.equal(canvas.context.drawCalls.length, 0, `${sceneId}: reference-locked party field must paint directly once across the stage`);
 }
 
 const neoExdeathContext = {
@@ -256,6 +256,85 @@ for (const sceneId of ['haste', 'gravity', 'meteor', 'return']) {
     `${sceneId}: reference-locked time-magic effect ignored the actual target anchor`,
   );
 }
+for (const sceneId of ['1000-needles', 'aqua-breath']) {
+  assert.notDeepEqual(
+    stageGeometryTraceFor(sceneId, leftHostileContext),
+    stageGeometryTraceFor(sceneId, rightHostileContext),
+    `${sceneId}: reference-locked blue magic ignored the hostile target anchor`,
+  );
+}
+const leftPartyContext = {
+  casterX: 78,
+  casterY: 44,
+  targetX: 24,
+  targetY: 50,
+  targets: [{ x: 24, y: 28 }, { x: 24, y: 44 }, { x: 24, y: 60 }, { x: 24, y: 76 }],
+  alliedTargets: [{ x: 24, y: 28 }, { x: 24, y: 44 }, { x: 24, y: 60 }, { x: 24, y: 76 }],
+};
+const rightPartyContext = {
+  casterX: 22,
+  casterY: 44,
+  targetX: 78,
+  targetY: 50,
+  targets: [{ x: 78, y: 28 }, { x: 78, y: 44 }, { x: 78, y: 60 }, { x: 78, y: 76 }],
+  alliedTargets: [{ x: 78, y: 28 }, { x: 78, y: 44 }, { x: 78, y: 60 }, { x: 78, y: 76 }],
+};
+for (const sceneId of ['white-wind', 'mighty-guard']) {
+  assert.notDeepEqual(
+    stageGeometryTraceFor(sceneId, leftPartyContext),
+    stageGeometryTraceFor(sceneId, rightPartyContext),
+    `${sceneId}: reference-locked blue magic ignored the allied party anchors`,
+  );
+}
+
+const referenceBlueContext = {
+  casterX: 78,
+  casterY: 44,
+  targetX: 24,
+  targetY: 48,
+  targets: [{ x: 24, y: 48 }],
+  hostileTargets: [{ x: 24, y: 48 }],
+  alliedTargets: [{ x: 78, y: 28 }, { x: 78, y: 44 }, { x: 78, y: 60 }, { x: 78, y: 76 }],
+  targetMode: 'mixed',
+};
+const referenceBlueTraces = Object.fromEntries(
+  ['1000-needles', 'white-wind', 'aqua-breath', 'mighty-guard']
+    .map((sceneId) => [sceneId, stageGeometryTraceFor(sceneId, referenceBlueContext)]),
+);
+for (const [sceneId, trace] of Object.entries(referenceBlueTraces)) {
+  trace.pathPoints.forEach(([operation, x, y]) => {
+    assert.ok(x >= 0 && x <= 320 && y >= 0 && y <= 400, `${sceneId}: ${operation} escaped the 320x400 stage at ${x},${y}`);
+  });
+  trace.rects.forEach(([x, y, width, height]) => {
+    assert.ok(x >= 0 && y >= 0 && x + width <= 320 && y + height <= 400, `${sceneId}: fill rectangle escaped the 320x400 stage`);
+  });
+}
+const hostileAnchor = { x: 320 * .24, y: 400 * .48 };
+const pointNear = (point, expected) => Math.abs(point[1] - expected.x) <= 2 && Math.abs(point[2] - expected.y) <= 2;
+assert.ok(
+  referenceBlueTraces['1000-needles'].rects.some(([x, y, width, height]) => width <= 20 && height <= 4 && hostileAnchor.x >= x && hostileAnchor.x <= x + width && Math.abs(y - hostileAnchor.y) <= 2),
+  '1000 Needles pin did not reach the hostile center within two logical pixels',
+);
+assert.ok(
+  referenceBlueTraces['aqua-breath'].rects.some(([x, y, width, height]) => width === 22 && height === 48 && Math.abs(x + width / 2 - hostileAnchor.x) <= 2 && Math.abs(y + height / 2 - hostileAnchor.y) <= 2),
+  'Aqua Breath refraction did not center on the hostile target within two logical pixels',
+);
+for (const sceneId of ['white-wind', 'mighty-guard']) {
+  for (const ally of referenceBlueContext.alliedTargets) {
+    const expected = { x: 320 * ally.x / 100, y: 400 * ally.y / 100 };
+    assert.ok(
+      referenceBlueTraces[sceneId].rects.some(([x, y, width, height]) => width <= 10 && height <= 4 && expected.x >= x && expected.x <= x + width && Math.abs(y - expected.y) <= 2),
+      `${sceneId}: ally marker missed ${ally.x}%,${ally.y}% by more than two logical pixels`,
+    );
+  }
+}
+const mightyManifestCanvas = createSpellCanvas('mighty-guard');
+renderSpellCanvasFrame(mightyManifestCanvas, 'mighty-guard', 30, referenceBlueContext);
+assert.equal(
+  mightyManifestCanvas.context.pathPoints.filter(([operation]) => operation === 'moveTo').length,
+  8,
+  'Mighty Guard must manifest exactly eight original blue diamonds before the ward latch',
+);
 
 const queuedRafs = [];
 globalThis.requestAnimationFrame = (callback) => { queuedRafs.push(callback); return queuedRafs.length; };
@@ -279,11 +358,14 @@ console.log(JSON.stringify({
   auditedPriorityScenes: priorityScenes.length,
   sampledFrames: Object.values(frameAudit).reduce((sum, frames) => sum + frames.length, 0),
   edgeClipping: false,
-  partyFieldDraws: 1,
+  partyFieldStageDirect: 2,
   crossSideAnchors: 8,
   resultBranches: 6,
   finalMagicAnchorCases: 7,
   timeMagicAnchorCases: 4,
+  blueMagicAnchorCases: 4,
+  blueMagicStageBounds: 4,
+  mightyGuardDiamondCount: 8,
   multiImpactCueFrames: cueTicks.length,
   status: 'ok',
 }, null, 2));

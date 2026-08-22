@@ -70,10 +70,10 @@ export const SPELL_CHOREOGRAPHIES = Object.freeze({
   almagest: scene('almagest', [beat('white-flash', 2), beat('white-blue-flash', 1), beat('blue-flash', 2)], 1),
   'grand-cross': scene('grand-cross', [beat('red-blue-fracture', 6), beat('radiation-orb', 12), beat('depth-mist', 7)], 1),
 
-  magic_1000_needles: scene('1000-needles', [beat('thousand-count', 4), beat('needle-fan', 20), beat('fixed-impact', 1)], 1.12),
-  magic_white_wind: scene('white-wind', [beat('white-feather', 13), beat('party-sweep', 4), beat('white-heal', 12)], 1.18),
-  magic_aqua_breath: scene('aqua-breath', [beat('water-orb', 6), beat('breath-band', 7), beat('tidal-impact', 14)], 1.26),
-  magic_mighty_guard: scene('mighty-guard', [beat('triple-shield', 3), beat('field-assemble', 3), beat('mighty-lock', 12)], 1.26),
+  magic_1000_needles: scene('1000-needles', [beat('whole-field-shudder', 9), beat('thin-needle-streaks', 18), beat('fixed-damage-latch', 1)], 1.12),
+  magic_white_wind: scene('white-wind', [beat('party-white-pulse', 7), beat('short-horizontal-wind', 7), beat('caster-hp-heal-latch', 4)], 1.04),
+  magic_aqua_breath: scene('aqua-breath', [beat('target-water-refraction', 6), beat('horizontal-aqua-raster', 12), beat('non-elemental-damage-latch', 5)], 1.08),
+  magic_mighty_guard: scene('mighty-guard', [beat('blue-diamond-manifest', 8), beat('eight-diamond-party-orbit', 8), beat('protect-shell-float-latch', 4)], 1.22),
   magic_goblin_punch: scene('goblin-punch', [beat('knuckle-mark', 1), beat('goblin-fist', 1), beat('level-impact', 10)], 1.02),
   magic_magic_hammer: scene('magic-hammer', [beat('mana-nail', 6), beat('mana-hammer', 1), beat('mp-shatter', 8)], 1.12),
   magic_aero: scene('aero', [beat('wind-seed', 4), beat('single-crescent', 1), beat('air-cut', 8)], .96),
@@ -239,11 +239,11 @@ export const SPELL_ART_BLUEPRINTS = Object.freeze({
   magic_death_claw: art('death-claw', 'rake', 7, 35, 88, 1.2, 'critical-grip', 92),
   magic_level_5_death: art('thorn-glyph', 'fivefold-judgment', 8, 180, 124, 1.42, 'serrated-ring-burst', 93),
   magic_aeroga: art('wind-ring', 'tornado', 8, -160, 104, 1.32, 'vacuum-cyclone', 94),
-  magic_1000_needles: art('needle-fan', 'barrage', 8, 15, 112, 1.24, 'thousand-hit', 95),
+  magic_1000_needles: art('needle-streaks', 'field-shudder', 8, 15, 84, 1.1, 'target-pin-flash', 95),
   magic_dark_spark: art('dark-lens', 'halve', 7, 80, 84, 1.14, 'level-break', 96),
-  magic_white_wind: art('white-feather', 'party-sweep', 8, -20, 126, 1.34, 'white-heal', 97),
-  magic_aqua_breath: art('water-wave', 'breath-surge', 8, 12, 132, 1.42, 'desert-tide', 98),
-  magic_mighty_guard: art('triple-shield', 'field-assemble', 8, 60, 138, 1.46, 'mighty-lock', 99),
+  magic_white_wind: art('white-pulse', 'short-party-wind', 7, -20, 72, 1.04, 'ally-white-lift', 97),
+  magic_aqua_breath: art('aqua-raster', 'target-refraction', 8, 12, 76, 1.08, 'pale-afterimage', 98),
+  magic_mighty_guard: art('blue-diamonds', 'eight-diamond-orbit', 8, 60, 96, 1.22, 'ward-lock', 99),
 });
 
 export function spellArtForAction(action = {}) {
