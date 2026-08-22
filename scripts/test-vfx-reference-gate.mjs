@@ -1,13 +1,10 @@
 import assert from 'node:assert/strict';
 import { SPELL_PIXEL_SEQUENCES } from '../src/ui/SpellCanvasRenderer.js';
 
-// User-approved legacy exception: these 83 sequences existed before the
+// User-approved legacy exception: these 77 sequences existed before the
 // reference-first production gate was introduced on 2026-08-22. They remain
 // provisional and must never be counted as original-reference passes.
 const GRANDFATHERED_PROVISIONAL_SCENES = new Set([
-  'aera',
-  'aero',
-  'aeroga',
   'arise',
   'atomic-ray',
   'bahamut',
@@ -30,10 +27,8 @@ const GRANDFATHERED_PROVISIONAL_SCENES = new Set([
   'doom',
   'drain',
   'esuna',
-  'flame-thrower',
   'flash',
   'float',
-  'goblin-punch',
   'golem',
   'graviga',
   'hastega',
@@ -46,7 +41,6 @@ const GRANDFATHERED_PROVISIONAL_SCENES = new Set([
   'libra',
   'lilliputian-lyric',
   'maelstrom',
-  'magic-hammer',
   'mind-blast',
   'mini',
   'mix',
@@ -90,7 +84,7 @@ const GRANDFATHERED_PROVISIONAL_SCENES = new Set([
   'zeninage',
 ]);
 
-assert.equal(GRANDFATHERED_PROVISIONAL_SCENES.size, 83, 'legacy VFX exception list changed');
+assert.equal(GRANDFATHERED_PROVISIONAL_SCENES.size, 77, 'legacy VFX exception list changed');
 
 const requiredReferenceFields = [
   'sourceCitation',
@@ -119,7 +113,15 @@ for (const [sceneId, spec] of Object.entries(SPELL_PIXEL_SEQUENCES)) {
     assert.ok(spec.reference?.[field], `${sceneId}: missing reference.${field}`);
   }
   assert.ok(spec.reference.evidenceFrames.length >= 4, `${sceneId}: cast/development/impact/decay evidence required`);
-  assert.ok(spec.reference.goldenFrames.length >= 4, `${sceneId}: four golden comparison frames required`);
+  for (const evidence of spec.reference.evidenceFrames) {
+    assert.match(evidence.sha256 ?? '', /^[a-f0-9]{64}$/, `${sceneId}: evidence frame is missing its SHA-256`);
+  }
+  if (spec.verification === 'golden-pass') {
+    assert.ok(spec.reference.goldenFrames.length >= 4, `${sceneId}: four rendered golden frames required for golden-pass`);
+  } else {
+    assert.equal(spec.reference.goldenFrames.length, 0, `${sceneId}: reference evidence must not be mislabeled as rendered golden output`);
+    assert.equal(spec.reference.goldenStatus, 'pending-render-diff', `${sceneId}: pending golden comparison must remain explicit`);
+  }
   assert.equal(spec.portraitAdaptation?.sourceAspectVerified, true, `${sceneId}: portrait coordinate conversion is unverified`);
 }
 

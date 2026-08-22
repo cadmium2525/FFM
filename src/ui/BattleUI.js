@@ -1064,6 +1064,12 @@ export class BattleUI {
         .filter((result) => result.type === 'status' && result.statuses?.includes('ko'))
         .map((result) => targetPointByUid.get(result.targetUid))
         .filter(Boolean);
+      const magicHammerResult = results.find((result) => result.type === 'mp-damage');
+      const magicHammerTarget = magicHammerResult
+        ? targetUnits.find((unit) => unit.uid === magicHammerResult.targetUid)
+        : null;
+      const magicHammerAmount = magicHammerResult ? Math.max(0, Number(magicHammerResult.amount) || 0) : null;
+      const magicHammerAfterMp = magicHammerTarget ? Math.max(0, Number(magicHammerTarget.mp) || 0) : null;
       pixelSceneContext = {
         casterX: casterPointRaw.x,
         casterY: casterPointRaw.y,
@@ -1078,6 +1084,10 @@ export class BattleUI {
         banishOutcome,
         chocoboOutcome: action?.chocoboOutcome ?? null,
         level5SuccessTargets,
+        magicHammerApplied: Boolean(magicHammerResult),
+        magicHammerAmount,
+        magicHammerBeforeMp: magicHammerAfterMp == null || magicHammerAmount == null ? null : magicHammerAfterMp + magicHammerAmount,
+        magicHammerAfterMp,
         resultTypes: results.map((result) => result.type),
       };
       // direction-player mirrors the complete sequence so its logical

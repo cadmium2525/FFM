@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { SPELL_PIXEL_SEQUENCES, createSpellCanvas, renderSpellCanvasFrame, playSpellCanvas } from '../src/ui/SpellCanvasRenderer.js';
 
 const canvases = [];
@@ -225,6 +226,11 @@ assert.notDeepEqual(
   impactSignatureFor('chocobo', { chocoboOutcome: 'fat' }),
   'Chocobo Kick and Fat Chocobo must render different impact choreography',
 );
+assert.notDeepEqual(
+  impactSignatureFor('magic-hammer', { magicHammerApplied: true, magicHammerAmount: 100 }),
+  impactSignatureFor('magic-hammer', { magicHammerApplied: false, magicHammerAmount: null }),
+  'Magic Hammer must not present a successful MP-half latch without an mp-damage result',
+);
 
 const geometryTraceFor = (sceneId, sceneContext) => {
   const before = canvases.length;
@@ -244,11 +250,12 @@ const teleportHostileMoved = geometryTraceFor('teleport', { targets: [{ x: 24, y
 assert.notDeepEqual(teleportLeft, teleportRight, 'Teleport ignored the allied-side anchor');
 assert.deepEqual(teleportLeft, teleportHostileMoved, 'Teleport must not draw a removal effect on hostile targets');
 
-const stageGeometryTraceFor = (sceneId, sceneContext) => {
+const stageGeometryTraceAt = (sceneId, frame, sceneContext) => {
   const canvas = createSpellCanvas(sceneId);
-  renderSpellCanvasFrame(canvas, sceneId, SPELL_PIXEL_SEQUENCES[sceneId].impactFrames[0], sceneContext);
+  renderSpellCanvasFrame(canvas, sceneId, frame, sceneContext);
   return { arcs: canvas.context.arcs, pathPoints: canvas.context.pathPoints, rects: canvas.context.rects };
 };
+const stageGeometryTraceFor = (sceneId, sceneContext) => stageGeometryTraceAt(sceneId, SPELL_PIXEL_SEQUENCES[sceneId].impactFrames[0], sceneContext);
 for (const sceneId of ['haste', 'gravity', 'meteor', 'return']) {
   assert.notDeepEqual(
     stageGeometryTraceFor(sceneId, leftHostileContext),
@@ -256,12 +263,47 @@ for (const sceneId of ['haste', 'gravity', 'meteor', 'return']) {
     `${sceneId}: reference-locked time-magic effect ignored the actual target anchor`,
   );
 }
-for (const sceneId of ['1000-needles', 'aqua-breath']) {
+for (const sceneId of ['1000-needles', 'aqua-breath', 'goblin-punch', 'magic-hammer', 'aero', 'aera', 'aeroga', 'flame-thrower']) {
   assert.notDeepEqual(
     stageGeometryTraceFor(sceneId, leftHostileContext),
     stageGeometryTraceFor(sceneId, rightHostileContext),
     `${sceneId}: reference-locked blue magic ignored the hostile target anchor`,
   );
+}
+const newBlueReferenceScenes = ['goblin-punch', 'magic-hammer', 'aero', 'aera', 'aeroga', 'flame-thrower'];
+const casterMovedContext = { ...leftHostileContext, casterX: 62, casterY: 36 };
+const targetMovedContext = {
+  ...leftHostileContext,
+  targetX: 36,
+  targetY: 61,
+  targets: [{ x: 36, y: 61 }],
+  hostileTargets: [{ x: 36, y: 61 }],
+};
+for (const sceneId of newBlueReferenceScenes) {
+  assert.notDeepEqual(
+    stageGeometryTraceAt(sceneId, 10, leftHostileContext),
+    stageGeometryTraceAt(sceneId, 10, casterMovedContext),
+    `${sceneId}: observed blue-diamond cast ignored the actual caster anchor`,
+  );
+  assert.notDeepEqual(
+    stageGeometryTraceFor(sceneId, leftHostileContext),
+    stageGeometryTraceFor(sceneId, targetMovedContext),
+    `${sceneId}: observed impact ignored the actual target anchor`,
+  );
+}
+
+const rendererSource = readFileSync(new URL('../src/ui/SpellCanvasRenderer.js', import.meta.url), 'utf8');
+const battleUiSource = readFileSync(new URL('../src/ui/BattleUI.js', import.meta.url), 'utf8');
+const functionSource = (name, nextName) => rendererSource.slice(
+  rendererSource.indexOf(`function ${name}`),
+  rendererSource.indexOf(`function ${nextName}`),
+);
+assert.doesNotMatch(functionSource('drawGoblinPunch', 'drawMagicHammer'), /fist|knuckle|#eab94f/i, 'Goblin Punch restored the invented giant/comic fist');
+assert.doesNotMatch(functionSource('drawMagicHammer', 'drawAero'), /mana|fillRect\(|gauge/i, 'Magic Hammer restored mana nails or the fake full-MP drain gauge');
+assert.doesNotMatch(functionSource('drawAero', 'drawFlameThrower'), /crescent|stageFill\(|radial|ray\s*</i, 'Aero family restored green slashes or the edited-video radial blur');
+assert.doesNotMatch(functionSource('drawFlameThrower', 'drawTimeSlip'), /nozzle|burn-line|jet-sweep/i, 'Flame Thrower restored the invented nozzle or burn line');
+for (const field of ['magicHammerApplied', 'magicHammerAmount', 'magicHammerBeforeMp', 'magicHammerAfterMp']) {
+  assert.ok(battleUiSource.includes(field), `BattleUI stopped forwarding ${field} into the Magic Hammer scene context`);
 }
 const leftPartyContext = {
   casterX: 78,
@@ -311,6 +353,28 @@ for (const [sceneId, trace] of Object.entries(referenceBlueTraces)) {
 }
 const hostileAnchor = { x: 320 * .24, y: 400 * .48 };
 const pointNear = (point, expected) => Math.abs(point[1] - expected.x) <= 2 && Math.abs(point[2] - expected.y) <= 2;
+const allTargetContext = {
+  casterX: 24,
+  casterY: 48,
+  targetX: 76,
+  targetY: 50,
+  targets: [{ x: 76, y: 28 }, { x: 76, y: 44 }, { x: 76, y: 60 }, { x: 76, y: 76 }],
+  hostileTargets: [{ x: 76, y: 28 }, { x: 76, y: 44 }, { x: 76, y: 60 }, { x: 76, y: 76 }],
+  actorIsEnemy: true,
+};
+const flameAllTrace = stageGeometryTraceAt('flame-thrower', 72, allTargetContext);
+const aerogaAllTrace = stageGeometryTraceAt('aeroga', 80, allTargetContext);
+for (const target of allTargetContext.targets) {
+  const expected = { x: 320 * target.x / 100, y: 400 * target.y / 100 };
+  assert.ok(
+    flameAllTrace.arcs.some(([x, y]) => Math.abs(x - expected.x) <= 2 && Math.abs(y - expected.y) <= 2),
+    `Flame Thrower all-target impact missed ${target.x}%,${target.y}%`,
+  );
+  assert.ok(
+    aerogaAllTrace.pathPoints.some(([, x, y]) => Math.abs(x - expected.x) <= 18 && Math.abs(y - expected.y) <= 18),
+    `Aeroga all-target column missed ${target.x}%,${target.y}%`,
+  );
+}
 assert.ok(
   referenceBlueTraces['1000-needles'].rects.some(([x, y, width, height]) => width <= 20 && height <= 4 && hostileAnchor.x >= x && hostileAnchor.x <= x + width && Math.abs(y - hostileAnchor.y) <= 2),
   '1000 Needles pin did not reach the hostile center within two logical pixels',
@@ -360,11 +424,14 @@ console.log(JSON.stringify({
   edgeClipping: false,
   partyFieldStageDirect: 2,
   crossSideAnchors: 8,
-  resultBranches: 6,
+  resultBranches: 7,
   finalMagicAnchorCases: 7,
   timeMagicAnchorCases: 4,
-  blueMagicAnchorCases: 4,
+  blueMagicAnchorCases: 22,
   blueMagicStageBounds: 4,
+  blueMagicAllTargetAnchors: allTargetContext.targets.length * 2,
+  blueMagicLegacyMotifGuards: 4,
+  magicHammerContextFields: 4,
   mightyGuardDiamondCount: 8,
   multiImpactCueFrames: cueTicks.length,
   status: 'ok',

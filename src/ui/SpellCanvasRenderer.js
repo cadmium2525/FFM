@@ -26,6 +26,7 @@ const referenceRecord = (reference = null) => Object.freeze({
   crop: reference?.crop ?? null,
   evidenceFrames: Object.freeze([...(reference?.evidenceFrames ?? [])]),
   goldenFrames: Object.freeze([...(reference?.goldenFrames ?? [])]),
+  goldenStatus: reference?.goldenStatus ?? 'not-started',
   reviewer: reference?.reviewer ?? null,
   reviewedAt: reference?.reviewedAt ?? null,
 });
@@ -78,7 +79,8 @@ const referenceLockedOptions = ({
     captureResolution: '640x480',
     crop: 'full 4:3 gameplay frame inside public upload',
     evidenceFrames: frames,
-    goldenFrames: frames,
+    goldenFrames: [],
+    goldenStatus: 'pending-render-diff',
     reviewer: 'Codex browser frame audit',
     reviewedAt: '2026-08-22',
   },
@@ -157,6 +159,31 @@ const timeReferenceSequence = ({
   originalEffectHeader,
   sharedOriginalFamily: family,
   resultPolicy,
+});
+
+const blueMagicReferenceSequence = ({
+  sceneId,
+  mediaHash,
+  frames,
+  frameCount,
+  impactFrame,
+  phases,
+  originalEffectHeader,
+  family,
+  mode = 'caster-target-sfc-4x3-to-portrait',
+}) => sequence(frameCount, [impactFrame], phases, {
+  ...referenceLockedOptions({
+    captureId: `yt-iUX3m6IbRyc-${sceneId}-${frames[0].seconds}-${frames.at(-1).seconds}`,
+    sourceCitation: `https://www.youtube.com/watch?v=iUX3m6IbRyc&t=${Math.floor(frames[0].seconds)}s`,
+    mediaHash,
+    frames,
+    mode,
+    placement: 'centroid',
+    sceneSpace: 'stage',
+    renderMode: 'stage-direct',
+  }),
+  originalEffectHeader,
+  sharedOriginalFamily: family,
 });
 
 const SPELL_PIXEL_SEQUENCES = Object.freeze({
@@ -411,12 +438,8 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
         { role: 'white-blue-flash', seconds: 374.40731, sha256: 'ad2392642df55d3c9aa5ddf51c63f4f095f9b36784c19d678d6f9f78bbedbfd6' },
         { role: 'damage-latch', seconds: 375.073976, sha256: '712968b21150ee25e1dfb25eeb4fdeb49968a0cfccd82c1fcf1475ac434d7603' },
       ],
-      goldenFrames: [
-        { role: 'telegraph', seconds: 373.073985, sha256: 'e21ea9c54b3dba150dcdec64f205ea5850c44d15bcab1db0392d70b0d98fda04' },
-        { role: 'white-flash', seconds: 373.740645, sha256: '18d4b6806744b03c2143cd4fc836e96ca69b9e61ecfb6f0f6830c964dbe052bb' },
-        { role: 'white-blue-flash', seconds: 374.40731, sha256: 'ad2392642df55d3c9aa5ddf51c63f4f095f9b36784c19d678d6f9f78bbedbfd6' },
-        { role: 'damage-latch', seconds: 375.073976, sha256: '712968b21150ee25e1dfb25eeb4fdeb49968a0cfccd82c1fcf1475ac434d7603' },
-      ],
+      goldenFrames: [],
+      goldenStatus: 'pending-render-diff',
       reviewer: 'Codex browser frame audit',
       reviewedAt: '2026-08-22',
     },
@@ -451,12 +474,8 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
         { role: 'orb-depth-field', seconds: 482.407281, sha256: '9ab209385be621e77282a8d090922c96edfce32ded4a02fbe7a47c551d162b9c' },
         { role: 'status-latch', seconds: 485.073941, sha256: '515e0b37c4197fa2fad72f65f0d317aa22583a403ca3fcb5f37d14dee0e7bdfe' },
       ],
-      goldenFrames: [
-        { role: 'cast', seconds: 477.073973, sha256: '478cc8d6909d081729a60255c57f0141ba50ab17558eb210a7150b3daeb85de0' },
-        { role: 'fracture', seconds: 479.073965, sha256: '7834931c4467ca28ae94d96334fa0388a2d2b23ded8841e991861df89fed1f77' },
-        { role: 'orb-depth-field', seconds: 482.407281, sha256: '9ab209385be621e77282a8d090922c96edfce32ded4a02fbe7a47c551d162b9c' },
-        { role: 'status-latch', seconds: 485.073941, sha256: '515e0b37c4197fa2fad72f65f0d317aa22583a403ca3fcb5f37d14dee0e7bdfe' },
-      ],
+      goldenFrames: [],
+      goldenStatus: 'pending-render-diff',
       reviewer: 'Codex browser frame audit',
       reviewedAt: '2026-08-22',
     },
@@ -563,12 +582,72 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
     originalEffectHeader: '25 10 11 00 57',
     sharedOriginalFamily: 'blue-magic-script-11',
   }),
-  'goblin-punch': sequence(78, [52], [phase('knuckle-mark', 0, 17), phase('fist-rush', 18, 51), phase('level-impact', 52, 65), phase('decay', 66, 77)]),
-  'magic-hammer': sequence(94, [64], [phase('mana-nails', 0, 22), phase('hammer-swing', 23, 63), phase('mp-shatter', 64, 79), phase('decay', 80, 93)]),
-  aero: sequence(72, [48], [phase('wind-seed', 0, 15), phase('crescent-flight', 16, 47), phase('air-cut', 48, 60), phase('decay', 61, 71)]),
-  aera: sequence(88, [58], [phase('wind-tunnel', 0, 21), phase('cross-crescents', 22, 57), phase('cross-impact', 58, 73), phase('decay', 74, 87)]),
-  aeroga: sequence(108, [72], [phase('pressure-eye', 0, 24), phase('tornado-column', 25, 71), phase('vacuum-impact', 72, 90), phase('decay', 91, 107)]),
-  'flame-thrower': sequence(96, [64], [phase('ignition', 0, 19), phase('jet-sweep', 20, 63), phase('burn-line', 64, 80), phase('decay', 81, 95)]),
+  'goblin-punch': blueMagicReferenceSequence({
+    sceneId: 'goblin-punch', mediaHash: '7df1e62457be3cffd7fc44e745128f41445c0aee58544c773156fc3eaa28e1b8', frameCount: 78, impactFrame: 52,
+    originalEffectHeader: '76 68 DD 00 29', family: 'blue-magic-script-dd', mode: 'target-impact-sfc-4x3-to-portrait',
+    phases: [phase('blue-diamond-cast', 0, 23), phase('white-eleven-tooth-ring', 24, 51), phase('radial-damage-latch', 52, 64), phase('decay', 65, 77)],
+    frames: [
+      { role: 'pre-effect', seconds: 105.724, sha256: '8d882e770adab9f77ce2cf5ca8bf0eee3661ffbc9d9e42b13d92d4c1fcc417f9' },
+      { role: 'cast', seconds: 106.382, sha256: 'c4be0af748f0891eb0318cd437e91250e14353a264551475f3c3e745fd279ec1' },
+      { role: 'impact', seconds: 107.254, sha256: '27488132f3e48fd39f756d72e9ef485939130062b8195eaed12234c181d782ad' },
+      { role: 'result', seconds: 107.851, sha256: '2c4bb37178de8a53110a5132dfa23385d060843dcbc937e7730de5e7b7d3b24e' },
+    ],
+  }),
+  'magic-hammer': blueMagicReferenceSequence({
+    sceneId: 'magic-hammer', mediaHash: '6ae9dd2a08eaef7f845789c00c974cb106178f72705238f81426b9335ee68cbe', frameCount: 94, impactFrame: 64,
+    originalEffectHeader: '4D 3B AF 00 25', family: 'blue-magic-script-af', mode: 'target-small-prop-sfc-4x3-to-portrait',
+    phases: [phase('blue-diamond-cast', 0, 23), phase('small-hammer-drop', 24, 63), phase('mp-half-result-latch', 64, 79), phase('decay', 80, 93)],
+    frames: [
+      { role: 'cast', seconds: 139.622, sha256: 'd50f8123b983c123cf713c078a5196e34226b21d0db4cf365e4cb7e7eed78b5c' },
+      { role: 'pre-impact', seconds: 140.293, sha256: 'f8fcb6eabb578de2dbfbb4b561d5233571050a6387fa030bd740d5dfe91b153f' },
+      { role: 'impact', seconds: 140.954, sha256: 'ac5c1e0a7472eb3d78b3a9286d9a25df3d15a1113b1b9842ab87a124163efc14' },
+      { role: 'result', seconds: 141.561, sha256: '0c9f4618283009f19559045e63b661eabc7a7207b6edfb7f3fbca341e5bf57ae' },
+    ],
+  }),
+  aero: blueMagicReferenceSequence({
+    sceneId: 'aero', mediaHash: 'af5e36f40d673455d170e69d44e7b5ad5f17cb2c831bffbd85b5727c7706a7cb', frameCount: 72, impactFrame: 48,
+    originalEffectHeader: '4F 30 AB 00 37', family: 'blue-magic-script-ab', mode: 'caster-to-target-small-tornado-sfc-4x3-to-portrait',
+    phases: [phase('blue-diamond-cast', 0, 17), phase('grey-white-small-tornado-group', 18, 47), phase('wind-damage-latch', 48, 60), phase('decay', 61, 71)],
+    frames: [
+      { role: 'pre-effect', seconds: 82.187, sha256: '4da09e230bfe3d68a66d1609ccbe912306cacfbe3505c15f4f7381f81b5b1cda' },
+      { role: 'onset', seconds: 83.311, sha256: '8a9c3c71647b21a0fb73b541511761e4fa5c516bfe25f8f10a8291f56bda4b6a' },
+      { role: 'impact', seconds: 83.652, sha256: '0e35073278e92758f3be98f1e4b8f7bd29d8eccb1f31d1fad401678582fdcf47' },
+      { role: 'result', seconds: 84.689, sha256: 'e0250d4f213462e27fba94e82e475dc479d8d51cf21561875ec4742bc9f953d9' },
+    ],
+  }),
+  aera: blueMagicReferenceSequence({
+    sceneId: 'aera', mediaHash: 'b74e58e24a687ecf2495f62de01e0ec4d1b14915ff1311944c5cc16826432c35', frameCount: 88, impactFrame: 58,
+    originalEffectHeader: '53 28 AC 00 24', family: 'blue-magic-script-ac', mode: 'caster-to-target-double-ellipse-sfc-4x3-to-portrait',
+    phases: [phase('blue-diamond-cast', 0, 21), phase('green-vortex-travel', 22, 57), phase('double-ellipse-wind-latch', 58, 73), phase('decay', 74, 87)],
+    frames: [
+      { role: 'cast', seconds: 87.810, sha256: 'f7899958bef4aa2191ff727482e115806b49430bc544c091c4df0aeeebdcf94e' },
+      { role: 'development', seconds: 88.719, sha256: '3adef70358762719d3030b2c93028f8c8a170a3c1751f9418e89a6a7334449c1' },
+      { role: 'impact', seconds: 89.407, sha256: '5fddf8255464a97242853577735ac8002547e26223c0e47adb49c5ffc111f449' },
+      { role: 'decay', seconds: 90.802, sha256: '7feae1adfb28d0b3ea7b93469fdcf0297c00b63ed308981dfac25c9f849fd3e6' },
+    ],
+  }),
+  aeroga: blueMagicReferenceSequence({
+    sceneId: 'aeroga', mediaHash: '950fdb12d386925d77ebc758a289e88817b66056514747d755a8c4a9659f52b1', frameCount: 108, impactFrame: 72,
+    originalEffectHeader: '51 28 AD 80 27', family: 'blue-magic-script-ad', mode: 'three-column-stage-crossing-sfc-4x3-to-portrait',
+    phases: [phase('blue-diamond-cast', 0, 24), phase('three-linked-wind-columns', 25, 71), phase('column-crossing-damage-latch', 72, 90), phase('decay', 91, 107)],
+    frames: [
+      { role: 'cast', seconds: 93.420, sha256: '72e2015d13f3ebde1379b58dc9a8ebfaf14fe7d846b68d4200a8fe2a133078ae' },
+      { role: 'development', seconds: 94.624, sha256: '189c54cc60394758d1f2ca505a2828599fbb21d416e0ac2396581795464ce41a' },
+      { role: 'impact', seconds: 95.009, sha256: 'f07e157286cd7cd4eba6ea946ad42dc0cdc23a700bfb01dd57aceda338f94e79' },
+      { role: 'decay', seconds: 95.423, sha256: 'd08b3440e223879fe2b23c58d39ba9c929c1bea862682725c8880e8e0016c821' },
+    ],
+  }),
+  'flame-thrower': blueMagicReferenceSequence({
+    sceneId: 'flame-thrower', mediaHash: 'f05620a26a0585c9a0d7e1a8d34696d98f08e17afa258e09c76ba6f467b10b29', frameCount: 96, impactFrame: 64,
+    originalEffectHeader: '51 28 AE 21 28', family: 'blue-magic-script-ae', mode: 'caster-to-target-horizontal-sprites-sfc-4x3-to-portrait',
+    phases: [phase('blue-diamond-cast', 0, 19), phase('nine-flame-sprite-crossing', 20, 63), phase('fire-damage-latch', 64, 80), phase('decay', 81, 95)],
+    frames: [
+      { role: 'pre-effect', seconds: 99.501, sha256: '5bc30c356580f553d473064959e9e130539521f28fb136dea40b9e23e06df390' },
+      { role: 'cast', seconds: 100.378, sha256: '952764df9ce112c857515ddbadd7b8f4617e031f47fd3d0a62ce15b454a26821' },
+      { role: 'impact', seconds: 101.348, sha256: '9ef22d918babf40a5c6f4b0030ef6d5e30235fdfa5349a00bee2e898c797c424' },
+      { role: 'decay', seconds: 102.310, sha256: '6bb3e5e1db432ecf070ebf4652d3bc187a73c2ee51da821599d5e9d7746adbc5' },
+    ],
+  }),
   'time-slip': sequence(108, [73], [phase('dream-clock', 0, 23), phase('hourglass-slip', 24, 72), phase('sleep-age-lock', 73, 90), phase('decay', 91, 107)]),
   'death-claw': sequence(98, [66], [phase('shadow-palm', 0, 21), phase('claw-rake', 22, 65), phase('critical-grip', 66, 82), phase('decay', 83, 97)]),
   'mind-blast': sequence(102, [68], [phase('mind-eye', 0, 23), phase('neural-focus', 24, 67), phase('psyche-break', 68, 85), phase('decay', 86, 101)]),
@@ -1447,102 +1526,202 @@ function drawMightyGuard(ctx, frame, sceneContext = {}) {
   }
 }
 
-function drawGoblinPunch(ctx, frame) {
-  const alpha = fade(frame, 6, 66, 78);
-  const rush = easeInOut(segment(frame, 17, 52));
-  const fistX = 28 + rush * 72;
-  const fistY = 116 - Math.sin(rush * Math.PI) * 22;
-  ring(ctx, 118, 102, 13 + easeOut(segment(frame, 0, 18)) * 24, '#9aff77', 2, alpha, -.4, Math.PI * 1.35);
-  poly(ctx, [[fistX - 24, fistY - 9], [fistX - 8, fistY - 18], [fistX + 6, fistY - 15], [fistX + 18, fistY - 5], [fistX + 16, fistY + 12], [fistX + 4, fistY + 22], [fistX - 10, fistY + 17], [fistX - 25, fistY + 7]], '#6cbc52', alpha, '#e8ffd7', 3);
-  for (let i = 0; i < 3; i += 1) line(ctx, fistX - 4 + i * 8, fistY - 15, fistX + 2 + i * 8, fistY + 2, '#315f38', 2, alpha);
-  if (frame >= 52) {
-    const p = easeOut(segment(frame, 52, 67));
-    burst(ctx, 119, 103, 16 + p * 56, 10, '#fff5a8', alpha, Math.PI / 10);
-    poly(ctx, [[88, 91], [96, 76], [107, 80], [113, 72], [123, 80], [132, 76], [142, 91], [138, 111], [124, 126], [103, 123], [88, 108]], '#5ca94d', alpha, '#f2ffe2', 4);
-    for (let i = 0; i < 4; i += 1) {
-      const knuckleX = 97 + i * 11;
-      line(ctx, knuckleX, 82 - (i % 2) * 4, knuckleX + 5, 99, '#244d30', 3, alpha);
-    }
-    line(ctx, 101, 113, 127, 105, '#fff0a5', 4, alpha);
+function drawBlueDiamondCast(ctx, frame, caster, scale = 1, endFrame = 23) {
+  const cast = Math.min(segment(frame, 0, 6), 1 - segment(frame, endFrame - 6, endFrame + 1));
+  if (cast <= 0) {
+    // Keep the transparent pre-effect frame renderable without showing a
+    // diamond before the observed cast onset.
+    pixelDisc(ctx, caster.x, caster.y, 1, '#ffffff', 0);
+    return;
+  }
+  const open = easeOut(segment(frame, 0, 15));
+  const palette = ['#225ca8', '#4d8fd0', '#b8d8e8', '#ffffff'];
+  for (let index = 0; index < 4; index += 1) {
+    const angle = -Math.PI / 2 + index * Math.PI / 2 + frame * .035;
+    const radiusX = (8 + open * 17) * scale;
+    const radiusY = (6 + open * 13) * scale;
+    diamond(ctx, caster.x + Math.cos(angle) * radiusX, caster.y + Math.sin(angle) * radiusY, (3 + index % 2) * scale, palette[index], cast, '#e9f8ff');
+  }
+  diamond(ctx, caster.x, caster.y, (5 + open * 4) * scale, '#4b8fc4', cast, '#f8ffff');
+}
+
+function ellipseStroke(ctx, x, y, radiusX, radiusY, color, width = 2, alpha = 1, angleOffset = 0) {
+  const points = 24;
+  for (let index = 0; index < points; index += 1) {
+    const from = angleOffset + index * Math.PI * 2 / points;
+    const to = angleOffset + (index + 1) * Math.PI * 2 / points;
+    line(ctx, x + Math.cos(from) * radiusX, y + Math.sin(from) * radiusY, x + Math.cos(to) * radiusX, y + Math.sin(to) * radiusY, color, width, alpha);
   }
 }
 
-function drawMagicHammer(ctx, frame) {
-  const alpha = fade(frame, 7, 80, 94);
-  const gather = easeOut(segment(frame, 0, 23));
-  for (let i = 0; i < 6; i += 1) {
-    const a = i * Math.PI / 3 - frame * .045;
-    diamond(ctx, 96 + Math.cos(a) * (54 - gather * 20), 103 + Math.sin(a) * (39 - gather * 13), 4, i % 2 ? '#7ae7ff' : '#bb8cff', alpha * gather, '#f4ffff');
+function drawScriptDdImpact(ctx, target, progress, alpha, scale = 1) {
+  const p = easeOut(progress);
+  const outer = (11 + p * 26) * scale;
+  const points = [];
+  for (let index = 0; index < 22; index += 1) {
+    const angle = -Math.PI / 2 + index * Math.PI / 11;
+    const radius = outer * (index % 2 ? .76 : 1);
+    points.push({ x: target.x + Math.cos(angle) * radius, y: target.y + Math.sin(angle) * radius });
   }
-  if (frame >= 22) {
-    const swing = easeInOut(segment(frame, 22, 64));
-    const angle = -2.4 + swing * 2.05;
-    ctx.save(); ctx.translate(88, 113); ctx.rotate(angle);
-    poly(ctx, [[-7, -66], [25, -66], [31, -43], [19, -30], [-18, -30], [-23, -52]], '#7389d6', alpha, '#e8f7ff', 3);
-    line(ctx, 4, -30, 4, 34, '#d8b178', 8, alpha); line(ctx, 7, -29, 7, 34, '#fff0b6', 2, alpha);
+  for (let index = 0; index < points.length; index += 1) {
+    const from = points[index]; const to = points[(index + 1) % points.length];
+    line(ctx, from.x, from.y, to.x, to.y, index % 4 ? '#f8ffff' : '#badce8', Math.max(2, 3 * scale), alpha * (1 - p * .18));
+  }
+  ring(ctx, target.x, target.y, outer * .52, '#e8f7ff', Math.max(2, 3 * scale), alpha);
+  for (let spoke = 0; spoke < 11; spoke += 1) {
+    const angle = -Math.PI / 2 + spoke * Math.PI * 2 / 11;
+    line(ctx, target.x + Math.cos(angle) * outer * .18, target.y + Math.sin(angle) * outer * .18, target.x + Math.cos(angle) * outer * .67, target.y + Math.sin(angle) * outer * .67, spoke % 2 ? '#ffffff' : '#c6e3ec', Math.max(1, 2 * scale), alpha);
+  }
+}
+
+function drawGoblinPunch(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const caster = stageRolePoint(sceneContext, 'caster', { x: 24, y: 48 }, width, height);
+  const target = stageRolePoint(sceneContext, 'target', { x: 76, y: 50 }, width, height);
+  const scale = Math.max(.72, Math.min(1.18, height / STAGE_HEIGHT));
+  const alpha = fade(frame, 4, 66, 78);
+  drawBlueDiamondCast(ctx, frame, caster, scale);
+  if (frame >= 24) drawScriptDdImpact(ctx, target, segment(frame, 24, 66), alpha, scale);
+}
+
+function drawMagicHammer(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const caster = stageRolePoint(sceneContext, 'caster', { x: 24, y: 48 }, width, height);
+  const target = stageRolePoint(sceneContext, 'target', { x: 76, y: 50 }, width, height);
+  const scale = Math.max(.72, Math.min(1.18, height / STAGE_HEIGHT));
+  const alpha = fade(frame, 5, 80, 94);
+  drawBlueDiamondCast(ctx, frame, caster, scale);
+  const drop = easeInOut(segment(frame, 24, 64));
+  if (drop > 0) {
+    const hammerY = target.y - (48 - drop * 32) * scale;
+    const rebound = frame >= 64 ? Math.sin(segment(frame, 64, 78) * Math.PI) * 8 * scale : 0;
+    ctx.save();
+    ctx.translate(Math.round(target.x - 4 * scale), Math.round(hammerY - rebound));
+    ctx.rotate(-.46 + drop * .72 - (frame >= 64 ? .22 : 0));
+    poly(ctx, [[-13 * scale, -7 * scale], [12 * scale, -7 * scale], [16 * scale, 0], [11 * scale, 7 * scale], [-13 * scale, 7 * scale], [-17 * scale, 0]], '#7d88a8', alpha, '#eef7ff', Math.max(1, 2 * scale));
+    line(ctx, 0, 7 * scale, 0, 29 * scale, '#b98851', 5 * scale, alpha);
+    line(ctx, 2 * scale, 8 * scale, 2 * scale, 28 * scale, '#f0ca81', 2 * scale, alpha);
     ctx.restore();
   }
   if (frame >= 64) {
-    const p = easeOut(segment(frame, 64, 80));
-    ring(ctx, 117, 125, 12 + p * 52, '#68dfff', 5, alpha);
-    for (let i = 0; i < 8; i += 1) {
-      const a = i * Math.PI / 4 + .2;
-      line(ctx, 117 + Math.cos(a) * 9, 125 + Math.sin(a) * 9, 117 + Math.cos(a) * (24 + p * 42), 125 + Math.sin(a) * (24 + p * 42), i % 2 ? '#c797ff' : '#dffcff', 3, alpha);
+    const impact = Math.sin(segment(frame, 64, 80) * Math.PI);
+    const hasResolvedResult = sceneContext.magicHammerApplied !== false;
+    const amount = Number(sceneContext.magicHammerAmount);
+    const resultStrength = Number.isFinite(amount) && amount <= 0 ? .45 : 1;
+    ring(ctx, target.x, target.y, (7 + impact * 18) * scale, hasResolvedResult ? '#d8f4ff' : '#9aa1ad', 3 * scale, alpha * impact * resultStrength);
+    if (hasResolvedResult && (!Number.isFinite(amount) || amount > 0)) {
+      for (let echo = 0; echo < 4; echo += 1) {
+        const side = echo % 2 ? 1 : -1;
+        line(ctx, target.x + side * (5 + echo * 2) * scale, target.y - (12 + echo * 4) * scale, target.x + side * (11 + echo * 4) * scale, target.y - (19 + echo * 6) * scale, echo % 2 ? '#8abed4' : '#ffffff', 2 * scale, alpha * impact * resultStrength);
+      }
     }
-    ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#08183e'; ctx.fillRect(78, 116, 78, 18); ctx.fillStyle = '#92ecff'; ctx.fillRect(83, 121, Math.max(0, Math.round(66 * (1 - p))), 8); ctx.restore();
   }
 }
 
-function drawAero(ctx, frame, tier) {
+function drawAero(ctx, frame, tier, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const caster = stageRolePoint(sceneContext, 'caster', { x: 24, y: 48 }, width, height);
+  const targets = stagePointList(sceneContext, 'targets', [{ x: sceneContext.targetX ?? 76, y: sceneContext.targetY ?? 50 }], width, height);
+  const target = targets.reduce((center, point) => ({ x: center.x + point.x / targets.length, y: center.y + point.y / targets.length }), { x: 0, y: 0 });
+  const scale = Math.max(.72, Math.min(1.18, height / STAGE_HEIGHT));
   const total = tier === 1 ? 72 : tier === 2 ? 88 : 108;
   const impactAt = tier === 1 ? 48 : tier === 2 ? 58 : 72;
-  const alpha = fade(frame, 6, total - 15, total);
+  const alpha = fade(frame, 5, total - 14, total);
+  drawBlueDiamondCast(ctx, frame, caster, scale, tier === 1 ? 17 : tier === 2 ? 21 : 24);
+
   if (tier === 1) {
-    const flight = easeInOut(segment(frame, 14, 49));
-    const x = 31 + flight * 104;
-    ring(ctx, x, 103, 22, '#c9fff0', 6, alpha, -1.1, 1.05);
-    line(ctx, x - 20, 84, x + 16, 117, '#77dfcf', 3, alpha);
-    for (let i = 0; i < 4; i += 1) line(ctx, x - 50 - i * 8, 82 + i * 12, x - 23, 82 + i * 12, '#8ae9df', 2, alpha * (1 - i * .13));
+    const form = easeOut(segment(frame, 18, 48));
+    const offsets = [[-17, 8], [0, -4], [18, 9], [-7, 17], [11, 19]];
+    offsets.forEach(([offsetX, offsetY], index) => {
+      const local = clamp(form - index * .075);
+      if (local <= 0) return;
+      const centerX = target.x + offsetX * scale;
+      const baseY = target.y + (19 + offsetY * .32) * scale;
+      const topY = baseY - (12 + local * (14 + index % 2 * 5)) * scale;
+      for (let band = 0; band < 4; band += 1) {
+        const y = baseY - band * (6 + local * 2) * scale;
+        const radius = Math.max(3, (13 - band * 2.4) * local) * scale;
+        ellipseStroke(ctx, centerX, y, radius, Math.max(2, radius * .34), index % 2 ? '#b8c1c2' : '#eef1e8', Math.max(1, 2 * scale), alpha * local, frame * .04 + band * .7);
+      }
+      line(ctx, centerX, baseY, centerX + (index % 2 ? -2 : 2) * scale, topY, '#d8ded8', Math.max(1, 2 * scale), alpha * local);
+    });
   } else if (tier === 2) {
-    const tunnel = easeOut(segment(frame, 0, 23));
-    for (let i = 0; i < 4; i += 1) ring(ctx, 96, 101, 16 + i * 13 + tunnel * 5, i % 2 ? '#77d9c8' : '#d8fff4', 2, alpha, frame * .035 + i, frame * .035 + i + Math.PI * 1.3);
-    const cross = easeInOut(segment(frame, 21, 59));
-    line(ctx, 44 + cross * 30, 49, 147 - cross * 22, 150, '#e9fff7', 6, alpha * cross);
-    line(ctx, 147 - cross * 30, 49, 44 + cross * 22, 150, '#72dbc9', 6, alpha * cross);
-  } else {
-    const grow = easeOut(segment(frame, 0, 72));
-    const top = 133 - grow * 92;
-    for (let i = 0; i < 8; i += 1) {
-      const y = 142 - i * 13 * grow;
-      const width = (54 - i * 5) * grow;
-      ring(ctx, 96, y, Math.max(4, width), i % 2 ? '#83e5d8' : '#e1fff8', 3, alpha, frame * .055 + i * .55, frame * .055 + i * .55 + Math.PI * 1.35);
+    const travel = easeInOut(segment(frame, 22, 43));
+    const projectileX = caster.x + (target.x - caster.x) * travel;
+    const projectileY = caster.y + (target.y - caster.y) * travel;
+    for (let ringIndex = 0; ringIndex < 3; ringIndex += 1) {
+      ellipseStroke(ctx, projectileX, projectileY, (7 + ringIndex * 4) * scale, (3 + ringIndex * 2) * scale, ringIndex % 2 ? '#4f9b4d' : '#b7e993', 2 * scale, alpha * travel, frame * .08 + ringIndex * .8);
     }
-    poly(ctx, [[96, top], [117, 142], [75, 142]], 'rgba(78,208,190,.22)', alpha * grow, '#b9fff1', 2);
-    motes(ctx, 18, frame, '#d9fff7', 'orbit', 78, alpha * grow);
-  }
-  if (frame >= impactAt) {
-    const p = easeOut(segment(frame, impactAt, impactAt + 16));
-    burst(ctx, 112, 105, 16 + p * (tier === 3 ? 67 : 48), 8 + tier * 3, '#eefff9', alpha, frame * .04);
-    if (tier >= 2) ring(ctx, 112, 105, 10 + p * 54, '#61d5c5', 4, alpha);
+    if (frame >= 35) targets.forEach((point, targetIndex) => {
+      const wrap = easeOut(segment(frame, 35 + targetIndex * 2, 59 + targetIndex * 2));
+      for (let ringIndex = 0; ringIndex < 2; ringIndex += 1) {
+        const spread = (21 + ringIndex * 14) * scale * wrap;
+        ellipseStroke(ctx, point.x, point.y + (ringIndex ? 4 : -3) * scale, spread, (10 + ringIndex * 7) * scale, ringIndex ? '#4d9449' : '#bdeaa0', Math.max(2, (ringIndex ? 3 : 2) * scale), alpha * wrap, frame * .03 + ringIndex * .68);
+      }
+    });
+  } else {
+    const targetMinY = Math.min(...targets.map((point) => point.y));
+    const targetMaxY = Math.max(...targets.map((point) => point.y));
+    const targetSpanY = Math.max(0, targetMaxY - targetMinY);
+    const linkCount = Math.max(6, Math.min(12, 6 + Math.ceil(targetSpanY / Math.max(12, 13 * scale))));
+    for (let column = 0; column < 3; column += 1) {
+      const travel = easeInOut(segment(frame, 25 + column * 5, 72 + column * 5));
+      const direction = Math.sign(target.x - caster.x) || 1;
+      const x = caster.x + (target.x - caster.x) * travel + direction * (column - 1) * 13 * scale;
+      const y = caster.y + (target.y - caster.y) * travel;
+      const color = column === 1 ? '#5f9e54' : '#edf5e9';
+      const edge = column === 1 ? '#b9e39f' : '#a9c7b5';
+      for (let link = 0; link < linkCount; link += 1) {
+        const offsetY = (link - (linkCount - 1) / 2) * 13 * scale;
+        const wobble = Math.sin(frame * .08 + link * .7 + column) * 3 * scale;
+        diamond(ctx, x + wobble, y + offsetY, (5 + (link + column) % 2 * 2) * scale, color, alpha * travel, edge);
+        if (link) line(ctx, x - wobble * .35, y + offsetY - 10 * scale, x + wobble, y + offsetY - 6 * scale, edge, Math.max(1, 2 * scale), alpha * travel);
+      }
+    }
+    if (frame >= impactAt) targets.forEach((point, index) => {
+      const latch = Math.sin(segment(frame, impactAt, impactAt + 18) * Math.PI);
+      diamond(ctx, point.x, point.y, (7 + latch * (14 + index * 2)) * scale, '#edf6ec', alpha * latch, '#6fa766');
+    });
   }
 }
 
-function drawFlameThrower(ctx, frame) {
-  const alpha = fade(frame, 6, 81, 96);
-  const ignite = easeOut(segment(frame, 0, 20));
-  poly(ctx, [[25, 91], [50, 84], [64, 94], [64, 112], [49, 122], [25, 115]], '#5b6478', alpha * ignite, '#e7f5ff', 3);
-  line(ctx, 31, 102, 57, 102, '#95a8bd', 5, alpha * ignite);
-  if (frame >= 18) {
-    const sweep = easeOut(segment(frame, 18, 64));
-    const tip = 65 + sweep * 91;
-    poly(ctx, [[60, 95], [tip, 65 + Math.sin(frame * .18) * 7], [142, 101], [tip, 137 + Math.cos(frame * .16) * 7], [60, 110]], '#f04c26', alpha, '#ffcf67', 2);
-    poly(ctx, [[66, 98], [tip - 18, 81], [132, 102], [tip - 20, 120], [66, 107]], '#ffd45d', alpha, '#fff1a0', 1);
-    for (let i = 0; i < 8; i += 1) flame(ctx, 82 + i * 10, 129 + (i % 2) * 7, 18 + ((frame + i * 9) % 21), 10, i % 2 ? '#ff792e' : '#ffc84e', alpha, 5);
+function drawFlameThrower(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const caster = stageRolePoint(sceneContext, 'caster', { x: 24, y: 48 }, width, height);
+  const targets = stagePointList(sceneContext, 'targets', [{ x: sceneContext.targetX ?? 76, y: sceneContext.targetY ?? 50 }], width, height);
+  const scale = Math.max(.72, Math.min(1.18, height / STAGE_HEIGHT));
+  const alpha = fade(frame, 4, 81, 96);
+  drawBlueDiamondCast(ctx, frame, caster, scale, 19);
+  for (let sprite = 0; sprite < 9; sprite += 1) {
+    const spriteTarget = targets[sprite % targets.length];
+    const travel = segment(frame, 20 + sprite * 3, 54 + sprite * 3);
+    if (travel <= 0 || travel >= 1) continue;
+    const spriteDx = spriteTarget.x - caster.x;
+    const spriteDy = spriteTarget.y - caster.y;
+    const spriteDirection = Math.atan2(spriteDy, spriteDx);
+    const x = caster.x + spriteDx * travel;
+    const y = caster.y + spriteDy * travel + Math.sin(travel * Math.PI * 2 + sprite) * (5 + sprite % 3 * 2) * scale;
+    ctx.save();
+    ctx.translate(Math.round(x), Math.round(y));
+    ctx.rotate(spriteDirection + Math.PI / 2);
+    flame(ctx, 0, 9 * scale, (16 + sprite % 3 * 5) * scale, (9 + sprite % 2 * 3) * scale, sprite % 3 === 0 ? '#fff09a' : sprite % 2 ? '#f24524' : '#ff9a35', alpha * Math.sin(travel * Math.PI), (sprite % 2 ? 3 : -2) * scale);
+    ctx.restore();
   }
   if (frame >= 64) {
-    const p = easeOut(segment(frame, 64, 81));
-    for (let i = 0; i < 6; i += 1) flame(ctx, 84 + i * 14, 148, 31 + p * (20 + i % 3 * 8), 15, i % 2 ? '#f43d25' : '#ffca51', alpha, i - 2);
-    line(ctx, 72, 147, 160, 147, '#fff0a1', 5, alpha * p);
+    const impact = Math.sin(segment(frame, 64, 81) * Math.PI);
+    targets.forEach((point, targetIndex) => {
+      for (let sprite = 0; sprite < 7; sprite += 1) {
+        const angle = -Math.PI / 2 + (sprite - 3) * .29;
+        const x = point.x + Math.cos(angle) * (6 + sprite % 2 * 8) * scale;
+        const baseY = point.y + (21 + sprite % 3 * 5) * scale;
+        flame(ctx, x, baseY, (21 + impact * (16 + sprite % 3 * 5)) * scale, (10 + sprite % 2 * 4) * scale, (sprite + targetIndex) % 3 === 0 ? '#fff0a0' : sprite % 2 ? '#ee3c24' : '#ff8a2e', alpha * impact, Math.cos(angle) * 4 * scale);
+      }
+      ring(ctx, point.x, point.y, (7 + impact * 25) * scale, '#ffd274', 3 * scale, alpha * impact);
+    });
   }
 }
 
@@ -2781,8 +2960,7 @@ function drawChocobo(ctx, frame, sceneContext) {
       }
       ring(ctx, 96, 139, 17 + p * 73, '#e7bd62', 7, alpha);
     } else {
-      burst(ctx, target.x, target.y, 16 + p * 59, 11, '#fff1a5', alpha, .12);
-      poly(ctx, [[target.x, target.y - 30 - p * 8], [target.x + 13 + p * 19, target.y - 11], [target.x + 21 + p * 18, target.y + 9], [target.x - 1, target.y + 30 + p * 8], [target.x - 22 - p * 17, target.y + 9], [target.x - 15 - p * 14, target.y - 12]], '#eab94f', alpha * (1 - p * .35), '#fff7cd', 3);
+      drawScriptDdImpact(ctx, target, p, alpha);
     }
   }
 }
@@ -3612,12 +3790,12 @@ function renderScene(ctx, sceneId, frame, sceneContext = {}) {
   if (sceneId === 'white-wind') return drawWhiteWind(ctx, frame, sceneContext);
   if (sceneId === 'aqua-breath') return drawAquaBreath(ctx, frame, sceneContext);
   if (sceneId === 'mighty-guard') return drawMightyGuard(ctx, frame, sceneContext);
-  if (sceneId === 'goblin-punch') return drawGoblinPunch(ctx, frame);
-  if (sceneId === 'magic-hammer') return drawMagicHammer(ctx, frame);
-  if (sceneId === 'aero') return drawAero(ctx, frame, 1);
-  if (sceneId === 'aera') return drawAero(ctx, frame, 2);
-  if (sceneId === 'aeroga') return drawAero(ctx, frame, 3);
-  if (sceneId === 'flame-thrower') return drawFlameThrower(ctx, frame);
+  if (sceneId === 'goblin-punch') return drawGoblinPunch(ctx, frame, sceneContext);
+  if (sceneId === 'magic-hammer') return drawMagicHammer(ctx, frame, sceneContext);
+  if (sceneId === 'aero') return drawAero(ctx, frame, 1, sceneContext);
+  if (sceneId === 'aera') return drawAero(ctx, frame, 2, sceneContext);
+  if (sceneId === 'aeroga') return drawAero(ctx, frame, 3, sceneContext);
+  if (sceneId === 'flame-thrower') return drawFlameThrower(ctx, frame, sceneContext);
   if (sceneId === 'time-slip') return drawTimeSlip(ctx, frame);
   if (sceneId === 'death-claw') return drawDeathClaw(ctx, frame);
   if (sceneId === 'mind-blast') return drawMindBlast(ctx, frame);

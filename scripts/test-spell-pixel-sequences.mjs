@@ -5,6 +5,10 @@ import { ff5Magic } from '../src/database/ff5Database.js';
 
 const sequences = Object.entries(SPELL_PIXEL_SEQUENCES);
 assert.ok(sequences.length >= 111, 'the complete magic pixel VFX production set regressed');
+const assertPendingGolden = (spec, sceneId) => {
+  assert.equal(spec.reference.goldenFrames.length, 0, `${sceneId}: reference evidence must not be mislabeled as rendered golden output`);
+  assert.equal(spec.reference.goldenStatus, 'pending-render-diff', `${sceneId}: rendered golden comparison status regressed`);
+};
 
 for (const [sceneId, spec] of sequences) {
   assert.equal(spec.referenceVersion, 'SFC-JP-1992', `${sceneId}: wrong reference target`);
@@ -37,7 +41,7 @@ for (const sceneId of ['almagest', 'grand-cross']) {
   assert.equal(spec.renderMode, 'stage-direct', `${sceneId}: full-stage original composition regressed`);
   assert.equal(spec.reference.sourceFps, 30, `${sceneId}: observed source frame rate changed`);
   assert.equal(spec.reference.evidenceFrames.length, 4, `${sceneId}: four observed source frames required`);
-  assert.equal(spec.reference.goldenFrames.length, 4, `${sceneId}: four golden anchors required`);
+  assertPendingGolden(spec, sceneId);
   assert.equal(spec.portraitAdaptation.sourceAspectVerified, true, `${sceneId}: portrait transformation is unverified`);
 }
 for (const sceneId of ['missile', 'flare', 'level-5-death']) {
@@ -46,7 +50,7 @@ for (const sceneId of ['missile', 'flare', 'level-5-death']) {
   assert.equal(spec.renderMode, 'stage-direct', `${sceneId}: observed full-stage choreography regressed`);
   assert.equal(spec.reference.sourceFps, 30, `${sceneId}: observed source frame rate changed`);
   assert.equal(spec.reference.evidenceFrames.length, 4, `${sceneId}: four observed source frames required`);
-  assert.equal(spec.reference.goldenFrames.length, 4, `${sceneId}: four golden anchors required`);
+  assertPendingGolden(spec, sceneId);
   assert.equal(spec.portraitAdaptation.sourceAspectVerified, true, `${sceneId}: portrait transformation is unverified`);
 }
 const elementalScenes = ['fire', 'fira', 'firaga', 'blizzard', 'blizzara', 'blizzaga', 'thunder', 'thundara', 'thundaga'];
@@ -54,7 +58,7 @@ for (const sceneId of elementalScenes) {
   const spec = SPELL_PIXEL_SEQUENCES[sceneId];
   assert.equal(spec.verification, 'reference-locked', `${sceneId}: SFC elemental reference lock regressed`);
   assert.equal(spec.reference.evidenceFrames.length, 4, `${sceneId}: four observed source frames required`);
-  assert.equal(spec.reference.goldenFrames.length, 4, `${sceneId}: four golden anchors required`);
+  assertPendingGolden(spec, sceneId);
   assert.equal(spec.originalEffectHeader, '20 10 07 00 FF', `${sceneId}: SFC script 07 header regressed`);
   assert.equal(spec.sharedOriginalFamily, 'black-magic-script-07', `${sceneId}: original shared family regressed`);
   assert.deepEqual(
@@ -75,7 +79,7 @@ for (const [sceneId, expected] of Object.entries(whiteReferenceScenes)) {
   const spec = SPELL_PIXEL_SEQUENCES[sceneId];
   assert.equal(spec.verification, 'reference-locked', `${sceneId}: SFC white-magic reference lock regressed`);
   assert.equal(spec.reference.evidenceFrames.length, 4, `${sceneId}: four observed source frames required`);
-  assert.equal(spec.reference.goldenFrames.length, 4, `${sceneId}: four golden anchors required`);
+  assertPendingGolden(spec, sceneId);
   assert.equal(spec.originalEffectHeader, expected.header, `${sceneId}: SFC effect header regressed`);
   assert.equal(spec.sharedOriginalFamily, expected.family, `${sceneId}: original rendering family regressed`);
   assert.deepEqual(spec.phases.map((entry) => entry.type), expected.phases, `${sceneId}: observed phase order regressed`);
@@ -91,7 +95,7 @@ for (const [sceneId, expected] of Object.entries(timeReferenceScenes)) {
   assert.equal(spec.verification, 'reference-locked', `${sceneId}: SFC time-magic reference lock regressed`);
   assert.equal(spec.renderMode, 'stage-direct', `${sceneId}: observed full-stage choreography regressed`);
   assert.ok(spec.reference.evidenceFrames.length >= 4, `${sceneId}: four observed source frames required`);
-  assert.ok(spec.reference.goldenFrames.length >= 4, `${sceneId}: four golden anchors required`);
+  assertPendingGolden(spec, sceneId);
   assert.equal(spec.originalEffectHeader, expected.header, `${sceneId}: SFC effect header regressed`);
   assert.equal(spec.sharedOriginalFamily, expected.family, `${sceneId}: original rendering family regressed`);
   assert.deepEqual(spec.phases.map((entry) => entry.type), expected.phases, `${sceneId}: observed phase order regressed`);
@@ -118,13 +122,43 @@ const blueReferenceScenes = {
     family: 'blue-magic-script-11',
     phases: ['blue-diamond-manifest', 'eight-diamond-party-orbit', 'diamond-ward-lock', 'protect-shell-float-latch', 'decay'],
   },
+  'goblin-punch': {
+    header: '76 68 DD 00 29',
+    family: 'blue-magic-script-dd',
+    phases: ['blue-diamond-cast', 'white-eleven-tooth-ring', 'radial-damage-latch', 'decay'],
+  },
+  'magic-hammer': {
+    header: '4D 3B AF 00 25',
+    family: 'blue-magic-script-af',
+    phases: ['blue-diamond-cast', 'small-hammer-drop', 'mp-half-result-latch', 'decay'],
+  },
+  aero: {
+    header: '4F 30 AB 00 37',
+    family: 'blue-magic-script-ab',
+    phases: ['blue-diamond-cast', 'grey-white-small-tornado-group', 'wind-damage-latch', 'decay'],
+  },
+  aera: {
+    header: '53 28 AC 00 24',
+    family: 'blue-magic-script-ac',
+    phases: ['blue-diamond-cast', 'green-vortex-travel', 'double-ellipse-wind-latch', 'decay'],
+  },
+  aeroga: {
+    header: '51 28 AD 80 27',
+    family: 'blue-magic-script-ad',
+    phases: ['blue-diamond-cast', 'three-linked-wind-columns', 'column-crossing-damage-latch', 'decay'],
+  },
+  'flame-thrower': {
+    header: '51 28 AE 21 28',
+    family: 'blue-magic-script-ae',
+    phases: ['blue-diamond-cast', 'nine-flame-sprite-crossing', 'fire-damage-latch', 'decay'],
+  },
 };
 for (const [sceneId, expected] of Object.entries(blueReferenceScenes)) {
   const spec = SPELL_PIXEL_SEQUENCES[sceneId];
   assert.equal(spec.verification, 'reference-locked', `${sceneId}: SFC blue-magic reference lock regressed`);
   assert.equal(spec.renderMode, 'stage-direct', `${sceneId}: observed stage choreography regressed`);
   assert.equal(spec.reference.evidenceFrames.length, 4, `${sceneId}: four observed source frames required`);
-  assert.equal(spec.reference.goldenFrames.length, 4, `${sceneId}: four golden anchors required`);
+  assertPendingGolden(spec, sceneId);
   assert.equal(spec.originalEffectHeader, expected.header, `${sceneId}: SFC effect header regressed`);
   assert.equal(spec.sharedOriginalFamily, expected.family, `${sceneId}: original rendering family regressed`);
   assert.deepEqual(spec.phases.map((entry) => entry.type), expected.phases, `${sceneId}: observed phase order regressed`);
@@ -196,6 +230,12 @@ const expectedOriginalHeaders = {
   'white-wind': '1A 10 B0 00 56',
   'aqua-breath': '40 18 A6 80 35',
   'mighty-guard': '25 10 11 00 57',
+  'goblin-punch': '76 68 DD 00 29',
+  'magic-hammer': '4D 3B AF 00 25',
+  aero: '4F 30 AB 00 37',
+  aera: '53 28 AC 00 24',
+  aeroga: '51 28 AD 80 27',
+  'flame-thrower': '51 28 AE 21 28',
 };
 for (const [sceneId, header] of Object.entries(expectedOriginalHeaders)) {
   assert.equal(SPELL_PIXEL_SEQUENCES[sceneId].originalEffectHeader, header, `${sceneId}: SFC effect header regressed`);

@@ -610,6 +610,7 @@
 .spell-motif-holy-cross > i { clip-path: polygon(45% 0,55% 0,55% 45%,100% 45%,100% 55%,55% 55%,55% 100%,45% 100%,45% 55%,0 55%,0 45%,45% 45%); }
 
 .spell-motif-flame > i,
+.spell-motif-flame-sprite > i,
 .spell-motif-flame-jet > i,
 .spell-motif-horned-flame > i { border-radius: 70% 8% 62% 38%; clip-path: polygon(50% 0,85% 42%,70% 100%,22% 86%,0 46%); }
 .spell-motif-flame::before,
@@ -661,8 +662,12 @@
 .spell-motif-hourglass::before { border-radius: 0; clip-path: polygon(0 0,100% 0,62% 50%,100% 100%,0 100%,38% 50%); }
 
 .spell-motif-wind-ring > i,
+.spell-motif-grey-tornado > i,
+.spell-motif-green-double-ellipse > i,
 .spell-motif-tidal-wing > i { border-radius: 70% 0; background: transparent; border-width: 3px 0 0 3px; }
-.spell-motif-wind-ring::before { border-radius: 50%; border-style: dashed; }
+.spell-motif-wind-ring::before,
+.spell-motif-grey-tornado::before,
+.spell-motif-green-double-ellipse::before { border-radius: 50%; border-style: dashed; }
 
 .spell-motif-gravity-well::before,
 .spell-motif-dark-lens::before { border-radius: 50%; background: radial-gradient(circle, #000 0 18%, var(--fx-secondary) 19% 32%, transparent 33% 48%, var(--fx-primary) 49% 54%, transparent 55%); border: 0; }
@@ -684,7 +689,12 @@
 .spell-motif-megaflare::before { border: 0; background: linear-gradient(90deg, transparent 0 7%, var(--fx-highlight) 8% 18%, var(--fx-primary) 19% 81%, var(--fx-highlight) 82% 92%, transparent 93%); clip-path: polygon(0 38%,100% 0,100% 100%,0 62%); }
 
 .spell-motif-impact-fist > i,
-.spell-motif-mana-hammer > i { clip-path: polygon(0 22%,22% 0,70% 10%,100% 50%,70% 90%,22% 100%,0 78%); }
+.spell-motif-mana-hammer > i,
+.spell-motif-small-hammer > i { clip-path: polygon(0 22%,22% 0,70% 10%,100% 50%,70% 90%,22% 100%,0 78%); }
+.spell-motif-white-toothed-ring::before { border-radius: 50%; border: 4px dashed var(--fx-highlight); background: transparent; }
+.spell-motif-white-toothed-ring > i { border-radius: 50%; background: transparent; border: 3px solid var(--fx-primary); }
+.spell-motif-linked-wind-diamond::before { border: 0; background: repeating-linear-gradient(0deg, transparent 0 8px, var(--fx-highlight) 9px 14px, transparent 15px 21px); }
+.spell-motif-linked-wind-diamond > i { clip-path: polygon(50% 0,100% 50%,50% 100%,0 50%); }
 .spell-motif-broken-glyph::before,
 .spell-motif-broken-shield::before { border: 4px dashed var(--fx-highlight); transform: skew(-14deg) rotate(var(--spell-rotation)); }
 .spell-motif-music-note > i { border-radius: 50%; width: 11px; height: 11px; box-shadow: 7px -14px 0 -2px var(--fx-primary); }
@@ -719,7 +729,8 @@
 .spell-motion-diagonal-fall,
 .spell-motion-lock-drop,
 .spell-motion-sky-strike,
-.spell-motion-fang-return { animation-name: spell-fall; }
+.spell-motion-fang-return,
+.spell-motion-short-drop { animation-name: spell-fall; }
 .spell-motion-implode,
 .spell-motion-collapse,
 .spell-motion-caster-collapse,
@@ -738,7 +749,10 @@
 .spell-motion-coil,
 .spell-motion-serpentine,
 .spell-motion-storm,
-.spell-motion-swing { animation-name: spell-orbit-scene; }
+.spell-motion-swing,
+.spell-motion-target-radial,
+.spell-motion-target-cluster,
+.spell-motion-vortex-travel { animation-name: spell-orbit-scene; }
 .spell-motion-sweep,
 .spell-motion-slash,
 .spell-motion-cross-slash,
@@ -746,6 +760,8 @@
 .spell-motion-rake,
 .spell-motion-barrage,
 .spell-motion-straight,
+.spell-motion-caster-target-line,
+.spell-motion-three-column-crossing,
 .spell-motion-branch,
 .spell-motion-breath-surge,
 .spell-motion-field-shudder { animation-name: spell-sweep; }
