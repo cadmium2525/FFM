@@ -6688,10 +6688,19 @@ const sequence = (frameCount, impactFrames, phases, options = {}) => Object.free
   phases: Object.freeze(phases),
 });
 
-const referenceLockedOptions = ({ captureId, sourceCitation, mediaHash, frames, mode }) => ({
-  placement: 'centroid',
-  sceneSpace: 'stage',
-  renderMode: 'stage-direct',
+const referenceLockedOptions = ({
+  captureId,
+  sourceCitation,
+  mediaHash,
+  frames,
+  mode,
+  placement = 'centroid',
+  sceneSpace = 'stage',
+  renderMode = 'stage-direct',
+}) => ({
+  placement,
+  sceneSpace,
+  renderMode,
   verification: 'reference-locked',
   referenceCaptureId: captureId,
   reference: {
@@ -6712,16 +6721,84 @@ const referenceLockedOptions = ({ captureId, sourceCitation, mediaHash, frames, 
   portraitAdaptation: { mode, sourceAspectVerified: true },
 });
 
+const SFC_SCRIPT_07_HEADER = '20 10 07 00 FF';
+const SFC_SCRIPT_07_FAMILY = 'black-magic-script-07';
+const elementalReferenceSequence = ({ sceneId, mediaHash, frames }) => sequence(84, [62], [
+  phase('green-caster-aura', 0, 17),
+  phase('script-07-element-formation', 18, 43),
+  phase('script-07-palette-cycle', 44, 61),
+  phase('damage-latch', 62, 69),
+  phase('decay', 70, 83),
+], {
+  ...referenceLockedOptions({
+    captureId: `yt-QPG8KZ25gGw-${sceneId}-${frames[0].seconds}-${frames.at(-1).seconds}`,
+    sourceCitation: 'https://www.youtube.com/watch?v=QPG8KZ25gGw',
+    mediaHash,
+    frames,
+    mode: 'target-local-sfc-4x3-to-portrait',
+    placement: 'centroid',
+    sceneSpace: 'stage',
+    renderMode: 'stage-direct',
+  }),
+  originalEffectHeader: SFC_SCRIPT_07_HEADER,
+  sharedOriginalFamily: SFC_SCRIPT_07_FAMILY,
+});
+
 const SPELL_PIXEL_SEQUENCES = Object.freeze({
-  fire: sequence(64, [43], [phase('kindle', 0, 18), phase('rise', 19, 42), phase('impact', 43, 52), phase('decay', 53, 63)]),
-  fira: sequence(78, [54], [phase('ring', 0, 22), phase('coil', 23, 53), phase('impact', 54, 66), phase('decay', 67, 77)]),
-  firaga: sequence(92, [62, 67], [phase('gate', 0, 24), phase('pillar', 25, 61), phase('impact', 62, 75), phase('decay', 76, 91)]),
-  blizzard: sequence(66, [44], [phase('mist', 0, 17), phase('needles', 18, 43), phase('impact', 44, 54), phase('decay', 55, 65)]),
-  blizzara: sequence(80, [55], [phase('freeze', 0, 21), phase('spire', 22, 54), phase('shatter', 55, 68), phase('decay', 69, 79)]),
-  blizzaga: sequence(96, [65, 71], [phase('veil', 0, 24), phase('crown', 25, 64), phase('avalanche', 65, 80), phase('decay', 81, 95)]),
-  thunder: sequence(58, [37], [phase('mark', 0, 15), phase('bolt', 16, 36), phase('impact', 37, 47), phase('decay', 48, 57)]),
-  thundara: sequence(74, [48, 53], [phase('charge', 0, 18), phase('fork', 19, 47), phase('impact', 48, 62), phase('decay', 63, 73)]),
-  thundaga: sequence(88, [57, 61, 65], [phase('cage', 0, 22), phase('column', 23, 56), phase('impact', 57, 72), phase('decay', 73, 87)]),
+  fire: elementalReferenceSequence({ sceneId: 'fire', mediaHash: 'fd3df4efcedd8ce9f6404058738161f4aa95b33eafa2105249380b78c7572fe7', frames: [
+    { role: 'cast', seconds: 0.919045, sha256: 'dc7de31b2741abe0ce7c3a7305f7f9b2c560fffb17d91562a1f60cb145c1a736' },
+    { role: 'development', seconds: 2.08094, sha256: '8208f4d19683cd98222aaa62ea0aa8dfc8db2c7d8b4d4dca514b2a36be07ce0a' },
+    { role: 'impact', seconds: 2.316222, sha256: 'a6539393ff57dbb5a338a832cbfce32ee973855810afed0ee3aa688769ab41b2' },
+    { role: 'decay', seconds: 2.676112, sha256: 'dcecce6c8647bdc564b62e50dc64bc8b8482353bc55736ecf2c21c19bff974aa' },
+  ] }),
+  fira: elementalReferenceSequence({ sceneId: 'fira', mediaHash: '97f8f89e31365e2e4a60f2edc6f5f85075e5d890e272afc1990758f14d775a40', frames: [
+    { role: 'cast', seconds: 34.99588, sha256: 'f94684fa566c136b90e3dd520d01ac9936eabf6b486094807ee5d743d067bdf3' },
+    { role: 'development', seconds: 35.523696, sha256: 'b7a3307577fd007ea47f6bec2d23273f09d45c78c4096c927c793e3f11c1e64b' },
+    { role: 'impact', seconds: 36.090133, sha256: 'fd3d9e7f948632034358f0ac12cf7bf2456a20697b02613b2566c05ff8f324ed' },
+    { role: 'decay', seconds: 36.918791, sha256: '2979b182d0d11abee596d49a43fb682709df8115f617616d88bf10506cce882a' },
+  ] }),
+  firaga: elementalReferenceSequence({ sceneId: 'firaga', mediaHash: 'd76d61337319a70aab52b2f94de29a924de1e3d940b799eedb76a1940c89857d', frames: [
+    { role: 'cast', seconds: 75.625583, sha256: '3e05ae93604f19891f2fb8236a711531fc10aee664401810b7f423dd0cfff32a' },
+    { role: 'development', seconds: 76.45998, sha256: '6d540758a872101e754736de5dd54423bcda9301a1b40786db5244bab4fa8e5d' },
+    { role: 'impact', seconds: 77.29186, sha256: 'b0d050c07b8da36a30ddfd9574177b256867e586b46104bdf300d9d38727b791' },
+    { role: 'decay', seconds: 78.318771, sha256: 'de01b65840919b71b616a23926c0c7e655750ba0ca459f267e5d06e4115d87ab' },
+  ] }),
+  blizzard: elementalReferenceSequence({ sceneId: 'blizzard', mediaHash: '3e82d9f1daf937f51ac646558bb389636992c9cb47ef09146117bd9612e152b3', frames: [
+    { role: 'cast', seconds: 7.301164, sha256: '7848cfc3c0b1504bdcf0e71e07769a7bf392f1a3beaa755768623860648e1a7a' },
+    { role: 'development', seconds: 8.092301, sha256: 'c87c3afb9e0cde008a729b638376901e6c698a98ac6606deb10e2c12a7b37f89' },
+    { role: 'impact', seconds: 8.404596, sha256: '64b84a532d479f0c56047f69da89b8095dacf07a9c845036bc67f3d34dbc06e8' },
+    { role: 'decay', seconds: 8.76924, sha256: '8d02c64d6fd75b77df47f8b691ae710fe8532c682801d28033ee6c863486c799' },
+  ] }),
+  blizzara: elementalReferenceSequence({ sceneId: 'blizzara', mediaHash: '9f73b59348c528c2b2ae6f4d1f7de99b5bd90dd9a29470a54c2c79d078ffa83e', frames: [
+    { role: 'cast', seconds: 42.03156, sha256: '315f8f386234e3041009b0db1a7bbf19a2d3898dd81e304d8e756bbfcb3d776e' },
+    { role: 'development', seconds: 42.563021, sha256: '0a5913d37ac228e785d490a6fec746b3da4c06f5319facb4cc5d96d91bc9344e' },
+    { role: 'impact', seconds: 43.132612, sha256: 'fce22946db86e7337c5fb8d139eaea9352a1e7184cf9b63fd4eaf89ffad88468' },
+    { role: 'decay', seconds: 43.913016, sha256: 'b421517c024505c05fddbe1f6676aaee396620e8b8c9739a6bb219c25766b79f' },
+  ] }),
+  blizzaga: elementalReferenceSequence({ sceneId: 'blizzaga', mediaHash: '463c1039f4fd0155139432f72c5bc41e49b05beb35691f20b4b9ecbc97a716f2', frames: [
+    { role: 'cast', seconds: 82.990968, sha256: 'e40ebb8e9b3b2674d9bbb4fbe03407cdc54695971349336b747a7762efb3c1ff' },
+    { role: 'development', seconds: 83.866287, sha256: 'cdf3f281ad1424793b287fed3151d4ad537403dfe92c3ed08965c3ebbcb2da60' },
+    { role: 'impact', seconds: 84.461453, sha256: '440d66ceab7452d11f0796edd47d3df0e8c26f5ec902bab69243e63f6253236d' },
+    { role: 'decay', seconds: 85, sha256: 'c164c906fee86163073452a9506793a24a327b79fca01a755726833b57004c9f' },
+  ] }),
+  thunder: elementalReferenceSequence({ sceneId: 'thunder', mediaHash: 'f90de22a9d660b2b46150bb5d2fb5dafce09bf0b4dddbe57fd6db173d86ec68a', frames: [
+    { role: 'cast', seconds: 16.315797, sha256: '746fc93f9b99200becb1b7a2b3a7a97d1a11502df3036cd77163fad31566fcaa' },
+    { role: 'development', seconds: 16.783676, sha256: '09704f1b5401515f29dc642bcfe76a0746120f2a48d8d23b7d219541e149d290' },
+    { role: 'impact', seconds: 17.16349, sha256: '53cb05e11deed74ee9e7dbc137132a1553cb86ee4b23864edc31163dea100e04' },
+    { role: 'decay', seconds: 17.494573, sha256: 'bb3ba5c28e9ee495a5d6e7c4e26a3efe57cb6f4256d1408c984b4b1095cc68a5' },
+  ] }),
+  thundara: elementalReferenceSequence({ sceneId: 'thundara', mediaHash: 'b083e1f86bc9d696c14eb1fd1a40b115369115aee44a3fd88cab71435625c6d1', frames: [
+    { role: 'cast', seconds: 49.311104, sha256: '87e123f564337a08c53969f4ba1f8d0223bc299237700e61326a37f0011bf1f7' },
+    { role: 'development', seconds: 49.869657, sha256: 'e1f0bfeb45d7dd2ce3e0e60b8ce3e066516ec6d4746cc1869d37c0cc425c2d4c' },
+    { role: 'impact', seconds: 50, sha256: 'cbcd70bfc8b5fa9653be4731822198b7d780483438a0441299ef6957f542be96' },
+    { role: 'decay', seconds: 51.208483, sha256: 'aa8cffd8381c12bfdde6314becd6328050db2218f3d6feb3f588637a229e4c9f' },
+  ] }),
+  thundaga: elementalReferenceSequence({ sceneId: 'thundaga', mediaHash: '1a9dcd5d55f2f2f9a4634d8a758a1a11e990390ebf1f99628253014e8111426c', frames: [
+    { role: 'cast', seconds: 93.935228, sha256: '9e55bdeb6291a90edc7ff5c490e5d926173603ab04bcc17bb3987b48560e64c1' },
+    { role: 'development', seconds: 94.382253, sha256: '68fc7d076c7774909d4335ffba245650eb3a2395a011e518d3def769ccd820fc' },
+    { role: 'impact', seconds: 94.979887, sha256: 'dcbb8b5b16ef2987468d1147c9e513909fa1458bab2ca08f62575edd361a88c5' },
+    { role: 'decay', seconds: 95.471761, sha256: '02afb5303957937feee98e9432c18d958abff935bb388da9aa410cd42cf68694' },
+  ] }),
   cure: sequence(70, [48], [phase('seed', 0, 18), phase('rise', 19, 47), phase('restore', 48, 59), phase('decay', 60, 69)]),
   cura: sequence(82, [56], [phase('halo', 0, 21), phase('petals', 22, 55), phase('restore', 56, 70), phase('decay', 71, 81)]),
   curaga: sequence(96, [64], [phase('sanctuary', 0, 24), phase('column', 25, 63), phase('restore', 64, 81), phase('decay', 82, 95)]),
@@ -7083,76 +7160,140 @@ function clock(ctx, frame, mode, alpha) {
   diamond(ctx, 96, 96, 4, '#fff', alpha);
 }
 
-function drawFire(ctx, frame, tier) {
-  const total = tier === 1 ? 64 : tier === 2 ? 78 : 92;
-  const alpha = fade(frame, 8, total - 14, total);
-  const rise = easeOut(segment(frame, 10, total * .66));
-  if (tier === 1) {
-    motes(ctx, 9, frame, '#ffb44b', 'rise', 60, alpha);
-    for (let i = 0; i < 4; i += 1) flame(ctx, 72 + i * 16, 145 - rise * 18, 28 + (i % 2) * 13, 15, i % 2 ? '#ffcc62' : '#f05a2a', alpha, (i - 1.5) * 2);
-    if (frame > 42) burst(ctx, 96, 112, 18 + segment(frame, 42, 58) * 38, 8, '#ffe7a0', alpha);
-  } else if (tier === 2) {
-    const coil = easeInOut(segment(frame, 8, 54));
-    ring(ctx, 96, 112, 14 + coil * 48, '#ff7b32', 4, alpha, -.4, Math.PI * 1.65);
-    ring(ctx, 96, 112, 8 + coil * 35, '#ffd16a', 3, alpha, Math.PI, Math.PI * 2.8);
-    for (let i = 0; i < 6; i += 1) {
-      const a = i * Math.PI / 3 + frame * .08;
-      flame(ctx, 96 + Math.cos(a) * (18 + coil * 33), 112 + Math.sin(a) * (12 + coil * 28), 25, 12, i % 2 ? '#ffcf66' : '#e53b25', alpha, Math.cos(a) * 5);
-    }
-    if (frame > 53) burst(ctx, 96, 112, 25 + segment(frame, 53, 70) * 54, 12, '#fff0a8', alpha, Math.PI / 4);
-  } else {
-    const gate = easeOut(segment(frame, 0, 25));
-    ring(ctx, 96, 145, 18 + gate * 57, '#ff552b', 5, alpha);
-    ring(ctx, 96, 145, 10 + gate * 42, '#ffd96d', 2, alpha);
-    const pillar = easeOut(segment(frame, 22, 62));
-    for (let i = 0; i < 7; i += 1) flame(ctx, 55 + i * 14, 150, (55 + (i % 3) * 18) * pillar, 17, i % 2 ? '#ff8c34' : '#ffd35f', alpha, (i - 3) * 2);
-    if (frame > 61) { burst(ctx, 96, 103, 28 + segment(frame, 61, 78) * 68, 16, '#fff0a0', alpha, frame * .03); motes(ctx, 16, frame, '#ff5b2c', 'rise', 74, alpha); }
+function drawScript07CasterAura(ctx, frame, caster) {
+  if (frame > 22) return;
+  const alpha = Math.min(segment(frame, 0, 5), 1 - segment(frame, 16, 22));
+  const pulse = 1 + (frame % 6 < 3 ? 3 : 0);
+  const colors = ['#f8fff0', '#8cf070', '#30b858'];
+  for (let stroke = 0; stroke < 8; stroke += 1) {
+    const side = stroke % 2 ? 1 : -1;
+    const y = caster.y - 26 + Math.floor(stroke / 2) * 14;
+    const reach = 9 + (stroke % 3) * 3 + pulse;
+    line(ctx, caster.x + side * 5, y + 7, caster.x + side * reach, y, colors[stroke % colors.length], stroke % 3 ? 2 : 3, alpha);
+    line(ctx, caster.x + side * reach, y, caster.x + side * 7, y - 6, colors[(stroke + 1) % colors.length], 2, alpha);
   }
 }
 
-function drawIce(ctx, frame, tier) {
-  const total = tier === 1 ? 66 : tier === 2 ? 80 : 96;
-  const alpha = fade(frame, 8, total - 15, total);
-  if (tier === 1) {
-    motes(ctx, 10, frame, '#d8fbff', 'fall', 70, alpha * .85);
-    const drop = easeOut(segment(frame, 14, 44));
-    for (let i = 0; i < 5; i += 1) iceShard(ctx, 57 + i * 20, 28 + drop * (82 + (i % 2) * 16), 18 + (i % 3) * 4, 7, '#7edcff', alpha, (i - 2) * .12);
-    if (frame > 43) burst(ctx, 96, 126, 18 + segment(frame, 43, 58) * 48, 10, '#edffff', alpha, Math.PI / 8);
-  } else if (tier === 2) {
-    const freeze = easeOut(segment(frame, 0, 22));
-    ring(ctx, 96, 143, 12 + freeze * 54, '#8be7ff', 3, alpha);
-    for (let i = 0; i < 6; i += 1) {
-      const growth = easeOut(segment(frame, 18 + i * 2, 54 + i));
-      iceShard(ctx, 52 + i * 18, 142 - growth * (28 + (i % 2) * 12), 18 + growth * 32, 9, i % 2 ? '#bff6ff' : '#61b9ee', alpha, (i - 2.5) * .08);
-    }
-    if (frame > 54) motes(ctx, 18, frame, '#efffff', 'orbit', 76, alpha);
-  } else {
-    motes(ctx, 18, frame, '#b7f5ff', 'fall', 84, alpha);
-    const crown = easeOut(segment(frame, 20, 64));
-    for (let i = 0; i < 7; i += 1) {
-      const a = -Math.PI * .92 + i * Math.PI * .14;
-      iceShard(ctx, 96 + Math.cos(a) * 60 * crown, 116 + Math.sin(a) * 42 * crown, 30 + (i % 3) * 10, 10, i % 2 ? '#e8ffff' : '#5fb8ee', alpha, a + Math.PI / 2);
-    }
-    if (frame > 64) { burst(ctx, 96, 112, 30 + segment(frame, 64, 81) * 70, 14, '#f5ffff', alpha); for (let i = 0; i < 7; i += 1) iceShard(ctx, 48 + i * 16, 92 + ((frame + i * 7) % 38), 12, 5, '#9deaff', alpha, i * .25); }
-  }
+function script07Targets(sceneContext, width, height) {
+  return stagePointList(sceneContext, 'targets', [{
+    x: Number(sceneContext.targetX ?? 76),
+    y: Number(sceneContext.targetY ?? 50),
+  }], width, height);
 }
 
-function drawThunder(ctx, frame, tier) {
-  const total = tier === 1 ? 58 : tier === 2 ? 74 : 88;
-  const alpha = fade(frame, 5, total - 13, total);
-  const mark = easeOut(segment(frame, 0, tier === 1 ? 15 : 22));
-  ring(ctx, 96, 45, 8 + mark * (tier * 6 + 10), '#f9f2a3', 2 + tier, alpha);
-  if (tier > 1) ring(ctx, 96, 45, 5 + mark * (tier * 10 + 17), '#967dff', 2, alpha, frame * .04, frame * .04 + Math.PI * 1.5);
-  const strikeAt = tier === 1 ? 16 : 20;
-  if (frame >= strikeAt) lightning(ctx, 96, 24, 144, tier, tier === 3 ? '#fffbd0' : '#d8c9ff', alpha, tier + 2);
-  if (tier >= 2 && frame > 34) {
-    lightning(ctx, 66, 53, 139, tier - 1, '#8f7aff', alpha * .82, 2);
-    lightning(ctx, 126, 51, 141, tier - 1, '#b9aaff', alpha * .82, 2);
-  }
-  if (tier === 3 && frame > 55) {
-    ring(ctx, 96, 139, 14 + segment(frame, 55, 75) * 63, '#f9f4a8', 3, alpha);
-    burst(ctx, 96, 139, 26 + segment(frame, 55, 73) * 52, 16, '#a98fff', alpha, frame * .08);
-  } else if (frame > (tier === 1 ? 36 : 47)) burst(ctx, 96, 139, 18 + segment(frame, tier === 1 ? 36 : 47, total - 8) * 42, 8 + tier * 2, '#fffac2', alpha);
+function drawFire(ctx, frame, tier, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const caster = stageRolePoint(sceneContext, 'caster', { x: 24, y: 48 }, width, height);
+  const targets = script07Targets(sceneContext, width, height);
+  drawScript07CasterAura(ctx, frame, caster);
+  const alpha = Math.min(segment(frame, 18, 25), 1 - segment(frame, 69, 84));
+  const form = easeOut(segment(frame, 18, 44));
+  const palettePulse = frame % 10 < 5;
+
+  targets.forEach((target, targetIndex) => {
+    const scale = Math.max(.74, Math.min(1.18, height / STAGE_HEIGHT));
+    if (tier === 1) {
+      const baseY = target.y + 28 * scale;
+      flame(ctx, target.x - 12 * scale, baseY, (28 + form * 35) * scale, 18 * scale, palettePulse ? '#ff7028' : '#e83818', alpha, -3 * scale);
+      flame(ctx, target.x + 8 * scale, baseY, (22 + form * 46) * scale, 16 * scale, '#ffb830', alpha, 2 * scale);
+      flame(ctx, target.x, baseY - 2 * scale, (18 + form * 30) * scale, 10 * scale, '#fff0a0', alpha * .92);
+    } else if (tier === 2) {
+      const radius = (19 + form * 11) * scale;
+      ring(ctx, target.x, target.y, radius, palettePulse ? '#ffb830' : '#ef481f', 5 * scale, alpha, -.5, Math.PI * 1.25);
+      ring(ctx, target.x, target.y, radius - 6 * scale, '#fff078', 3 * scale, alpha, Math.PI * .6, Math.PI * 2.3);
+      for (let arm = 0; arm < 4; arm += 1) {
+        const side = arm % 2 ? 1 : -1;
+        flame(ctx, target.x + side * (18 + arm * 3) * scale, target.y + (24 - arm * 9) * scale, (25 + arm * 7) * scale, 11 * scale, arm % 2 ? '#ffcc48' : '#f04420', alpha, side * 4 * scale);
+      }
+    } else {
+      const colors = palettePulse ? ['#fff080', '#ffb020', '#e83818'] : ['#ffb020', '#f05018', '#981810'];
+      const outline = [
+        [0, -34], [11, -29], [18, -17], [15, -5], [24, 8], [15, 29],
+        [0, 35], [-15, 29], [-24, 8], [-15, -5], [-18, -17], [-11, -29],
+      ].map(([x, y]) => [target.x + x * scale, target.y + y * scale]);
+      poly(ctx, outline, colors[2], alpha * .34, colors[0], 5 * scale);
+      for (let layer = 0; layer < 5; layer += 1) {
+        const side = layer % 2 ? 1 : -1;
+        flame(ctx, target.x + side * (7 + layer * 5) * scale, target.y + 31 * scale, (44 + (layer % 3) * 13) * scale, 13 * scale, colors[layer % colors.length], alpha, side * 3 * scale);
+      }
+      if (frame >= 52) pixelDisc(ctx, target.x, target.y, 9 + (frame % 4), '#fff8c0', alpha * .9);
+    }
+    if (frame >= 58) burst(ctx, target.x, target.y + 18 * scale, (12 + tier * 5) * scale, 4 + tier * 2, tier === 1 ? '#fff0a0' : '#ffcc48', alpha * .7, targetIndex * .4);
+  });
+}
+
+function drawIce(ctx, frame, tier, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const caster = stageRolePoint(sceneContext, 'caster', { x: 24, y: 48 }, width, height);
+  const targets = script07Targets(sceneContext, width, height);
+  drawScript07CasterAura(ctx, frame, caster);
+  const alpha = Math.min(segment(frame, 18, 25), 1 - segment(frame, 69, 84));
+  const growth = easeOut(segment(frame, 18, 48));
+
+  targets.forEach((target) => {
+    const scale = Math.max(.74, Math.min(1.18, height / STAGE_HEIGHT));
+    const groundY = target.y + 31 * scale;
+    const spireCount = tier === 1 ? 3 : tier === 2 ? 5 : 7;
+    for (let index = 0; index < spireCount; index += 1) {
+      const spread = (index - (spireCount - 1) / 2) * (tier === 1 ? 13 : 11) * scale;
+      const stagger = ((index * 7 + tier * 3) % 12) * scale;
+      const shardGrowth = easeOut(segment(frame, 20 + index * 2, 45 + index));
+      const shardHeight = (tier === 1 ? 17 : 23) + (index % 3) * 7 + tier * 4;
+      iceShard(ctx, target.x + spread, groundY - shardGrowth * (shardHeight * .5 + stagger), shardHeight * shardGrowth * scale, (5 + tier) * scale, index % 2 ? '#b8f8ff' : '#3888d8', alpha, (index - spireCount / 2) * .035);
+    }
+    if (frame >= 39) {
+      const shellAlpha = alpha * Math.min(1, segment(frame, 39, 48));
+      const shell = [
+        [0, -35], [15, -26], [20, -6], [14, 23], [0, 35], [-14, 23], [-20, -6], [-15, -26],
+      ].map(([x, y]) => [target.x + x * scale, target.y + y * scale]);
+      poly(ctx, shell, tier === 1 ? '#2878c8' : '#4498e8', shellAlpha * .5, '#d8ffff', 3 * scale);
+      line(ctx, target.x, target.y - 31 * scale, target.x - 8 * scale, target.y + 29 * scale, '#ffffff', 2 * scale, shellAlpha);
+      line(ctx, target.x - 14 * scale, target.y - 15 * scale, target.x + 14 * scale, target.y + 13 * scale, '#90e8ff', 2 * scale, shellAlpha);
+    }
+    if (tier === 3 && frame >= 45) {
+      for (let mote = 0; mote < 8; mote += 1) {
+        const x = target.x + (((mote * 17 + frame * 3) % 76) - 38) * scale;
+        const y = target.y + (((mote * 23 + frame * 2) % 84) - 42) * scale;
+        ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = mote % 2 ? '#ffffff' : '#70c8ff'; ctx.fillRect(Math.round(x), Math.round(y), 3, 3); ctx.restore();
+      }
+    }
+    if (frame >= 58) ring(ctx, target.x, groundY, (12 + growth * (8 + tier * 4)) * scale, '#d8ffff', 3 * scale, alpha, Math.PI, Math.PI * 2);
+  });
+}
+
+function drawThunder(ctx, frame, tier, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const caster = stageRolePoint(sceneContext, 'caster', { x: 24, y: 48 }, width, height);
+  const targets = script07Targets(sceneContext, width, height);
+  drawScript07CasterAura(ctx, frame, caster);
+  const alpha = Math.min(segment(frame, 18, 24), 1 - segment(frame, 69, 84));
+  if (frame >= 28 && frame <= 61 && tier !== 2) stageFill(ctx, width, height, '#743878', tier === 3 ? .13 * alpha : .09 * alpha);
+
+  targets.forEach((target, targetIndex) => {
+    const scale = Math.max(.74, Math.min(1.18, height / STAGE_HEIGHT));
+    const top = target.y - (tier === 2 ? 54 : 66) * scale;
+    const bottom = target.y + 34 * scale;
+    const flashWindow = frame >= 32 && frame <= 61;
+    const strobe = flashWindow && ((Math.floor((frame - 32) / (tier === 3 ? 4 : 6)) + targetIndex) % 2 === 0);
+    if (!strobe && frame < 51) return;
+    const boltColor = tier === 2 ? '#fff040' : tier === 3 ? '#f0c8f0' : '#e8a8e8';
+    const boltWidth = (tier === 1 ? 4 : tier === 2 ? 5 : 6) * scale;
+    lightning(ctx, target.x, top, bottom, tier === 3 ? 3 : tier === 2 ? 2 : 1, boltColor, alpha, boltWidth);
+    if (tier === 2) {
+      lightning(ctx, target.x - 9 * scale, top + 18 * scale, bottom, 1, '#fff890', alpha * .82, 3 * scale);
+      pixelDisc(ctx, target.x, bottom, 6 + (frame % 5), '#fff8a0', alpha);
+    } else if (tier === 3) {
+      lightning(ctx, target.x - 14 * scale, top + 10 * scale, bottom, 2, '#fff0ff', alpha * .8, 3 * scale);
+      lightning(ctx, target.x + 15 * scale, top + 4 * scale, bottom, 2, '#d888d8', alpha * .8, 3 * scale);
+    }
+    if (frame >= 58) {
+      ring(ctx, target.x, bottom, (10 + tier * 4) * scale, tier === 2 ? '#fff060' : '#efb8ef', 3 * scale, alpha, Math.PI, Math.PI * 2);
+      burst(ctx, target.x, bottom, (12 + tier * 5) * scale, 4 + tier * 2, '#ffffff', alpha * .75, targetIndex * .3);
+    }
+  });
 }
 
 function drawCure(ctx, frame, tier) {
@@ -9504,15 +9645,15 @@ function drawGrandCross(ctx, frame, sceneContext = {}) {
 }
 
 function renderScene(ctx, sceneId, frame, sceneContext = {}) {
-  if (sceneId === 'fire') return drawFire(ctx, frame, 1);
-  if (sceneId === 'fira') return drawFire(ctx, frame, 2);
-  if (sceneId === 'firaga') return drawFire(ctx, frame, 3);
-  if (sceneId === 'blizzard') return drawIce(ctx, frame, 1);
-  if (sceneId === 'blizzara') return drawIce(ctx, frame, 2);
-  if (sceneId === 'blizzaga') return drawIce(ctx, frame, 3);
-  if (sceneId === 'thunder') return drawThunder(ctx, frame, 1);
-  if (sceneId === 'thundara') return drawThunder(ctx, frame, 2);
-  if (sceneId === 'thundaga') return drawThunder(ctx, frame, 3);
+  if (sceneId === 'fire') return drawFire(ctx, frame, 1, sceneContext);
+  if (sceneId === 'fira') return drawFire(ctx, frame, 2, sceneContext);
+  if (sceneId === 'firaga') return drawFire(ctx, frame, 3, sceneContext);
+  if (sceneId === 'blizzard') return drawIce(ctx, frame, 1, sceneContext);
+  if (sceneId === 'blizzara') return drawIce(ctx, frame, 2, sceneContext);
+  if (sceneId === 'blizzaga') return drawIce(ctx, frame, 3, sceneContext);
+  if (sceneId === 'thunder') return drawThunder(ctx, frame, 1, sceneContext);
+  if (sceneId === 'thundara') return drawThunder(ctx, frame, 2, sceneContext);
+  if (sceneId === 'thundaga') return drawThunder(ctx, frame, 3, sceneContext);
   if (sceneId === 'cure') return drawCure(ctx, frame, 1);
   if (sceneId === 'cura') return drawCure(ctx, frame, 2);
   if (sceneId === 'curaga') return drawCure(ctx, frame, 3);
@@ -9799,17 +9940,17 @@ const PIXEL_SEQUENCE_FALLBACK = art('pixel-sequence', 'timeline', 1, 0, 96, 1, '
  * the other commonly compared spells) cannot collapse into a palette swap.
  */
 const SPELL_CHOREOGRAPHIES = Object.freeze({
-  magic_fire: scene('fire', [beat('kindle', 3), beat('flame-tongue', 4), beat('ember-burst', 5)], .86),
-  magic_fira: scene('fira', [beat('fire-ring', 3), beat('spiral-flame', 6), beat('cross-burst', 4)], 1.02),
-  magic_firaga: scene('firaga', [beat('inferno-gate', 2), beat('fire-pillar', 7), beat('crown-burst', 6)], 1.2),
+  magic_fire: scene('fire', [beat('green-caster-aura', 2), beat('script-07-flame-column', 5), beat('palette-cycle-impact', 3)], 1.02),
+  magic_fira: scene('fira', [beat('green-caster-aura', 2), beat('script-07-fire-wrap', 5), beat('palette-cycle-impact', 3)], 1.02),
+  magic_firaga: scene('firaga', [beat('green-caster-aura', 2), beat('script-07-outline-flame', 5), beat('palette-cycle-impact', 3)], 1.02),
 
-  magic_blizzard: scene('blizzard', [beat('cold-mist', 3), beat('ice-needle', 5), beat('frost-crack', 4)], .88),
-  magic_blizzara: scene('blizzara', [beat('freeze-ring', 2), beat('ice-spire', 6), beat('shatter', 6)], 1.04),
-  magic_blizzaga: scene('blizzaga', [beat('snow-veil', 4), beat('glacier-crown', 7), beat('avalanche-shard', 7)], 1.2),
+  magic_blizzard: scene('blizzard', [beat('green-caster-aura', 2), beat('script-07-ice-shell', 5), beat('palette-cycle-impact', 3)], 1.02),
+  magic_blizzara: scene('blizzara', [beat('green-caster-aura', 2), beat('script-07-rising-spires', 5), beat('palette-cycle-impact', 3)], 1.02),
+  magic_blizzaga: scene('blizzaga', [beat('green-caster-aura', 2), beat('script-07-glacier-shell', 5), beat('palette-cycle-impact', 3)], 1.02),
 
-  magic_thunder: scene('thunder', [beat('storm-mark', 1), beat('bolt', 2), beat('spark', 5)], .88),
-  magic_thundara: scene('thundara', [beat('charge-ring', 2), beat('forked-bolt', 4), beat('arc-node', 6)], 1.04),
-  magic_thundaga: scene('thundaga', [beat('storm-cage', 3), beat('thunder-column', 6), beat('ground-arc', 7)], 1.2),
+  magic_thunder: scene('thunder', [beat('green-caster-aura', 2), beat('script-07-violet-bolt', 5), beat('palette-cycle-impact', 3)], 1.02),
+  magic_thundara: scene('thundara', [beat('green-caster-aura', 2), beat('script-07-gold-bolt', 5), beat('palette-cycle-impact', 3)], 1.02),
+  magic_thundaga: scene('thundaga', [beat('green-caster-aura', 2), beat('script-07-violet-strobe', 5), beat('palette-cycle-impact', 3)], 1.02),
 
   magic_cure: scene('cure', [beat('life-seed', 3), beat('heal-drop', 4), beat('soft-cross', 1)], .88),
   magic_cura: scene('cura', [beat('double-halo', 2), beat('life-petal', 6), beat('heal-cross', 1)], 1.04),

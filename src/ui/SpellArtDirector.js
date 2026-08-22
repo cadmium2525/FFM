@@ -18,17 +18,17 @@ const PIXEL_SEQUENCE_FALLBACK = art('pixel-sequence', 'timeline', 1, 0, 96, 1, '
  * the other commonly compared spells) cannot collapse into a palette swap.
  */
 export const SPELL_CHOREOGRAPHIES = Object.freeze({
-  magic_fire: scene('fire', [beat('kindle', 3), beat('flame-tongue', 4), beat('ember-burst', 5)], .86),
-  magic_fira: scene('fira', [beat('fire-ring', 3), beat('spiral-flame', 6), beat('cross-burst', 4)], 1.02),
-  magic_firaga: scene('firaga', [beat('inferno-gate', 2), beat('fire-pillar', 7), beat('crown-burst', 6)], 1.2),
+  magic_fire: scene('fire', [beat('green-caster-aura', 2), beat('script-07-flame-column', 5), beat('palette-cycle-impact', 3)], 1.02),
+  magic_fira: scene('fira', [beat('green-caster-aura', 2), beat('script-07-fire-wrap', 5), beat('palette-cycle-impact', 3)], 1.02),
+  magic_firaga: scene('firaga', [beat('green-caster-aura', 2), beat('script-07-outline-flame', 5), beat('palette-cycle-impact', 3)], 1.02),
 
-  magic_blizzard: scene('blizzard', [beat('cold-mist', 3), beat('ice-needle', 5), beat('frost-crack', 4)], .88),
-  magic_blizzara: scene('blizzara', [beat('freeze-ring', 2), beat('ice-spire', 6), beat('shatter', 6)], 1.04),
-  magic_blizzaga: scene('blizzaga', [beat('snow-veil', 4), beat('glacier-crown', 7), beat('avalanche-shard', 7)], 1.2),
+  magic_blizzard: scene('blizzard', [beat('green-caster-aura', 2), beat('script-07-ice-shell', 5), beat('palette-cycle-impact', 3)], 1.02),
+  magic_blizzara: scene('blizzara', [beat('green-caster-aura', 2), beat('script-07-rising-spires', 5), beat('palette-cycle-impact', 3)], 1.02),
+  magic_blizzaga: scene('blizzaga', [beat('green-caster-aura', 2), beat('script-07-glacier-shell', 5), beat('palette-cycle-impact', 3)], 1.02),
 
-  magic_thunder: scene('thunder', [beat('storm-mark', 1), beat('bolt', 2), beat('spark', 5)], .88),
-  magic_thundara: scene('thundara', [beat('charge-ring', 2), beat('forked-bolt', 4), beat('arc-node', 6)], 1.04),
-  magic_thundaga: scene('thundaga', [beat('storm-cage', 3), beat('thunder-column', 6), beat('ground-arc', 7)], 1.2),
+  magic_thunder: scene('thunder', [beat('green-caster-aura', 2), beat('script-07-violet-bolt', 5), beat('palette-cycle-impact', 3)], 1.02),
+  magic_thundara: scene('thundara', [beat('green-caster-aura', 2), beat('script-07-gold-bolt', 5), beat('palette-cycle-impact', 3)], 1.02),
+  magic_thundaga: scene('thundaga', [beat('green-caster-aura', 2), beat('script-07-violet-strobe', 5), beat('palette-cycle-impact', 3)], 1.02),
 
   magic_cure: scene('cure', [beat('life-seed', 3), beat('heal-drop', 4), beat('soft-cross', 1)], .88),
   magic_cura: scene('cura', [beat('double-halo', 2), beat('life-petal', 6), beat('heal-cross', 1)], 1.04),

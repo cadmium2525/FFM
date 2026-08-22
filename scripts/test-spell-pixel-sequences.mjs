@@ -49,6 +49,20 @@ for (const sceneId of ['missile', 'flare', 'level-5-death']) {
   assert.equal(spec.reference.goldenFrames.length, 4, `${sceneId}: four golden anchors required`);
   assert.equal(spec.portraitAdaptation.sourceAspectVerified, true, `${sceneId}: portrait transformation is unverified`);
 }
+const elementalScenes = ['fire', 'fira', 'firaga', 'blizzard', 'blizzara', 'blizzaga', 'thunder', 'thundara', 'thundaga'];
+for (const sceneId of elementalScenes) {
+  const spec = SPELL_PIXEL_SEQUENCES[sceneId];
+  assert.equal(spec.verification, 'reference-locked', `${sceneId}: SFC elemental reference lock regressed`);
+  assert.equal(spec.reference.evidenceFrames.length, 4, `${sceneId}: four observed source frames required`);
+  assert.equal(spec.reference.goldenFrames.length, 4, `${sceneId}: four golden anchors required`);
+  assert.equal(spec.originalEffectHeader, '20 10 07 00 FF', `${sceneId}: SFC script 07 header regressed`);
+  assert.equal(spec.sharedOriginalFamily, 'black-magic-script-07', `${sceneId}: original shared family regressed`);
+  assert.deepEqual(
+    spec.phases.map((entry) => entry.type),
+    ['green-caster-aura', 'script-07-element-formation', 'script-07-palette-cycle', 'damage-latch', 'decay'],
+    `${sceneId}: observed script 07 phase order regressed`,
+  );
+}
 assert.deepEqual(
   SPELL_PIXEL_SEQUENCES.missile.phases.map((entry) => entry.type),
   ['white-orb-launch', 'crescent-echo-flight', 'orange-blue-target-flicker', 'result-latch', 'decay'],
@@ -71,6 +85,15 @@ assert.deepEqual(
 );
 assert.ok(SPELL_PIXEL_SEQUENCES['grand-cross'].frameCount >= 510, 'Grand Cross lost its original long-form field duration');
 const expectedOriginalHeaders = {
+  fire: '20 10 07 00 FF',
+  fira: '20 10 07 00 FF',
+  firaga: '20 10 07 00 FF',
+  blizzard: '20 10 07 00 FF',
+  blizzara: '20 10 07 00 FF',
+  blizzaga: '20 10 07 00 FF',
+  thunder: '20 10 07 00 FF',
+  thundara: '20 10 07 00 FF',
+  thundaga: '20 10 07 00 FF',
   libra: '0F 1B 14 00 14',
   poisona: '23 11 0B 00 0F',
   silence: '28 1E 0C 31 7B',
@@ -101,6 +124,7 @@ for (const [sceneId, header] of Object.entries(expectedOriginalHeaders)) {
 assert.equal(SPELL_PIXEL_SEQUENCES.speed.sharedOriginalFamily, SPELL_PIXEL_SEQUENCES.mute.sharedOriginalFamily, 'Speed and Mute must share the original A9 rendering family');
 assert.equal(SPELL_PIXEL_SEQUENCES.slow.sharedOriginalFamily, SPELL_PIXEL_SEQUENCES.slowga.sharedOriginalFamily, 'Slow and Slowga must share their original rendering family');
 assert.equal(SPELL_PIXEL_SEQUENCES.haste.sharedOriginalFamily, SPELL_PIXEL_SEQUENCES.hastega.sharedOriginalFamily, 'Haste and Hastega must share their original rendering family');
+assert.equal(new Set(elementalScenes.map((sceneId) => SPELL_PIXEL_SEQUENCES[sceneId].sharedOriginalFamily)).size, 1, 'nine elemental spells must retain their shared original script 07 family');
 assert.equal(SPELL_PIXEL_SEQUENCES.chocobo.originalVariantHeaders?.fat, '00 10 98 C0 2E', 'Fat Chocobo SFC branch header regressed');
 for (const sceneId of ['poison', 'sleep', 'old']) {
   assert.equal(SPELL_PIXEL_SEQUENCES[sceneId].sharedOriginalFamily, 'status-script-0f', `${sceneId}: SFC status script 0F family regressed`);
