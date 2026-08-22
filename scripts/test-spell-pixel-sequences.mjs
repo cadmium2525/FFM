@@ -40,6 +40,30 @@ for (const sceneId of ['almagest', 'grand-cross']) {
   assert.equal(spec.reference.goldenFrames.length, 4, `${sceneId}: four golden anchors required`);
   assert.equal(spec.portraitAdaptation.sourceAspectVerified, true, `${sceneId}: portrait transformation is unverified`);
 }
+for (const sceneId of ['missile', 'flare', 'level-5-death']) {
+  const spec = SPELL_PIXEL_SEQUENCES[sceneId];
+  assert.equal(spec.verification, 'reference-locked', `${sceneId}: priority VFX lost its source lock`);
+  assert.equal(spec.renderMode, 'stage-direct', `${sceneId}: observed full-stage choreography regressed`);
+  assert.equal(spec.reference.sourceFps, 30, `${sceneId}: observed source frame rate changed`);
+  assert.equal(spec.reference.evidenceFrames.length, 4, `${sceneId}: four observed source frames required`);
+  assert.equal(spec.reference.goldenFrames.length, 4, `${sceneId}: four golden anchors required`);
+  assert.equal(spec.portraitAdaptation.sourceAspectVerified, true, `${sceneId}: portrait transformation is unverified`);
+}
+assert.deepEqual(
+  SPELL_PIXEL_SEQUENCES.missile.phases.map((entry) => entry.type),
+  ['white-orb-launch', 'crescent-echo-flight', 'orange-blue-target-flicker', 'result-latch', 'decay'],
+  'Missile must not regress to a physical rocket or targeting reticle',
+);
+assert.deepEqual(
+  SPELL_PIXEL_SEQUENCES.flare.phases.map((entry) => entry.type),
+  ['green-caster-aura', 'red-black-orb-field', 'target-gold-ignition', 'white-hot-sphere', 'red-black-afterflash', 'damage-latch', 'decay'],
+  'Flare must preserve the observed SFC palette/orb/sphere progression',
+);
+assert.deepEqual(
+  SPELL_PIXEL_SEQUENCES['level-5-death'].phases.map((entry) => entry.type),
+  ['green-serrated-sweep', 'target-ring-repeat', 'cream-orange-success-bursts', 'status-latch', 'decay'],
+  'Level 5 Death must not regress to the invented red gate and literal five',
+);
 assert.deepEqual(
   SPELL_PIXEL_SEQUENCES.almagest.phases.slice(1, 6).map((entry) => entry.type),
   ['white-flash-one', 'white-flash-two', 'white-blue-flash', 'blue-flash-one', 'blue-flash-two'],

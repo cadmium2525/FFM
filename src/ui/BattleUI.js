@@ -1059,6 +1059,11 @@ export class BattleUI {
       const banishRemoved = results.some((result) => result.type === 'removed');
       const banishBlocked = results.some((result) => result.type === 'blocked');
       const banishOutcome = banishRemoved && banishBlocked ? 'mixed' : banishRemoved ? 'removed' : banishBlocked ? 'blocked' : null;
+      const targetPointByUid = new Map(targetUnits.map((unit) => [unit.uid, pointFor(unit)]).filter(([, point]) => Boolean(point)));
+      const level5SuccessTargets = results
+        .filter((result) => result.type === 'status' && result.statuses?.includes('ko'))
+        .map((result) => targetPointByUid.get(result.targetUid))
+        .filter(Boolean);
       pixelSceneContext = {
         casterX: casterPointRaw.x,
         casterY: casterPointRaw.y,
@@ -1072,6 +1077,7 @@ export class BattleUI {
         odinOutcome,
         banishOutcome,
         chocoboOutcome: action?.chocoboOutcome ?? null,
+        level5SuccessTargets,
         resultTypes: results.map((result) => result.type),
       };
       // direction-player mirrors the complete sequence so its logical

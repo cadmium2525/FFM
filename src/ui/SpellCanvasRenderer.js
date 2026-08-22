@@ -52,6 +52,30 @@ const sequence = (frameCount, impactFrames, phases, options = {}) => Object.free
   phases: Object.freeze(phases),
 });
 
+const referenceLockedOptions = ({ captureId, sourceCitation, mediaHash, frames, mode }) => ({
+  placement: 'centroid',
+  sceneSpace: 'stage',
+  renderMode: 'stage-direct',
+  verification: 'reference-locked',
+  referenceCaptureId: captureId,
+  reference: {
+    sourceCitation,
+    sourceMediaHash: `sha256:evidence-frame-set:${mediaHash}`,
+    captureId,
+    region: 'JP',
+    revision: 'SFC-JP-1992; public gameplay upload',
+    emulatorCore: 'source-upload-provenance-not-disclosed',
+    sourceFps: 30,
+    captureResolution: '640x480',
+    crop: 'full 4:3 gameplay frame inside public upload',
+    evidenceFrames: frames,
+    goldenFrames: frames,
+    reviewer: 'Codex browser frame audit',
+    reviewedAt: '2026-08-22',
+  },
+  portraitAdaptation: { mode, sourceAspectVerified: true },
+});
+
 const SPELL_PIXEL_SEQUENCES = Object.freeze({
   fire: sequence(64, [43], [phase('kindle', 0, 18), phase('rise', 19, 42), phase('impact', 43, 52), phase('decay', 53, 63)]),
   fira: sequence(78, [54], [phase('ring', 0, 22), phase('coil', 23, 53), phase('impact', 54, 66), phase('decay', 67, 77)]),
@@ -78,9 +102,62 @@ const SPELL_PIXEL_SEQUENCES = Object.freeze({
   gravity: sequence(86, [58], [phase('lens', 0, 20), phase('compress', 21, 57), phase('half-crush', 58, 72), phase('decay', 73, 85)]),
   graviga: sequence(104, [70], [phase('black-lens', 0, 25), phase('triple-collapse', 26, 69), phase('three-quarter-crush', 70, 87), phase('decay', 88, 103)]),
   return: sequence(122, [84], [phase('hourglass', 0, 28), phase('rewind', 29, 83), phase('timeline-snap', 84, 101), phase('decay', 102, 121)], { placement: 'centroid', sceneSpace: 'stage' }),
-  missile: sequence(86, [59], [phase('scan', 0, 26), phase('lock', 27, 42), phase('launch', 43, 58), phase('quarter', 59, 72), phase('decay', 73, 85)]),
-  flare: sequence(108, [72], [phase('dust', 0, 26), phase('collapse', 27, 61), phase('whiteout', 62, 82), phase('decay', 83, 107)]),
-  'level-5-death': sequence(112, [76], [phase('level-scan', 0, 29), phase('selection', 30, 52), phase('death-gate', 53, 75), phase('soul-cut', 76, 92), phase('decay', 93, 111)]),
+  missile: sequence(72, [54], [
+    phase('white-orb-launch', 0, 11),
+    phase('crescent-echo-flight', 12, 41),
+    phase('orange-blue-target-flicker', 42, 53),
+    phase('result-latch', 54, 61),
+    phase('decay', 62, 71),
+  ], referenceLockedOptions({
+    captureId: 'yt-P0xgkoSS4fE-missile-50.778-52.084',
+    sourceCitation: 'https://www.youtube.com/watch?v=P0xgkoSS4fE&t=50s',
+    mediaHash: 'd4dd0d6091b48b0f8df1cba29467129181bed8161b181c1157027ff63d5f91ff',
+    mode: 'caster-to-target-4x3-to-portrait',
+    frames: [
+      { role: 'cast', seconds: 50.777721, sha256: '50b5040d7733d6853e82e71c8f987ebca47268e0aab011292dbb9b0e1bb7acfb' },
+      { role: 'development', seconds: 51.197184, sha256: '7ceb6dce2e028036df1fee6ab10ac1788aaedd19c2a45ee33c8085bd3a83cba0' },
+      { role: 'impact', seconds: 51.596979, sha256: 'd88e7946b5638a5523c59183579e5134928bc322b1875116c2ab3fa698697554' },
+      { role: 'decay', seconds: 52.083692, sha256: 'fe4b884843fcc6d2f6c809898487493d9fde6e626eafa96904ae22c493917df4' },
+    ],
+  })),
+  flare: sequence(408, [372], [
+    phase('green-caster-aura', 0, 47),
+    phase('red-black-orb-field', 48, 119),
+    phase('target-gold-ignition', 120, 189),
+    phase('white-hot-sphere', 190, 264),
+    phase('red-black-afterflash', 265, 371),
+    phase('damage-latch', 372, 383),
+    phase('decay', 384, 407),
+  ], referenceLockedOptions({
+    captureId: 'yt-R-1l6OvnCVk-ff5-flare-20.404-27.168',
+    sourceCitation: 'https://www.youtube.com/watch?v=R-1l6OvnCVk&t=20s',
+    mediaHash: '2ad4be66f44b67cff4231f1532298b3846ebd04f06614bbb573792c75408f961',
+    mode: 'full-stage-target-anchored-4x3-to-portrait',
+    frames: [
+      { role: 'cast', seconds: 20.403715, sha256: 'd1d9f729704df8c909fc8b931fd0d1181ec3a1b800846fa02eaf199fd108a67a' },
+      { role: 'development', seconds: 21.535541, sha256: '2807b67d5997093f72ce5555ae411b07d71e46717727ffa39bd0834f14fb4479' },
+      { role: 'impact', seconds: 24.425791, sha256: 'a97b982e222f4a726ff3610a7890796011a3bc49342bcc7af0ae374560bc4b20' },
+      { role: 'decay', seconds: 27.168281, sha256: '4061e41463e6ac223a17feb866739fa356865be38bd06621f7ba53cfc03fd3fd' },
+    ],
+  })),
+  'level-5-death': sequence(180, [126], [
+    phase('green-serrated-sweep', 0, 55),
+    phase('target-ring-repeat', 56, 91),
+    phase('cream-orange-success-bursts', 92, 125),
+    phase('status-latch', 126, 143),
+    phase('decay', 144, 179),
+  ], referenceLockedOptions({
+    captureId: 'yt-uFbq-WKOJHo-level5death-16.174-18.929',
+    sourceCitation: 'https://www.youtube.com/watch?v=uFbq-WKOJHo&t=16s',
+    mediaHash: 'e0fe39414fd4e0ec0b0748063609364e1b42a4769a0f4e29190701a85cfbbec8',
+    mode: 'multi-target-4x3-to-portrait',
+    frames: [
+      { role: 'cast', seconds: 16.173912, sha256: 'bc532cada671ff1bfb75685870708c2b08715a5ba07294b0dc875debbd28acfa' },
+      { role: 'development', seconds: 16.759155, sha256: 'dab903fdcc7f436f566e6886915e34f5c496c5026cab2b9385a6c00891333a19' },
+      { role: 'impact', seconds: 17.842635, sha256: 'f535f11a0b2121ad4829b9ddcd632924c01ce9d34fa30bf1213ce62455209a8b' },
+      { role: 'decay', seconds: 18.928904, sha256: '6e89ac2911460e5d839164dd20e920f71e0df9f05780b0d9aa1b3205ee17f092' },
+    ],
+  })),
   shiva: sequence(126, [87], [phase('seal', 0, 31), phase('curtain', 32, 67), phase('diamond-dust', 68, 101), phase('decay', 102, 125)], { placement: 'centroid', sceneSpace: 'stage' }),
   ifrit: sequence(128, [88], [phase('seal', 0, 30), phase('hellfire', 31, 70), phase('eruption', 71, 103), phase('decay', 104, 127)], { placement: 'centroid', sceneSpace: 'stage' }),
   bahamut: sequence(148, [104], [phase('seal', 0, 34), phase('charge', 35, 77), phase('mega-flare', 78, 119), phase('decay', 120, 147)], { placement: 'centroid', sceneSpace: 'stage' }),
@@ -2425,77 +2502,178 @@ function drawComet(ctx, frame, meteor = false) {
   }
 }
 
-function drawMissile(ctx, frame) {
-  const alpha = fade(frame, 7, 73, 86);
-  const scan = easeOut(segment(frame, 0, 27));
-  ring(ctx, 111, 94, 13 + scan * 30, '#7df6ff', 2, alpha, frame * .03, frame * .03 + Math.PI * 1.7);
-  ring(ctx, 111, 94, 7 + scan * 18, '#fff5b8', 2, alpha);
-  line(ctx, 111, 43, 111, 67, '#fff', 2, alpha * scan); line(ctx, 111, 121, 111, 145, '#fff', 2, alpha * scan);
-  line(ctx, 60, 94, 84, 94, '#fff', 2, alpha * scan); line(ctx, 138, 94, 162, 94, '#fff', 2, alpha * scan);
-  if (frame >= 42 && frame <= 66) {
-    const p = easeInOut(segment(frame, 42, 59));
-    const x = 23 + p * 88; const y = 143 - p * 49;
-    poly(ctx, [[x + 15, y], [x - 4, y - 6], [x - 11, y], [x - 4, y + 6]], '#eafaff', alpha, '#69eaff', 2);
-    for (let i = 1; i <= 4; i += 1) line(ctx, x - 7 - i * 8, y, x - i * 8, y, i % 2 ? '#ffbd55' : '#fff3ad', 3, alpha * (1 - i * .15));
+function pixelDisc(ctx, x, y, radius, color, alpha = 1) {
+  ctx.save(); ctx.globalAlpha = clamp(alpha); ctx.fillStyle = color;
+  const r = Math.max(1, Math.round(radius));
+  for (let row = -r; row <= r; row += 2) {
+    const half = Math.round(Math.sqrt(Math.max(0, r * r - row * row)));
+    ctx.fillRect(Math.round(x - half), Math.round(y + row), Math.max(2, half * 2), 2);
   }
-  if (frame >= 59) {
-    const p = easeOut(segment(frame, 59, 74));
-    burst(ctx, 111, 94, 14 + p * 49, 12, '#f5ffff', alpha, Math.PI / 12);
-    for (let i = 0; i < 4; i += 1) { const a = Math.PI / 4 + i * Math.PI / 2; line(ctx, 111 + Math.cos(a) * 9, 94 + Math.sin(a) * 9, 111 + Math.cos(a) * (28 + p * 24), 94 + Math.sin(a) * (28 + p * 24), '#54dfea', 4, alpha); }
-    if (frame <= 68) {
-      poly(ctx, [[126, 94], [107, 86], [98, 94], [107, 102]], '#f4ffff', alpha, '#55ddea', 2);
-      flame(ctx, 101, 99, 13, 9, '#ffb64e', alpha, -5);
-      ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = '#052c42';
-      ctx.fillRect(84, 74, 21, 14); ctx.fillRect(117, 74, 21, 14); ctx.fillRect(84, 101, 21, 14); ctx.fillRect(117, 101, 21, 14); ctx.restore();
+  ctx.restore();
+}
+
+function stageRolePoint(sceneContext, role, fallback, width, height) {
+  return {
+    x: clamp(Number(sceneContext?.[`${role}X`] ?? fallback.x), 0, 100) / 100 * width,
+    y: clamp(Number(sceneContext?.[`${role}Y`] ?? fallback.y), 0, 100) / 100 * height,
+  };
+}
+
+function stagePointList(sceneContext, key, fallback, width, height) {
+  const supplied = Array.isArray(sceneContext?.[key]) ? sceneContext[key] : [];
+  return (supplied.length ? supplied : fallback).map((point) => ({
+    x: clamp(Number(point.x ?? 50), 0, 100) / 100 * width,
+    y: clamp(Number(point.y ?? 50), 0, 100) / 100 * height,
+  }));
+}
+
+function drawMissile(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const caster = stageRolePoint(sceneContext, 'caster', { x: 24, y: 45 }, width, height);
+  const target = stageRolePoint(sceneContext, 'target', { x: 76, y: 50 }, width, height);
+  const travel = easeInOut(segment(frame, 0, 42));
+  const alpha = Math.min(segment(frame, 0, 5), 1 - segment(frame, 62, 72));
+  const pointAt = (t) => ({ x: caster.x + (target.x - caster.x) * t, y: caster.y + (target.y - caster.y) * t });
+
+  // SFC footage shows a white orb and broken circular echoes, not a rocket or targeting reticle.
+  for (let echo = 4; echo >= 0; echo -= 1) {
+    const t = clamp(travel - echo * .115);
+    if (t <= 0 && echo) continue;
+    const point = pointAt(t);
+    const echoAlpha = alpha * (1 - echo * .16);
+    if (echo === 0) {
+      pixelDisc(ctx, point.x, point.y, 5 + Math.sin(frame * .7) * 1.2, '#ffffff', echoAlpha);
+      pixelDisc(ctx, point.x - 1, point.y + 1, 2, '#fff8c8', echoAlpha);
+    } else {
+      const radius = 5 + echo * 2;
+      ring(ctx, point.x, point.y, radius, echo % 2 ? '#fff8d0' : '#ffffff', 2, echoAlpha, -.8, Math.PI * 1.35);
+      line(ctx, point.x - radius, point.y + 1, point.x - radius + 4, point.y + 3, '#ffffff', 2, echoAlpha);
     }
   }
-}
 
-function drawFlare(ctx, frame) {
-  const alpha = fade(frame, 7, 88, 108);
-  const collapse = 1 - easeInOut(segment(frame, 9, 61));
-  motes(ctx, 24, frame, '#9ee9ff', 'converge', 83 * collapse + 10, alpha);
-  const core = easeOut(segment(frame, 26, 62));
-  ring(ctx, 96, 96, 7 + core * 18, '#80dfff', 3, alpha);
-  ring(ctx, 96, 96, 3 + core * 9, '#fff', 4, alpha);
-  if (frame > 61) {
-    const nova = easeOut(segment(frame, 61, 78));
-    const whiteout = frame >= 67 && frame <= 70 ? .78 : .16 * (1 - segment(frame, 78, 94) * .7);
-    ctx.save(); ctx.globalAlpha = alpha * whiteout; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, LOGICAL_SIZE, LOGICAL_SIZE); ctx.restore();
-    burst(ctx, 96, 96, 20 + nova * 88, 20, '#d9f8ff', alpha, frame * .018);
-    ring(ctx, 96, 96, 10 + nova * 77, '#7fdcff', 5, alpha);
-    ring(ctx, 96, 96, 7 + nova * 54, '#ffffff', 3, alpha);
-    ring(ctx, 96, 96, 5 + nova * 24, '#10143f', 6, alpha);
-    diamond(ctx, 96, 96, 8 + nova * 5, '#ffffff', alpha, '#6fdfff');
+  if (frame >= 42 && frame <= 61) {
+    const flicker = Math.sin((frame - 42) * Math.PI * .5) > 0 ? '#ff9a30' : '#4b78d8';
+    const pulse = Math.sin(segment(frame, 42, 61) * Math.PI);
+    pixelDisc(ctx, target.x, target.y, 7 + pulse * 5, flicker, alpha * (.52 + pulse * .4));
+    ring(ctx, target.x, target.y, 9 + pulse * 11, '#fff4c0', 3, alpha * pulse);
   }
 }
 
-function drawLevel5Death(ctx, frame) {
-  const alpha = fade(frame, 7, 94, 112);
-  const scan = easeOut(segment(frame, 0, 30));
-  for (let i = 0; i < 5; i += 1) {
-    const a = -Math.PI / 2 + i * Math.PI * .4;
-    const r = 28 + scan * 33;
-    diamond(ctx, 96 + Math.cos(a) * r, 96 + Math.sin(a) * r, 5 + (i === 0 ? 2 : 0), i % 2 ? '#7a1c50' : '#db426e', alpha * scan, '#ffb4c8');
+function drawFlare(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const caster = stageRolePoint(sceneContext, 'caster', { x: 76, y: 46 }, width, height);
+  const target = stageRolePoint(sceneContext, 'target', { x: 25, y: 48 }, width, height);
+  const finalFade = 1 - segment(frame, 384, 408);
+
+  if (frame <= 55) {
+    const aura = Math.min(segment(frame, 0, 12), 1 - segment(frame, 42, 55));
+    for (let stroke = 0; stroke < 6; stroke += 1) {
+      const side = stroke % 2 ? 1 : -1;
+      const y = caster.y - 24 + stroke * 9;
+      line(ctx, caster.x + side * 6, y + 7, caster.x + side * (13 + (stroke % 3) * 3), y, stroke % 3 ? '#7cc84a' : '#f8fff0', 3, aura);
+      line(ctx, caster.x + side * (13 + (stroke % 3) * 3), y, caster.x + side * 8, y - 6, '#d8f870', 2, aura);
+    }
   }
-  const select = easeOut(segment(frame, 29, 53));
-  for (let i = 0; i < 5; i += 1) {
-    const a1 = -Math.PI / 2 + i * Math.PI * .4;
-    const a2 = -Math.PI / 2 + ((i + 2) % 5) * Math.PI * .4;
-    line(ctx, 96 + Math.cos(a1) * 61, 96 + Math.sin(a1) * 61, 96 + Math.cos(a2) * 61, 96 + Math.sin(a2) * 61, '#e84874', 2, alpha * select);
+
+  if (frame >= 48 && frame <= 383) {
+    const field = Math.min(segment(frame, 48, 72), 1 - segment(frame, 372, 384));
+    stageFill(ctx, width, height, '#180000', .3 * field);
+    stageFill(ctx, width, height, frame % 36 < 18 ? '#5a0800' : '#300000', .26 * field);
   }
-  if (frame > 52) {
-    const gate = easeOut(segment(frame, 52, 76));
-    poly(ctx, [[44, 149], [55, 49 + (1 - gate) * 70], [96, 25 + (1 - gate) * 90], [137, 49 + (1 - gate) * 70], [148, 149]], 'rgba(28,0,23,.78)', alpha * gate, '#ef557b', 4);
-    ring(ctx, 96, 96, 20 + gate * 46, '#71103e', 5, alpha * gate, 0, Math.PI * 2);
+
+  if (frame >= 48 && frame <= 330) {
+    const fieldAlpha = Math.min(segment(frame, 48, 80), 1 - segment(frame, 310, 340)) * finalFade;
+    for (let mote = 0; mote < 15; mote += 1) {
+      const orbit = frame * (.012 + (mote % 4) * .003) + mote * 2.13;
+      const collapse = Math.max(0, 1 - segment(frame, 120, 220) * .68);
+      const radiusX = width * (.12 + (mote % 5) * .045) * collapse;
+      const radiusY = height * (.08 + (mote % 4) * .035) * collapse;
+      pixelDisc(ctx, target.x + Math.cos(orbit) * radiusX, target.y + Math.sin(orbit * 1.17) * radiusY, 2 + mote % 3, mote % 3 ? '#ff9b28' : '#fff0a0', fieldAlpha * (.5 + (mote % 4) * .1));
+    }
   }
-  if (frame > 75) {
-    const cut = easeOut(segment(frame, 75, 93));
-    for (let i = 0; i < 5; i += 1) line(ctx, 46 + i * 21, 47, 67 + i * 16, 151, i % 2 ? '#ff9ab2' : '#f03062', 4, alpha * cut);
-    ctx.save(); ctx.globalAlpha = alpha * Math.max(.86, cut); ctx.fillStyle = '#14000f'; ctx.fillRect(64, 72, 64, 52); ctx.fillStyle = '#ffb0c2';
-    // A persistent, pixel-readable five is the success/failure gate itself.
-    ctx.fillRect(77, 78, 39, 7); ctx.fillRect(77, 85, 7, 14); ctx.fillRect(77, 98, 36, 7); ctx.fillRect(106, 104, 7, 13); ctx.fillRect(77, 116, 36, 7);
-    ctx.restore();
+
+  if (frame >= 120 && frame <= 205) {
+    const ignition = Math.sin(segment(frame, 120, 205) * Math.PI);
+    pixelDisc(ctx, target.x, target.y, 8 + ignition * 11, '#ffe060', ignition);
+    ring(ctx, target.x, target.y, 13 + ignition * 18, '#ff8a18', 4, ignition);
+  }
+
+  if (frame >= 190 && frame <= 285) {
+    const grow = easeOut(segment(frame, 190, 236));
+    const recede = 1 - easeInOut(segment(frame, 250, 285));
+    const sphere = Math.min(grow, recede);
+    const maxOuterRadius = Math.max(24, Math.min(target.x - 8, width - target.x - 8, target.y - 8, height - target.y - 8));
+    const radius = 8 + sphere * Math.max(8, maxOuterRadius - 15);
+    ring(ctx, target.x, target.y, radius + 7, '#ff7c10', 7, sphere);
+    ring(ctx, target.x, target.y, Math.max(3, radius - 3), '#ffd030', 7, sphere);
+    pixelDisc(ctx, target.x, target.y, Math.max(2, radius - 8), '#ffffff', sphere);
+  }
+
+  if (frame >= 265 && frame <= 371) {
+    const after = Math.min(segment(frame, 265, 286), 1 - segment(frame, 350, 372));
+    const pulse = .32 + .68 * Math.abs(Math.sin((frame - 265) * Math.PI / 18));
+    stageFill(ctx, width, height, frame % 36 < 18 ? '#620900' : '#160000', after * .24 * pulse);
+    ring(ctx, target.x, target.y, 18 + pulse * 27, '#ff9b20', 4, after * pulse);
+    pixelDisc(ctx, target.x, target.y, 4 + pulse * 7, '#fff4b0', after);
+  }
+
+  if (frame >= 372) {
+    const latch = Math.min(segment(frame, 372, 378), 1 - segment(frame, 384, 408));
+    pixelDisc(ctx, target.x, target.y, 9 + latch * 9, '#ffd858', latch);
+    ring(ctx, target.x, target.y, 16 + latch * 16, '#ff8418', 4, latch);
+  }
+}
+
+function drawSerratedOval(ctx, x, y, radiusX, radiusY, color, alpha, offset = 0) {
+  const points = [];
+  for (let index = 0; index < 32; index += 1) {
+    const angle = index / 32 * Math.PI * 2 + offset;
+    const tooth = index % 2 ? 1 : .78;
+    points.push({ x: x + Math.cos(angle) * radiusX * tooth, y: y + Math.sin(angle) * radiusY * tooth });
+  }
+  for (let index = 0; index < points.length; index += 1) {
+    const from = points[index]; const to = points[(index + 1) % points.length];
+    line(ctx, from.x, from.y, to.x, to.y, color, 3, alpha);
+  }
+}
+
+function drawLevel5Death(ctx, frame, sceneContext = {}) {
+  const width = Number(sceneContext.stageWidth ?? STAGE_WIDTH);
+  const height = Number(sceneContext.stageHeight ?? STAGE_HEIGHT);
+  const fallback = [{ x: 76, y: 30 }, { x: 76, y: 44 }, { x: 76, y: 58 }, { x: 76, y: 72 }];
+  const targetFallback = Array.isArray(sceneContext.targets) && sceneContext.targets.length ? sceneContext.targets : fallback;
+  const targets = stagePointList(sceneContext, 'hostileTargets', targetFallback, width, height);
+  const explicitSuccess = Array.isArray(sceneContext.level5SuccessTargets);
+  const successes = explicitSuccess
+    ? stagePointList(sceneContext, 'level5SuccessTargets', [], width, height)
+    : targets;
+  const fadeOut = 1 - segment(frame, 144, 180);
+
+  targets.forEach((target, index) => {
+    const start = index * 8;
+    const sweepIn = Math.max(index === 0 && frame === 0 ? .08 : 0, segment(frame, start, start + 22));
+    const sweep = Math.min(sweepIn, 1 - segment(frame, 144, 180)) * fadeOut;
+    if (sweep <= 0) return;
+    const cycle = Math.floor(Math.max(0, frame - start) / 9);
+    const centerY = target.y + ((cycle % 3) - 1) * 13;
+    drawSerratedOval(ctx, target.x, centerY, 18 + cycle % 2 * 3, 28, '#48b838', sweep, frame * .025);
+    drawSerratedOval(ctx, target.x, centerY, 14 + cycle % 2 * 2, 23, '#f0e840', sweep * .92, -frame * .02);
+    drawSerratedOval(ctx, target.x, centerY, 10, 18, '#f08820', sweep * .8, frame * .018);
+    pixelDisc(ctx, target.x, centerY, 4, '#fff8a0', sweep);
+  });
+
+  if (frame >= 92 && frame <= 159) {
+    const burstAlpha = Math.min(segment(frame, 92, 112), 1 - segment(frame, 140, 160));
+    successes.forEach((target, targetIndex) => {
+      for (let puff = 0; puff < 9; puff += 1) {
+        const angle = puff * Math.PI * 2 / 9 + targetIndex * .41;
+        const distance = 5 + (puff % 3) * 9 + segment(frame, 92, 140) * 12;
+        const color = puff % 3 === 0 ? '#fff8c8' : puff % 3 === 1 ? '#f8d058' : '#e88028';
+        pixelDisc(ctx, target.x + Math.cos(angle) * distance, target.y + Math.sin(angle) * distance * .72, 5 + puff % 3 * 2, color, burstAlpha);
+      }
+    });
   }
 }
 
@@ -2713,9 +2891,9 @@ function renderScene(ctx, sceneId, frame, sceneContext = {}) {
   if (sceneId === 'gravity') return drawGravity(ctx, frame, 1);
   if (sceneId === 'graviga') return drawGravity(ctx, frame, 2);
   if (sceneId === 'return') return drawReturn(ctx, frame);
-  if (sceneId === 'missile') return drawMissile(ctx, frame);
-  if (sceneId === 'flare') return drawFlare(ctx, frame);
-  if (sceneId === 'level-5-death') return drawLevel5Death(ctx, frame);
+  if (sceneId === 'missile') return drawMissile(ctx, frame, sceneContext);
+  if (sceneId === 'flare') return drawFlare(ctx, frame, sceneContext);
+  if (sceneId === 'level-5-death') return drawLevel5Death(ctx, frame, sceneContext);
   if (['shiva', 'ifrit', 'bahamut'].includes(sceneId)) return drawSummon(ctx, frame, sceneId);
   if (sceneId === 'steal') return drawSteal(ctx, frame);
   if (sceneId === 'jump') return drawJump(ctx, frame);

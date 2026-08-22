@@ -40,8 +40,9 @@ const namedAudit = {
   flare: SPELL_ART_BLUEPRINTS.magic_flare,
   level5Death: SPELL_ART_BLUEPRINTS.magic_level_5_death,
 };
-assert.equal(namedAudit.missile.motif, 'target-reticle');
+assert.equal(namedAudit.missile.motif, 'star-core');
 assert.equal(namedAudit.flare.motif, 'star-core');
-assert.equal(namedAudit.level5Death.impact, 'level-five-death');
+assert.equal(namedAudit.level5Death.motif, 'thorn-glyph');
+assert.equal(namedAudit.level5Death.impact, 'serrated-ring-burst');
 
 console.log(JSON.stringify({ spells: ff5Magic.length, structuralSignatures: structuralOwners.size, intentionalSharedOriginalEffects: ff5Magic.length - structuralOwners.size, motifs: motifs.size, motions: motions.size, namedAudit, status: 'ok' }, null, 2));

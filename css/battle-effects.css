@@ -650,6 +650,8 @@
 
 .spell-motif-death-sigil::before,
 .spell-motif-death-claw::before { border-radius: 50%; background: conic-gradient(from 22deg, transparent 0 10%, var(--fx-primary) 11% 14%, transparent 15% 24%); border: 3px double var(--fx-highlight); }
+.spell-motif-thorn-glyph::before { border-radius: 50%; background: repeating-conic-gradient(from 5deg, var(--fx-primary) 0 4deg, transparent 5deg 11deg); border: 3px double var(--fx-highlight); }
+.spell-motif-thorn-glyph > i { border-radius: 50%; background: transparent; border: 4px dashed var(--fx-secondary); }
 .spell-motif-death-sigil > i { clip-path: polygon(50% 0,100% 100%,50% 75%,0 100%); }
 .spell-motif-death-claw > i { clip-path: polygon(0 0,30% 0,55% 70%,70% 0,100% 0,72% 100%,28% 100%); }
 
